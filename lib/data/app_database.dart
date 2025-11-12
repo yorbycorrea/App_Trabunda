@@ -230,4 +230,106 @@ class ReportesDao extends DatabaseAccessor<AppDatabase> with _$ReportesDaoMixin 
 
     return res.length;
   }
+
+  /// Consulta los reportes guardados aplicando filtros básicos.
+  Future<List<ReporteAreaResumen>> fetchReportesFiltrados({
+    DateTime? fechaInicio,
+    DateTime? fechaFin,
+    List<String>? areas,
+    String? turno,
+    String? planilleroQuery,
+  }) async {
+    final sql = StringBuffer('''
+SELECT
+  r.id AS reporte_id,
+  a.id AS reporte_area_id,
+  r.fecha AS fecha,
+  r.turno AS turno,
+  r.planillero AS planillero,
+  a.area_nombre AS area_nombre,
+  a.cantidad AS cantidad,
+  IFNULL(SUM(c.kilos), 0) AS kilos
+FROM reporte_areas a
+INNER JOIN reportes r ON r.id = a.reporte_id
+LEFT JOIN cuadrillas c ON c.reporte_area_id = a.id
+''');
+
+    final where = <String>[];
+    final vars = <Variable>[];
+
+    if (fechaInicio != null) {
+      where.add('r.fecha >= ?');
+      vars.add(Variable.withDateTime(fechaInicio));
+    }
+    if (fechaFin != null) {
+      where.add('r.fecha <= ?');
+      vars.add(Variable.withDateTime(fechaFin));
+    }
+    if (areas != null && areas.isNotEmpty) {
+      final placeholders = List.generate(areas.length, (_) => '?').join(', ');
+      where.add('a.area_nombre IN ($placeholders)');
+      for (final area in areas) {
+        vars.add(Variable.withString(area));
+      }
+    }
+    if (turno != null && turno.isNotEmpty) {
+      where.add('r.turno = ?');
+      vars.add(Variable.withString(turno));
+    }
+    if (planilleroQuery != null && planilleroQuery.isNotEmpty) {
+      where.add('LOWER(r.planillero) LIKE ?');
+      vars.add(Variable.withString('%${planilleroQuery.toLowerCase()}%'));
+    }
+
+    if (where.isNotEmpty) {
+      sql.write('WHERE ${where.join(' AND ')}\n');
+    }
+
+    sql
+      ..write('GROUP BY a.id\n')
+      ..write('ORDER BY r.fecha DESC, r.id DESC, a.area_nombre COLLATE NOCASE ASC');
+
+    final rows = await customSelect(
+      sql.toString(),
+      variables: vars,
+      readsFrom: {reportes, reporteAreas, cuadrillas},
+    ).get();
+
+    return rows
+        .map(
+          (row) => ReporteAreaResumen(
+        reporteId: row.read<int>('reporte_id'),
+        reporteAreaId: row.read<int>('reporte_area_id'),
+        fecha: row.read<DateTime>('fecha'),
+        turno: row.read<String>('turno'),
+        planillero: row.read<String>('planillero'),
+        areaNombre: row.read<String>('area_nombre'),
+        cantidad: row.read<int>('cantidad'),
+        kilos: row.read<double?>('kilos') ?? 0,
+      ),
+    )
+        .toList();
+  }
+}
+
+class ReporteAreaResumen {
+  final int reporteId;
+  final int reporteAreaId;
+  final DateTime fecha;
+  final String turno;
+  final String planillero;
+  final String areaNombre;
+  final int cantidad;
+  final double kilos;
+
+  const ReporteAreaResumen({
+    required this.reporteId,
+    required this.reporteAreaId,
+    required this.fecha,
+    required this.turno,
+    required this.planillero,
+    required this.areaNombre,
+    required this.cantidad,
+    required this.kilos,
+  });
 }

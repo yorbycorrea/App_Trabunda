@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/db.dart';
 
 /// 🔹 Lista referencia de áreas (puedes unificarla con la que ya usas)
 const List<String> kAreasOrdenadas = [
@@ -125,56 +126,62 @@ class _ReportsListPageState extends State<ReportsListPage> {
   Future<void> _fetchReports() async {
     setState(() => _loading = true);
 
-    // TODO: Reemplaza por tu llamada real a backend
-    await Future.delayed(const Duration(milliseconds: 600));
-    final demo = <ReportSummary>[
-      ReportSummary(
-        fecha: DateTime.now(),
-        area: 'Fileteros',
-        turno: 'Día',
-        totalPersonal: 8,
-        kilos: 1234.5,
-        planillero: 'María',
-        id: 'RPT-0001',
-      ),
-      ReportSummary(
-        fecha: DateTime.now().subtract(const Duration(days: 1)),
-        area: 'Congelamiento de iqf',
-        turno: 'Noche',
-        totalPersonal: 6,
-        kilos: 980.0,
-        planillero: 'Pedro',
-        id: 'RPT-0002',
-      ),
-    ];
+    try {
+      DateTime? inicio;
+      DateTime? fin;
+      if (_rango != null) {
+        inicio = DateTime(_rango!.start.year, _rango!.start.month, _rango!.start.day);
+        fin = DateTime(
+          _rango!.end.year,
+          _rango!.end.month,
+          _rango!.end.day,
+          23,
+          59,
+          59,
+          999,
+        );
+      }
 
-    // Filtrado local de demo según filtros
-    Iterable<ReportSummary> data = demo;
-    if (_rango != null) {
-      data = data.where((r) =>
-      !r.fecha.isBefore(_onlyDate(_rango!.start)) &&
-          !r.fecha.isAfter(_onlyDate(_rango!.end)));
-    }
-    if (_areas.isNotEmpty) {
-      data = data.where((r) => _areas.contains(r.area));
-    }
-    if (_turno != 'Todos') {
-      data = data.where((r) => r.turno == _turno);
-    }
-    if (_planilleroCtrl.text.trim().isNotEmpty) {
-      final q = _planilleroCtrl.text.trim().toLowerCase();
-      data = data.where((r) => r.planillero.toLowerCase().contains(q));
-    }
+      final resultados = await db.reportesDao.fetchReportesFiltrados(
+        fechaInicio: inicio,
+        fechaFin: fin,
+        areas: _areas.isEmpty ? null : _areas.toList(),
+        turno: _turno == 'Todos' ? null : _turno,
+        planilleroQuery:
+        _planilleroCtrl.text.trim().isEmpty ? null : _planilleroCtrl.text.trim(),
+      );
 
-    setState(() {
-      _items
-        ..clear()
-        ..addAll(data);
-      _loading = false;
-    });
-  }
+      if (!mounted) return;
 
-  DateTime _onlyDate(DateTime d) => DateTime(d.year, d.month, d.day);
+      setState(() {
+        _items
+          ..clear()
+          ..addAll(
+            resultados.map(
+                  (r) => ReportSummary(
+                reporteId: r.reporteId,
+                reporteAreaId: r.reporteAreaId,
+                fecha: r.fecha,
+                area: r.areaNombre,
+                turno: r.turno,
+                totalPersonal: r.cantidad,
+                kilos: r.kilos,
+                planillero: r.planillero,
+              ),
+            ),
+          );
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudieron cargar los reportes')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    } // 👈 cierra finally
+  } // 👈 cierra _fetchReports
 
   @override
   Widget build(BuildContext context) {
@@ -275,10 +282,12 @@ class _ReportsListPageState extends State<ReportsListPage> {
                           spacing: 8,
                           runSpacing: 8,
                           children: _areas
-                              .map((a) => Chip(
-                            label: Text(a),
-                            onDeleted: () => setState(() => _areas.remove(a)),
-                          ))
+                              .map(
+                                (a) => Chip(
+                              label: Text(a),
+                              onDeleted: () => setState(() => _areas.remove(a)),
+                            ),
+                          )
                               .toList(),
                         ),
                       ),
@@ -321,15 +330,17 @@ class _ReportsListPageState extends State<ReportsListPage> {
             else if (_items.isEmpty)
               _EmptyState(onTapBuscar: _fetchReports) // 👈 ahora existe
             else
-              ..._items.map((r) => _ReportCard(
-                data: r,
-                onTap: () {
-                  // TODO: Navegar a detalle completo del reporte
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Ver detalle: ${r.id}')),
-                  );
-                },
-              )),
+              ..._items.map(
+                    (r) => _ReportCard(
+                  data: r,
+                  onTap: () {
+                    // TODO: Navegar a detalle completo del reporte
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Ver detalle: ${r.formattedId}')),
+                    );
+                  },
+                ),
+              ),
             const SizedBox(height: 24),
           ],
         ),
@@ -341,7 +352,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
 /// ======= MODELOS Y WIDGETS =======
 
 class ReportSummary {
-  final String id;
+  final int reporteId;
+  final int reporteAreaId;
   final DateTime fecha;
   final String area;
   final String turno;
@@ -350,7 +362,8 @@ class ReportSummary {
   final String planillero;
 
   ReportSummary({
-    required this.id,
+    required this.reporteId,
+    required this.reporteAreaId,
     required this.fecha,
     required this.area,
     required this.turno,
@@ -358,6 +371,7 @@ class ReportSummary {
     required this.kilos,
     required this.planillero,
   });
+  String get formattedId => 'RPT-${reporteId.toString().padLeft(4, '0')}';
 }
 
 class _ReportCard extends StatelessWidget {

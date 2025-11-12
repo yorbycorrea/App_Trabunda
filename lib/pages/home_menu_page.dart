@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../services/auth_service.dart';
+
 class HomeMenuPage extends StatelessWidget {
   const HomeMenuPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final auth = AuthScope.watch(context);
+    final user = auth.currentUser;
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -71,6 +74,31 @@ class HomeMenuPage extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
+                    if (user != null) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Hola, ${user.name}',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Chip(
+                          label: Text(
+                            user.isAdmin ? 'Administrador' : 'Planillero',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          avatar: const Icon(Icons.badge_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                     _OptionCard(
                       icon: Icons.analytics_outlined,
                       title: 'Ver reportes',
@@ -92,7 +120,12 @@ class HomeMenuPage extends StatelessWidget {
                     const Spacer(),
                     TextButton.icon(
                       onPressed: () {
-                        Navigator.pushReplacementNamed(context, '/login');
+                        AuthScope.read(context).logout();
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/login',
+                              (_) => false,
+                        );
                       },
                       icon: const Icon(Icons.logout, color: Colors.grey),
                       label: const Text(

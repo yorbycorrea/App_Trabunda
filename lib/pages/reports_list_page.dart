@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/db.dart';
+import '../services/auth_service.dart';
 
 /// 🔹 Lista referencia de áreas (puedes unificarla con la que ya usas)
 const List<String> kAreasOrdenadas = [
@@ -76,11 +77,33 @@ class _ReportsListPageState extends State<ReportsListPage> {
   // Resultados
   final List<ReportSummary> _items = [];
   bool _loading = false;
+  bool _syncedPlanillero = false;
+  bool _autoFetchedForPlanillero = false;
 
   @override
   void dispose() {
     _planilleroCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_syncedPlanillero) return;
+    final auth = AuthScope.read(context);
+    final user = auth.currentUser;
+    if (user != null && user.isPlanillero) {
+      _planilleroCtrl.text = user.name;
+      if (!_autoFetchedForPlanillero) {
+        _autoFetchedForPlanillero = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _fetchReports();
+          }
+        });
+      }
+    }
+    _syncedPlanillero = true;
   }
 
   String _fmtDate(DateTime d) =>
@@ -123,12 +146,25 @@ class _ReportsListPageState extends State<ReportsListPage> {
       _rango = null;
       _areas.clear();
       _turno = 'Todos';
-      _planilleroCtrl.clear();
+      final auth = AuthScope.read(context);
+      final user = auth.currentUser;
+      if (user != null && user.isPlanillero) {
+        _planilleroCtrl.text = user.name;
+      } else {
+        _planilleroCtrl.clear();
+      }
       _items.clear();
     });
   }
 
   Future<void> _fetchReports() async {
+    final auth = AuthScope.read(context);
+    final user = auth.currentUser;
+    final bool isPlanillero = user?.isPlanillero ?? false;
+    final String planilleroFilter = isPlanillero
+        ? user!.name
+        : _planilleroCtrl.text.trim();
+
     setState(() => _loading = true);
 
     try {
@@ -153,16 +189,25 @@ class _ReportsListPageState extends State<ReportsListPage> {
         areas: _areas.isEmpty ? null : _areas.toList(),
         turno: _turno == 'Todos' ? null : _turno,
         planilleroQuery:
-        _planilleroCtrl.text.trim().isEmpty ? null : _planilleroCtrl.text.trim(),
+        planilleroFilter.isEmpty ? null : planilleroFilter,
       );
 
       if (!mounted) return;
+
+      final filtered = isPlanillero
+          ? resultados
+          .where(
+            (r) =>
+        r.planillero.toLowerCase() == planilleroFilter.toLowerCase(),
+      )
+          .toList()
+          : resultados;
 
       setState(() {
         _items
           ..clear()
           ..addAll(
-            resultados.map(
+            filtered.map(
                   (r) => ReportSummary(
                 reporteId: r.reporteId,
                 reporteAreaId: r.reporteAreaId,
@@ -193,6 +238,10 @@ class _ReportsListPageState extends State<ReportsListPage> {
     const primaryColor = _kPrimaryColor;
     const backgroundColor = _kBackgroundColor;
     const surfaceColor = _kSurfaceColor;
+    final auth = AuthScope.watch(context);
+    final user = auth.currentUser;
+    final bool isPlanillero = user?.isPlanillero ?? false;
+    final bool isAdmin = user?.isAdmin ?? false;
 
     final totalAreas = _items.map((e) => e.area).toSet().length;
     final totalPersonal = _items.fold<int>(0, (acc, e) => acc + e.totalPersonal);
@@ -262,11 +311,10 @@ class _ReportsListPageState extends State<ReportsListPage> {
                         ? 'Buscar planillero'
                         : _planilleroCtrl.text.trim(),
                     icon: Icons.badge_outlined,
-                    background:
-                    _planilleroCtrl.text.trim().isEmpty ? null : primaryColor,
-                    foreground:
-                    _planilleroCtrl.text.trim().isEmpty ? null : Colors.white,
-                    onTap: () async {
+                    background: _planilleroCtrl.text.trim().isEmpty ? null : primaryColor,
+                    foreground: _planilleroCtrl.text.trim().isEmpty ? null : Colors.white,
+                    onTap: isAdmin
+                        ? () async {
                       await showDialog<void>(
                         context: context,
                         builder: (ctx) {
@@ -277,8 +325,21 @@ class _ReportsListPageState extends State<ReportsListPage> {
                         },
                       );
                       if (mounted) setState(() {});
-                    },
+                    }
+                        : null,
+                    enabled: isAdmin,
                   ),
+                  if (isPlanillero)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Se mostrarán únicamente los reportes asociados a tu sesión.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF5E6A66),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 12),
                   _FilterTile(
                     label: 'Áreas',
@@ -558,9 +619,10 @@ class _FilterTile extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Color? background;
   final Color? foreground;
+  final bool enabled;
   const _FilterTile({
     required this.label,
     required this.value,
@@ -568,10 +630,12 @@ class _FilterTile extends StatelessWidget {
     required this.onTap,
     this.background,
     this.foreground,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool clickable = enabled && onTap != null;
     final bool highlighted = background != null;
     final Color effectiveBackground = background ?? Colors.white;
     final Color effectiveForeground =
@@ -581,24 +645,29 @@ class _FilterTile extends StatelessWidget {
         value.toLowerCase().contains('buscar');
     final Color labelColor = highlighted
         ? (foreground ?? Colors.white).withOpacity(0.8)
-        : const Color(0xFF7A807D);
+        : (clickable ? const Color(0xFF7A807D) : const Color(0xFF9BA29F));
     final Color valueColor = highlighted
         ? (foreground ?? Colors.white)
         : isHint
         ? const Color(0xFF9BA29F)
-        : effectiveForeground;
+        : (clickable ? effectiveForeground : const Color(0xFF5F6662));
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: clickable ? onTap : null,
         borderRadius: BorderRadius.circular(18),
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: effectiveBackground,
             borderRadius: BorderRadius.circular(18),
-            border: highlighted ? null : Border.all(color: const Color(0xFFE1E5E3)),
+            border: highlighted
+                ? null
+                : Border.all(
+              color:
+              clickable ? const Color(0xFFE1E5E3) : const Color(0xFFD5DAD7),
+            ),
             boxShadow: highlighted
                 ? [
               BoxShadow(
@@ -607,13 +676,15 @@ class _FilterTile extends StatelessWidget {
                 offset: const Offset(0, 8),
               ),
             ]
-                : const [
+                : clickable
+                ? const [
               BoxShadow(
                 color: Color(0x0F000000),
                 blurRadius: 10,
                 offset: Offset(0, 6),
               ),
-            ],
+            ]
+                : null,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -632,7 +703,11 @@ class _FilterTile extends StatelessWidget {
                   Icon(
                     icon,
                     size: 18,
-                    color: highlighted ? (foreground ?? Colors.white) : const Color(0xFF0E4B3B),
+                    color: highlighted
+                        ? (foreground ?? Colors.white)
+                        : (clickable
+                        ? const Color(0xFF0E4B3B)
+                        : const Color(0xFF7D8A85)),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -812,20 +887,16 @@ class _AreasPickerSheetState extends State<_AreasPickerSheet> {
       child: Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-          left: 16,
-          right: 16,
-          top: 12,
+          left: 16, right: 16, top: 12,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36,
-              height: 4,
+              width: 36, height: 4,
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(4),
+                color: Colors.black26, borderRadius: BorderRadius.circular(4),
               ),
             ),
             const Align(
@@ -922,10 +993,8 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 12),
             const Text('Sin resultados', style: TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            const Text(
-              'Ajusta los filtros y vuelve a intentarlo.',
-              style: TextStyle(color: Colors.black54),
-            ),
+            const Text('Ajusta los filtros y vuelve a intentarlo.',
+                style: TextStyle(color: Colors.black54)),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onTapBuscar,

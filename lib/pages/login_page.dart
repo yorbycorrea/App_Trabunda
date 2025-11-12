@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../qr_scanner.dart';
+import '../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -23,24 +23,29 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _fakeLogin() async {
-    // Solo para mostrar estados UI. Luego lo cambiarás por tu backend real.
-    setState(() { _bannerError = null; _loading = true; });
-    await Future.delayed(const Duration(seconds: 1));
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    FocusScope.of(context).unfocus();
+    final auth = AuthScope.read(context);
+
+    setState(() {
+      _bannerError = null;
+      _loading = true;
+    });
+
+    final success = await auth.login(_email.text, _pass.text);
+
     if (!mounted) return;
-    setState(() => _loading = false);
 
-    if (_email.text.trim().isEmpty || _pass.text.isEmpty) {
-      setState(() => _bannerError = 'Completa email y contraseña.');
-      return;
-    }
-
-    // Aquí SOLO navega (cuando integres backend decides si pasar o no).
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login UI OK (sin backend)')),
-      );
-      // Ejemplo: Navigator.pushReplacementNamed(context, '/scanner');
+    if (success) {
+      setState(() => _loading = false);
+      Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+    } else {
+      setState(() {
+        _loading = false;
+        _bannerError = 'Credenciales incorrectas. Verifica tu correo y contraseña.';
+      });
     }
   }
 
@@ -148,15 +153,7 @@ class _LoginPageState extends State<LoginPage> {
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
-                              onPressed: _loading
-                                  ? null
-                                  : () {
-                                if (_formKey.currentState!.validate()) {
-                                  Navigator.pushReplacementNamed(context, '/home');
-
-
-                                }
-                              },
+                              onPressed: _loading ? null : _submit,
                               child: _loading
                                   ? const SizedBox(
                                 height: 20, width: 20,

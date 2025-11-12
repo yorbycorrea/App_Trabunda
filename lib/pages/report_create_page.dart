@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'area_detalle_page.dart';
 import '../data/db.dart';
+import '../services/auth_service.dart';
 
 // ===========================================================
 //  Crear Reporte
@@ -80,6 +81,20 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       a.cantidadCtrl.dispose();
     }
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final inicial = widget.planilleroInicial;
+    if (inicial != null && inicial.isNotEmpty) {
+      _planilleroCtrl.text = inicial;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _ensureDraft();
+        }
+      });
+    }
   }
 
   int get _totalPersonal =>
@@ -212,10 +227,11 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
 
 
 
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final user = AuthScope.watch(context).currentUser;
+    final isAdmin = user?.isAdmin ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ingresar información')),
@@ -277,12 +293,19 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: _planilleroCtrl,
+                      readOnly: !isAdmin,
+                      enabled: isAdmin || _planilleroCtrl.text.isNotEmpty,
                       decoration: const InputDecoration(
                         labelText: 'Planillero',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.badge_outlined),
+                      ).copyWith(
+                        suffixIcon:
+                        isAdmin ? null : const Icon(Icons.lock_outline, size: 18),
+                        helperText:
+                        isAdmin ? null : 'Asignado automáticamente por tu sesión',
                       ),
-                      onChanged: (_) => _ensureDraft(), // 👈 crea/obtiene borrador
+                      onChanged: isAdmin ? (_) => _ensureDraft() : null,
                     ),
                   ],
                 ),
@@ -520,4 +543,3 @@ class _AreaRowTile extends StatelessWidget {
     );
   }
 }
-

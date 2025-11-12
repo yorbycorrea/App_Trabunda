@@ -3,30 +3,58 @@ import 'pages/home_menu_page.dart';
 import 'pages/reports_list_page.dart';
 import 'pages/report_create_page.dart';
 import 'pages/login_page.dart';
+import 'services/auth_service.dart';
 
 void main() {
-  runApp(const TrabundaApp());
+  runApp(TrabundaApp(authService: AuthService()));
 }
 
 class TrabundaApp extends StatelessWidget {
-  const TrabundaApp({super.key});
+  final AuthService authService;
+
+  const TrabundaApp({
+    super.key,
+    required this.authService,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'TRABUNDA',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF0A7CFF),
+    return AuthScope(
+      service: authService,
+      child: AnimatedBuilder(
+        animation: authService,
+        builder: (context, _) {
+          return MaterialApp(
+            title: 'TRABUNDA',
+            theme: ThemeData(
+              useMaterial3: true,
+              colorSchemeSeed: const Color(0xFF0A7CFF),
+            ),
+            debugShowCheckedModeBanner: false,
+            initialRoute: authService.currentUser == null ? '/login' : '/home',
+            onGenerateRoute: (settings) {
+              switch (settings.name) {
+                case '/login':
+                  return MaterialPageRoute(builder: (_) => const LoginPage());
+                case '/home':
+                  return MaterialPageRoute(builder: (_) => const HomeMenuPage());
+                case '/reports/list':
+                  return MaterialPageRoute(
+                    builder: (_) => const ReportsListPage(),
+                  );
+                case '/reports/create':
+                  return MaterialPageRoute(
+                    builder: (_) => ReportCreatePage(
+                      planilleroInicial: authService.currentUser?.name,
+                    ),
+                  );
+                default:
+                  return MaterialPageRoute(builder: (_) => const LoginPage());
+              }
+            },
+          );
+        },
       ),
-      debugShowCheckedModeBanner: false,
-      initialRoute: '/login',            // 👈 comienza en Login
-      routes: {
-        '/login': (_) => const LoginPage(),
-        '/home': (_) => const HomeMenuPage(),
-        '/reports/list': (_) => const ReportsListPage(),
-        '/reports/create': (_) => const ReportCreatePage(),
-      },
     );
   }
 }

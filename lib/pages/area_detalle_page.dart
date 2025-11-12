@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'cuadrilla_config_page.dart';
 import '../data/db.dart';
 import '../data/app_database.dart';
@@ -195,6 +196,9 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
 
   // ===== Guardar y volver (pop seguro) =====
   Future<void> _guardarYVolver() async {
+    if (_cerrando) return; // evita doble ejecución
+    _cerrando = true;
+
     FocusScope.of(context).unfocus();
 
     final result = _resultadoParaVolver();
@@ -210,15 +214,19 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
 
     if (!mounted) return;
 
-    // Desencadenar el pop en el siguiente frame evita _debugLocked
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    void cerrar() {
       if (!mounted) return;
-      // usa maybePop para cubrir navegadores anidados
       Navigator.of(context).maybePop(result);
-    });
+    }
+
+    // Ejecuta el pop fuera del frame actual para evitar `_debugLocked` cuando
+    // proviene de `onWillPop`.
+    if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      cerrar();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => cerrar());
+    }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -227,11 +235,13 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     return WillPopScope(
       // Captura back nativo (gesto/flecha Android) y usa nuestro cierre seguro
       onWillPop: () async {
-      if (Navigator.of(context).canPop()) {
-        await _guardarYVolver();
-        return false; // ya hicimos pop manual
-      }
-      return true;},
+        if (_cerrando) return true;
+        if (Navigator.of(context).canPop()) {
+          await _guardarYVolver();
+          return false; // ya hicimos pop manual
+        }
+        return true;
+      },
       child: Scaffold(
         appBar: AppBar(
           title: Text('${widget.areaName} • Detalle'),
@@ -391,11 +401,9 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                           Expanded(flex: 6, child: Text('Cuadrilla')),
                           Expanded(
                               flex: 3,
-                              child:
-                              Text('Integrantes', textAlign: TextAlign.center)),
+                              child: Text('Integrantes', textAlign: TextAlign.center)),
                           Expanded(
-                              flex: 3,
-                              child: Text('Kilos', textAlign: TextAlign.center)),
+                              flex: 3, child: Text('Kilos', textAlign: TextAlign.center)),
                           SizedBox(width: 44), // editar
                           SizedBox(width: 44), // borrar
                         ],
@@ -543,8 +551,8 @@ class _HoraTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(value,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600)),
+                      style:
+                      const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
                 Icon(icon, size: 18, color: Colors.black45),
               ],

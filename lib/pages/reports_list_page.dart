@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../data/db.dart';
 
 /// 🔹 Lista referencia de áreas (puedes unificarla con la que ya usas)
@@ -53,6 +54,10 @@ const List<String> kAreasOrdenadas = [
   'Jefe de turno',
   'Supervisores',
 ];
+
+const Color _kPrimaryColor = Color(0xFF0E4B3B);
+const Color _kBackgroundColor = Color(0xFFF4F6F5);
+const Color _kSurfaceColor = Colors.white;
 
 class ReportsListPage extends StatefulWidget {
   const ReportsListPage({super.key});
@@ -185,141 +190,186 @@ class _ReportsListPageState extends State<ReportsListPage> {
 
   @override
   Widget build(BuildContext context) {
+    const primaryColor = _kPrimaryColor;
+    const backgroundColor = _kBackgroundColor;
+    const surfaceColor = _kSurfaceColor;
+
+    final totalAreas = _items.map((e) => e.area).toSet().length;
+    final totalPersonal = _items.fold<int>(0, (acc, e) => acc + e.totalPersonal);
+    final totalKilos = _items.fold<double>(0, (acc, e) => acc + e.kilos);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Ver reportes')),
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        title: const Text('Ver reportes'),
+        backgroundColor: backgroundColor,
+        foregroundColor: primaryColor,
+        elevation: 0,
+        centerTitle: false,
+      ),
       body: RefreshIndicator(
         onRefresh: _fetchReports,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           children: [
             // Filtros
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // Rango + Turno
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 6,
-                          child: _FilterTile(
-                            label: 'Rango de fechas',
-                            value: _rango == null
-                                ? 'Selecciona'
-                                : '${_fmtDate(_rango!.start)}  —  ${_fmtDate(_rango!.end)}',
-                            icon: Icons.date_range, // 👈 reemplazo de event_range
-                            onTap: _pickRango,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 4,
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              labelText: 'Turno',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.schedule_rounded),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                isExpanded: true,
-                                value: _turno,
-                                items: const [
-                                  DropdownMenuItem(value: 'Todos', child: Text('Todos')),
-                                  DropdownMenuItem(value: 'Día', child: Text('Día')),
-                                  DropdownMenuItem(value: 'Noche', child: Text('Noche')),
-                                ],
-                                onChanged: (v) => setState(() => _turno = v ?? 'Todos'),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Áreas + Planillero
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 6,
-                          child: _FilterTile(
-                            label: 'Áreas',
-                            value: _areas.isEmpty
-                                ? 'Todas'
-                                : _areas.length == 1
-                                ? _areas.first
-                                : '${_areas.length} seleccionadas',
-                            icon: Icons.segment_rounded,
-                            onTap: _openAreasSheet,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 4,
-                          child: TextField(
-                            controller: _planilleroCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Planillero',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.badge_outlined),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Chips de áreas seleccionadas
-                    if (_areas.isNotEmpty)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _areas
-                              .map(
-                                (a) => Chip(
-                              label: Text(a),
-                              onDeleted: () => setState(() => _areas.remove(a)),
-                            ),
-                          )
-                              .toList(),
+            Container(
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFE1E5E3)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    blurRadius: 12,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _FilterTile(
+                          label: 'Rango de fechas',
+                          value: _rango == null
+                              ? 'Selecciona'
+                              : '${_fmtDate(_rango!.start)}  —  ${_fmtDate(_rango!.end)}',
+                          icon: Icons.calendar_month_rounded,
+                          background: primaryColor,
+                          foreground: Colors.white,
+                          onTap: _pickRango,
                         ),
                       ),
-
-                    const SizedBox(height: 12),
-
-                    // Botones
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _limpiar,
-                            icon: const Icon(Icons.refresh_rounded),
-                            label: const Text('Limpiar'),
-                          ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 140,
+                        child: _TurnoPill(
+                          value: _turno,
+                          color: primaryColor,
+                          onChanged: (v) => setState(() => _turno = v),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _fetchReports,
-                            icon: const Icon(Icons.search_rounded),
-                            label: const Text('Buscar'),
-                          ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _FilterTile(
+                    label: 'Planillero',
+                    value: _planilleroCtrl.text.trim().isEmpty
+                        ? 'Buscar planillero'
+                        : _planilleroCtrl.text.trim(),
+                    icon: Icons.badge_outlined,
+                    background:
+                    _planilleroCtrl.text.trim().isEmpty ? null : primaryColor,
+                    foreground:
+                    _planilleroCtrl.text.trim().isEmpty ? null : Colors.white,
+                    onTap: () async {
+                      await showDialog<void>(
+                        context: context,
+                        builder: (ctx) {
+                          return _PlanilleroDialog(
+                            controller: _planilleroCtrl,
+                            primaryColor: primaryColor,
+                          );
+                        },
+                      );
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _FilterTile(
+                    label: 'Áreas',
+                    value: _areas.isEmpty
+                        ? 'Todas las áreas'
+                        : _areas.length == 1
+                        ? _areas.first
+                        : '${_areas.length} seleccionadas',
+                    icon: Icons.segment_rounded,
+                    background: _areas.isEmpty ? null : primaryColor,
+                    foreground: _areas.isEmpty ? null : Colors.white,
+                    onTap: _openAreasSheet,
+                  ),
+                  if (_areas.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _areas
+                          .map(
+                            (a) => Chip(
+                          label: Text(a),
+                          deleteIconColor: primaryColor,
+                          onDeleted: () => setState(() => _areas.remove(a)),
                         ),
-                      ],
+                      )
+                          .toList(),
                     ),
                   ],
-                ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryColor,
+                            side: BorderSide(color: primaryColor),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          onPressed: _limpiar,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Limpiar'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          onPressed: _fetchReports,
+                          icon: const Icon(Icons.search_rounded),
+                          label: const Text('Buscar'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
 
-            const SizedBox(height: 12),
+            if (_items.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: surfaceColor,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE1E5E3)),
+                ),
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total áreas: $totalAreas',
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Personal total: $totalPersonal'),
+                    const SizedBox(height: 4),
+                    Text('Kilos totales: ${totalKilos.toStringAsFixed(3)}'),
+                  ],
+                ),
+              ),
+            ] else
+              const SizedBox(height: 16),
 
             // Resultados
             if (_loading)
@@ -328,20 +378,20 @@ class _ReportsListPageState extends State<ReportsListPage> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_items.isEmpty)
-              _EmptyState(onTapBuscar: _fetchReports) // 👈 ahora existe
+              _EmptyState(onTapBuscar: _fetchReports)
             else
               ..._items.map(
                     (r) => _ReportCard(
                   data: r,
+                  primaryColor: primaryColor,
                   onTap: () {
-                    // TODO: Navegar a detalle completo del reporte
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Ver detalle: ${r.formattedId}')),
                     );
                   },
                 ),
               ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -376,67 +426,64 @@ class ReportSummary {
 
 class _ReportCard extends StatelessWidget {
   final ReportSummary data;
+  final Color primaryColor;
   final VoidCallback onTap;
-  const _ReportCard({required this.data, required this.onTap});
+  const _ReportCard({
+    required this.data,
+    required this.primaryColor,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     String fmt(DateTime d) =>
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE1E5E3)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 10,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(22),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Cabecera
               Row(
                 children: [
                   Expanded(
                     child: Text(
                       data.area,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: cs.primaryContainer,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      data.turno,
-                      style: TextStyle(
-                        color: cs.onPrimaryContainer,
+                      style: const TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(Icons.event, size: 16, color: Colors.black54),
-                  const SizedBox(width: 6),
-                  Text(fmt(data.fecha)),
-                  const Spacer(),
-                  const Icon(Icons.badge_outlined, size: 16, color: Colors.black54),
-                  const SizedBox(width: 6),
-                  Flexible(
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     child: Text(
-                      data.planillero,
-                      overflow: TextOverflow.ellipsis,
+                      data.turno,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -444,16 +491,38 @@ class _ReportCard extends StatelessWidget {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  _pill(icon: Icons.group_outlined, label: 'Personal', value: '${data.totalPersonal}'),
-                  const SizedBox(width: 8),
-                  _pill(icon: Icons.scale_outlined, label: 'Kilos', value: data.kilos.toStringAsFixed(2)),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: onTap,
-                    icon: const Icon(Icons.open_in_new_rounded),
-                    label: const Text('Ver detalle'),
-                  ),
+                  const Icon(Icons.calendar_month_rounded, size: 18, color: Colors.black54),
+                  const SizedBox(width: 6),
+                  Text(fmt(data.fecha)),
                 ],
+              ),
+              const SizedBox(height: 12),
+              _InfoRow(
+                icon: Icons.person_outline,
+                text: data.planillero.isEmpty ? 'Sin planillero' : data.planillero,
+              ),
+              const SizedBox(height: 8),
+              _InfoRow(
+                icon: Icons.groups_rounded,
+                text: '${data.totalPersonal} personas',
+              ),
+              const SizedBox(height: 8),
+              _InfoRow(
+                icon: Icons.scale_rounded,
+                text: '${data.kilos.toStringAsFixed(3)} kg',
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryColor,
+                    side: BorderSide(color: primaryColor),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: onTap,
+                  child: const Text('Ver detalle'),
+                ),
               ),
             ],
           ),
@@ -461,22 +530,26 @@ class _ReportCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _pill({required IconData icon, required String label, required String value}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 6),
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
-          Text(value),
-        ],
-      ),
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _InfoRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.black54),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -486,50 +559,217 @@ class _FilterTile extends StatelessWidget {
   final String value;
   final IconData icon;
   final VoidCallback onTap;
+  final Color? background;
+  final Color? foreground;
   const _FilterTile({
     required this.label,
     required this.value,
     required this.icon,
     required this.onTap,
+    this.background,
+    this.foreground,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2))],
-          border: Border.all(color: Colors.black12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    value,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
+    final bool highlighted = background != null;
+    final Color effectiveBackground = background ?? Colors.white;
+    final Color effectiveForeground =
+        foreground ?? (highlighted ? Colors.white : const Color(0xFF0E1F18));
+    final bool isHint = value.trim().isEmpty ||
+        value.toLowerCase().contains('selecciona') ||
+        value.toLowerCase().contains('buscar');
+    final Color labelColor = highlighted
+        ? (foreground ?? Colors.white).withOpacity(0.8)
+        : const Color(0xFF7A807D);
+    final Color valueColor = highlighted
+        ? (foreground ?? Colors.white)
+        : isHint
+        ? const Color(0xFF9BA29F)
+        : effectiveForeground;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: effectiveBackground,
+            borderRadius: BorderRadius.circular(18),
+            border: highlighted ? null : Border.all(color: const Color(0xFFE1E5E3)),
+            boxShadow: highlighted
+                ? [
+              BoxShadow(
+                color: background!.withOpacity(0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ]
+                : const [
+              BoxShadow(
+                color: Color(0x0F000000),
+                blurRadius: 10,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: labelColor,
+                  fontWeight: FontWeight.w600,
                 ),
-                Icon(icon, size: 18, color: Colors.black45),
-              ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 18,
+                    color: highlighted ? (foreground ?? Colors.white) : const Color(0xFF0E4B3B),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      value,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: valueColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TurnoPill extends StatelessWidget {
+  final String value;
+  final Color color;
+  final ValueChanged<String> onChanged;
+  const _TurnoPill({
+    required this.value,
+    required this.color,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      initialValue: value,
+      onSelected: onChanged,
+      padding: EdgeInsets.zero,
+      itemBuilder: (ctx) => const [
+        PopupMenuItem(value: 'Todos', child: Text('Todos')),
+        PopupMenuItem(value: 'Día', child: Text('Día')),
+        PopupMenuItem(value: 'Noche', child: Text('Noche')),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
             ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
           ],
         ),
       ),
     );
+  }
+}
+
+class _PlanilleroDialog extends StatefulWidget {
+  final TextEditingController controller;
+  final Color primaryColor;
+  const _PlanilleroDialog({
+    required this.controller,
+    required this.primaryColor,
+  });
+
+  @override
+  State<_PlanilleroDialog> createState() => _PlanilleroDialogState();
+}
+
+class _PlanilleroDialogState extends State<_PlanilleroDialog> {
+  late final TextEditingController _tmpController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tmpController = TextEditingController(text: widget.controller.text);
+  }
+
+  @override
+  void dispose() {
+    _tmpController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('Buscar planillero'),
+      content: TextField(
+        controller: _tmpController,
+        decoration: const InputDecoration(
+          hintText: 'Nombre del planillero',
+          prefixIcon: Icon(Icons.search_rounded),
+        ),
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: widget.primaryColor),
+          onPressed: _submit,
+          child: const Text('Aplicar'),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    widget.controller.text = _tmpController.text;
+    Navigator.pop(context);
   }
 }
 
@@ -572,16 +812,20 @@ class _AreasPickerSheetState extends State<_AreasPickerSheet> {
       child: Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-          left: 16, right: 16, top: 12,
+          left: 16,
+          right: 16,
+          top: 12,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: Colors.black26, borderRadius: BorderRadius.circular(4),
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(4),
               ),
             ),
             const Align(
@@ -678,8 +922,10 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 12),
             const Text('Sin resultados', style: TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            const Text('Ajusta los filtros y vuelve a intentarlo.',
-                style: TextStyle(color: Colors.black54)),
+            const Text(
+              'Ajusta los filtros y vuelve a intentarlo.',
+              style: TextStyle(color: Colors.black54),
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onTapBuscar,

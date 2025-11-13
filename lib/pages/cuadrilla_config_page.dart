@@ -63,12 +63,21 @@ class _CuadrillaConfigPageState extends State<CuadrillaConfigPage> {
 
   Future<void> _scanQR(int index) async {
     // Abre tu escáner. Debe retornar algo como {'code':'ABC123', 'name':'Juan Perez'} o String.
-    final result = await Navigator.pushNamed(context, '/scanner');
+    final result = await Navigator.pushNamed(
+      context,
+      '/scanner',
+      arguments: const {'pickOnly': true},
+    );
     if (!mounted) return;
 
     if (result is Map) {
       final code = (result['code'] ?? '').toString();
-      final name = (result['name'] ?? '').toString();
+      final data = result['data'];
+      String name = (result['name'] ?? '').toString();
+      if (name.isEmpty && data is Map) {
+        final alt = data['name'] ?? data['nombre'];
+        if (alt != null) name = alt.toString();
+      }
       setState(() {
         _integrantes[index].codeCtrl.text = code;
         if (name.isNotEmpty) _integrantes[index].nameCtrl.text = name;

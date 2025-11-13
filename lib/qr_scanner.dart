@@ -4,6 +4,9 @@ import 'result_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:device_info_plus/device_info_plus.dart';
+import 'services/worker_directory.dart';
+import 'theme/app_colors.dart';
+
 
 Future<String> getDeviceId() async {
   try {
@@ -45,7 +48,7 @@ class AttendanceApi {
   }
 }
 
-const bgColor = Color(0xfffafafa);
+
 
 class QrScanner extends StatefulWidget {
   final bool pickOnly; // ← NUEVO
@@ -59,6 +62,7 @@ class QRScannerState extends State<QrScanner> {
   bool isScannCompleted = false;
   bool isFlashOn = false;
   bool isFrontCamera = false;
+  bool _isProcessing = false;
 
   // ✅ Usa un solo controller para todo
   final MobileScannerController controller = MobileScannerController(
@@ -67,8 +71,80 @@ class QRScannerState extends State<QrScanner> {
     torchEnabled: false,
   );
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.pickOnly) {
+      WorkerDirectory.preload();
+    }
+  }
+
   void closeScreen() {
-    isScannCompleted = false;
+    if (!mounted) return;
+    setState(() {
+      isScannCompleted = false;
+      _isProcessing = false;
+    });
+  }
+
+  Future<void> _handleDetection(List<Barcode> barcodes) async {
+    if (barcodes.isEmpty || _isProcessing) return;
+
+    final rawValue = barcodes.first.rawValue?.trim();
+    if (rawValue == null || rawValue.isEmpty) {
+      return;
+    }
+
+    setState(() => isScannCompleted = true);
+    _isProcessing = true;
+
+    final worker = await WorkerDirectory.findByCode(rawValue);
+
+    if (!mounted) return;
+
+    if (widget.pickOnly) {
+      Navigator.pop(context, {
+        'code': rawValue,
+        if (worker != null && worker.name.isNotEmpty) 'name': worker.name,
+        'found': worker != null,
+        if (worker != null) 'data': worker.raw,
+      });
+      return;
+    }
+
+    bool sent = true;
+    try {
+      final deviceId = await getDeviceId();
+      sent = await AttendanceApi.send(
+        employeeId: rawValue,
+        deviceId: deviceId,
+        status: 'PRESENTE',
+      );
+    } catch (error) {
+      sent = false;
+      debugPrint('Error enviando asistencia: $error');
+    }
+
+    if (!mounted) return;
+
+    if (!sent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo registrar la asistencia'),
+        ),
+      );
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResultScreen(
+          code: rawValue,
+          closeScreen: closeScreen,
+          worker: worker,
+        ),
+      ),
+    ).then((_) => closeScreen());
   }
 
   @override
@@ -80,7 +156,7 @@ class QRScannerState extends State<QrScanner> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: AppColors.scannerBackground,
       appBar: AppBar(
         actions: [
           IconButton(
@@ -125,7 +201,7 @@ class QRScannerState extends State<QrScanner> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Por favor coloque el código QR en el área',
+                    'Por favor coloque el código QR o de barras en el área',
                     style: TextStyle(
                       color: Colors.black87,
                       fontSize: 18,
@@ -154,44 +230,8 @@ class QRScannerState extends State<QrScanner> {
                     borderRadius: BorderRadius.circular(20),
                     child: MobileScanner(
                       controller: controller, // ✅ mismo controller
-                      onDetect: (capture) async {
-                        final List<Barcode> barcodes = capture.barcodes;
 
-                        if (barcodes.isNotEmpty && !isScannCompleted) {
-                          final code = barcodes.first.rawValue ?? '';
-                          if (code.isEmpty) return;
-
-                          setState(() => isScannCompleted = true);
-
-                          final deviceId = await getDeviceId();
-
-                          final ok = await AttendanceApi.send(
-                            employeeId: code,
-                            deviceId: deviceId,
-                            status: 'PRESENTE',
-                          );
-
-                          if (!mounted) return;
-
-                          if (!ok) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('No se pudo registrar la asistencia'),
-                              ),
-                            );
-                          }
-
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ResultScreen(
-                                code: code,
-                                closeScreen: closeScreen,
-                              ),
-                            ),
-                          );
-                        }
-                      },
+                      onDetect: (capture) => _handleDetection(capture.barcodes),
                     ),
                   ),
                   Positioned.fill(

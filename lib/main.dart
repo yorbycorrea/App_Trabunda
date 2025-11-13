@@ -4,6 +4,7 @@ import 'pages/reports_list_page.dart';
 import 'pages/report_create_page.dart';
 import 'pages/login_page.dart';
 import 'services/auth_service.dart';
+import 'qr_scanner.dart';
 
 void main() {
   runApp(TrabundaApp(authService: AuthService()));
@@ -47,6 +48,21 @@ class TrabundaApp extends StatelessWidget {
                     builder: (_) => ReportCreatePage(
                       planilleroInicial: authService.currentUser?.name,
                     ),
+                  );
+
+                case '/scanner':
+                  bool pickOnly = false;
+                  final args = settings.arguments;
+                  if (args is bool) {
+                    pickOnly = args;
+                  } else if (args is Map) {
+                    final pick = args['pickOnly'];
+                    if (pick is bool) pickOnly = pick;
+                  }
+
+                  return MaterialPageRoute(
+                    builder: (_) => QrScanner(pickOnly: pickOnly),
+                    settings: settings,
                   );
                 default:
                   return MaterialPageRoute(builder: (_) => const LoginPage());

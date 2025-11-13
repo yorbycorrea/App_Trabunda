@@ -77,12 +77,21 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
 
   // ----- INDIVIDUAL: escanear -----
   Future<void> _scanQRIndividual() async {
-    final result = await Navigator.pushNamed(context, '/scanner');
+    final result = await Navigator.pushNamed(
+      context,
+      '/scanner',
+      arguments: const {'pickOnly': true},
+    );
     if (!mounted) return;
 
     if (result is Map) {
       final code = (result['code'] ?? '').toString();
-      final name = (result['name'] ?? '').toString();
+      final data = result['data'];
+      String name = (result['name'] ?? '').toString();
+      if (name.isEmpty && data is Map) {
+        final alt = data['name'] ?? data['nombre'];
+        if (alt != null) name = alt.toString();
+      }
       setState(() {
         _codigoCtrl.text = code;
         if (name.isNotEmpty) _nombreCtrl.text = name;

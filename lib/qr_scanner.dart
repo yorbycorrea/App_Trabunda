@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'result_screen.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'result_screen.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'services/worker_directory.dart';
 import 'theme/app_colors.dart';
 
@@ -103,6 +103,9 @@ class QRScannerState extends State<QrScanner> {
     if (!mounted) return;
 
     if (widget.pickOnly) {
+      final resolvedCode = (worker?.code.trim().isNotEmpty ?? false)
+          ? worker!.code.trim()
+          : rawValue;
       Navigator.pop(context, {
         'code': rawValue,
         if (worker != null && worker.name.isNotEmpty) 'name': worker.name,

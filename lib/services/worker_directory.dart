@@ -3,6 +3,68 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+String _normalizeValue(Object? value) {
+  return value?.toString().trim().toUpperCase() ?? '';
+}
+
+String _normalizeKey(Object? key) {
+  return key
+      ?.toString()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]'), '')
+      .trim() ??
+      '';
+}
+
+const List<String> _primaryCodeKeys = [
+  'code',
+  'codigo',
+  'cod',
+  'codigotrabajador',
+  'trabajadorcodigo',
+  'workerid',
+  'employeeid',
+  'empleadoid',
+];
+
+const List<String> _secondaryCodeKeys = [
+  'dni',
+  'document',
+  'documento',
+  'doc',
+  'cedula',
+  'rut',
+  'numerodocumento',
+  'numdocumento',
+  'nrodocumento',
+  'nrodoc',
+];
+
+const List<String> _indexableKeys = [
+  ..._primaryCodeKeys,
+  ..._secondaryCodeKeys,
+  'barcode',
+  'codigobarras',
+  'codigodebarras',
+  'qr',
+  'qrcode',
+  'codigoqr',
+  'qrtext',
+];
+
+const List<String> _nameKeys = [
+  'name',
+  'nombre',
+  'fullname',
+  'nombrecompleto',
+  'trabajador',
+];
+
+const Set<String> _knownFieldKeys = {
+  ..._indexableKeys,
+  ..._nameKeys,
+};
+
 /// Representa un trabajador dentro del directorio local.
 class WorkerRecord {
   WorkerRecord({
@@ -24,8 +86,8 @@ class WorkerRecord {
   Iterable<MapEntry<String, String>> get extraFields sync* {
     for (final entry in raw.entries) {
       final key = entry.key.toString();
-      final lower = key.toLowerCase();
-      if (lower == 'code' || lower == 'codigo' || lower == 'name' || lower == 'nombre') {
+      final normalizedKey = _normalizeKey(key);
+      if (_knownFieldKeys.contains(normalizedKey)) {
         continue;
       }
       yield MapEntry(key, entry.value?.toString() ?? '');
@@ -53,18 +115,74 @@ class WorkerDirectory {
       void addRecord(Map<String, dynamic> source) {
         final data = Map<String, dynamic>.from(source);
 
-        final rawCodeValue = data['code'] ?? data['codigo'] ?? '';
-        final normalized = _normalize(rawCodeValue);
-        if (normalized.isEmpty) return;
+        final normalizedData = <String, dynamic>{};
+        for (final entry in data.entries) {
+          final normalizedKey = _normalizeKey(entry.key);
+          if (normalizedKey.isEmpty) continue;
+          normalizedData[normalizedKey] = entry.value;
+        }
 
-        final nameValue = data['name'] ?? data['nombre'] ?? '';
-        final name = nameValue.toString().trim();
+        String? _firstMatching(List<String> keys) {
+          for (final key in keys) {
+            final value = normalizedData[key];
+            if (value == null) continue;
+            final text = value.toString().trim();
+            if (text.isNotEmpty) return text;
+          }
+          return null;
+        }
 
-        map[normalized] = WorkerRecord(
-          code: rawCodeValue.toString().trim(),
+        final preferredCode = _firstMatching(_primaryCodeKeys);
+        final fallbackCode = _firstMatching(_secondaryCodeKeys);
+        final displayCode = (preferredCode ?? fallbackCode ?? '').trim();
+        if (displayCode.isEmpty) {
+          return;
+        }
+
+        var name = _firstMatching(_nameKeys) ?? '';
+        if (name.isEmpty) {
+          final nombres = normalizedData['nombres']?.toString().trim() ?? '';
+          final apellidos = normalizedData['apellidos']?.toString().trim() ?? '';
+          final apellido = apellidos.isNotEmpty
+              ? apellidos
+              : [
+            normalizedData['apellidopaterno']?.toString().trim() ?? '',
+            normalizedData['apellidomaterno']?.toString().trim() ?? '',
+            normalizedData['apellido']?.toString().trim() ?? '',
+            normalizedData['primerapellido']?.toString().trim() ?? '',
+            normalizedData['segundoapellido']?.toString().trim() ?? '',
+          ].where((value) => value.isNotEmpty).join(' ').trim();
+
+          final parts = <String>[
+            if (nombres.isNotEmpty) nombres,
+            if (apellido.isNotEmpty) apellido,
+          ];
+          name = parts.join(' ').trim();
+        }
+
+        final record = WorkerRecord(
+          code: preferredCode?.trim().isNotEmpty == true ? preferredCode!.trim() : displayCode,
           name: name,
           raw: data,
         );
+
+        final aliases = <String>{displayCode};
+        for (final entry in normalizedData.entries) {
+          if (_indexableKeys.contains(entry.key)) {
+            final value = entry.value;
+            if (value == null) continue;
+            final text = value.toString().trim();
+            if (text.isNotEmpty) {
+              aliases.add(text);
+            }
+          }
+        }
+
+        for (final alias in aliases) {
+          final normalized = _normalizeValue(alias);
+          if (normalized.isEmpty) continue;
+          map[normalized] = record;
+        }
       }
 
       if (decoded is List) {
@@ -116,6 +234,6 @@ class WorkerDirectory {
   }
 
   static String _normalize(Object? value) {
-    return value?.toString().trim().toUpperCase() ?? '';
+    return _normalizeValue(value);
   }
 }

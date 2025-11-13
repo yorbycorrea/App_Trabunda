@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/db.dart';
 import '../services/auth_service.dart';
+import 'report_detail_page.dart';
 
 /// 🔹 Lista referencia de áreas (puedes unificarla con la que ya usas)
 const List<String> kAreasOrdenadas = [
@@ -161,9 +162,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final auth = AuthScope.read(context);
     final user = auth.currentUser;
     final bool isPlanillero = user?.isPlanillero ?? false;
-    final String planilleroFilter = isPlanillero
-        ? user!.name
-        : _planilleroCtrl.text.trim();
+    final String planilleroFilter =
+    isPlanillero ? user!.name : _planilleroCtrl.text.trim();
 
     setState(() => _loading = true);
 
@@ -171,7 +171,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
       DateTime? inicio;
       DateTime? fin;
       if (_rango != null) {
-        inicio = DateTime(_rango!.start.year, _rango!.start.month, _rango!.start.day);
+        inicio = DateTime(
+            _rango!.start.year, _rango!.start.month, _rango!.start.day);
         fin = DateTime(
           _rango!.end.year,
           _rango!.end.month,
@@ -188,8 +189,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
         fechaFin: fin,
         areas: _areas.isEmpty ? null : _areas.toList(),
         turno: _turno == 'Todos' ? null : _turno,
-        planilleroQuery:
-        planilleroFilter.isEmpty ? null : planilleroFilter,
+        planilleroQuery: planilleroFilter.isEmpty ? null : planilleroFilter,
       );
 
       if (!mounted) return;
@@ -197,8 +197,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
       final filtered = isPlanillero
           ? resultados
           .where(
-            (r) =>
-        r.planillero.toLowerCase() == planilleroFilter.toLowerCase(),
+            (r) => r.planillero.toLowerCase() ==
+            planilleroFilter.toLowerCase(),
       )
           .toList()
           : resultados;
@@ -244,7 +244,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final bool isAdmin = user?.isAdmin ?? false;
 
     final totalAreas = _items.map((e) => e.area).toSet().length;
-    final totalPersonal = _items.fold<int>(0, (acc, e) => acc + e.totalPersonal);
+    final totalPersonal =
+    _items.fold<int>(0, (acc, e) => acc + e.totalPersonal);
     final totalKilos = _items.fold<double>(0, (acc, e) => acc + e.kilos);
 
     return Scaffold(
@@ -311,8 +312,10 @@ class _ReportsListPageState extends State<ReportsListPage> {
                         ? 'Buscar planillero'
                         : _planilleroCtrl.text.trim(),
                     icon: Icons.badge_outlined,
-                    background: _planilleroCtrl.text.trim().isEmpty ? null : primaryColor,
-                    foreground: _planilleroCtrl.text.trim().isEmpty ? null : Colors.white,
+                    background:
+                    _planilleroCtrl.text.trim().isEmpty ? null : primaryColor,
+                    foreground:
+                    _planilleroCtrl.text.trim().isEmpty ? null : Colors.white,
                     onTap: isAdmin
                         ? () async {
                       await showDialog<void>(
@@ -446,9 +449,14 @@ class _ReportsListPageState extends State<ReportsListPage> {
                   data: r,
                   primaryColor: primaryColor,
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Ver detalle: ${r.formattedId}')),
-                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ReportDetailPage(
+                          reporteId: r.reporteId,
+                        ),
+                      ),
+                    ); // ← cierre correcto con );
                   },
                 ),
               ),
@@ -534,7 +542,8 @@ class _ReportCard extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: primaryColor,
                       borderRadius: BorderRadius.circular(14),
@@ -552,7 +561,8 @@ class _ReportCard extends StatelessWidget {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(Icons.calendar_month_rounded, size: 18, color: Colors.black54),
+                  const Icon(Icons.calendar_month_rounded,
+                      size: 18, color: Colors.black54),
                   const SizedBox(width: 6),
                   Text(fmt(data.fecha)),
                 ],
@@ -560,7 +570,9 @@ class _ReportCard extends StatelessWidget {
               const SizedBox(height: 12),
               _InfoRow(
                 icon: Icons.person_outline,
-                text: data.planillero.isEmpty ? 'Sin planillero' : data.planillero,
+                text: data.planillero.isEmpty
+                    ? 'Sin planillero'
+                    : data.planillero,
               ),
               const SizedBox(height: 8),
               _InfoRow(
@@ -579,7 +591,8 @@ class _ReportCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: primaryColor,
                     side: BorderSide(color: primaryColor),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding:
+                    const EdgeInsets.symmetric(vertical: 12),
                   ),
                   onPressed: onTap,
                   child: const Text('Ver detalle'),
@@ -665,8 +678,9 @@ class _FilterTile extends StatelessWidget {
             border: highlighted
                 ? null
                 : Border.all(
-              color:
-              clickable ? const Color(0xFFE1E5E3) : const Color(0xFFD5DAD7),
+              color: clickable
+                  ? const Color(0xFFE1E5E3)
+                  : const Color(0xFFD5DAD7),
             ),
             boxShadow: highlighted
                 ? [
@@ -767,19 +781,10 @@ class _TurnoPill extends StatelessWidget {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
+          children: const [
+            Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            // El texto real se pinta en el padre
           ],
         ),
       ),
@@ -887,21 +892,26 @@ class _AreasPickerSheetState extends State<_AreasPickerSheet> {
       child: Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-          left: 16, right: 16, top: 12,
+          left: 16,
+          right: 16,
+          top: 12,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: Colors.black26, borderRadius: BorderRadius.circular(4),
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(4),
               ),
             ),
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('Selecciona áreas', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: Text('Selecciona áreas',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -989,9 +999,11 @@ class _EmptyState extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 56),
         child: Column(
           children: [
-            const Icon(Icons.find_in_page_outlined, size: 64, color: Colors.black38),
+            const Icon(Icons.find_in_page_outlined,
+                size: 64, color: Colors.black38),
             const SizedBox(height: 12),
-            const Text('Sin resultados', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text('Sin resultados',
+                style: TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             const Text('Ajusta los filtros y vuelve a intentarlo.',
                 style: TextStyle(color: Colors.black54)),

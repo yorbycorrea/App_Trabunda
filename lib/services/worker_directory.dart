@@ -3,17 +3,81 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+String _stripDiacritics(String input) {
+  const replacements = {
+    'á': 'a',
+    'à': 'a',
+    'ä': 'a',
+    'â': 'a',
+    'ã': 'a',
+    'å': 'a',
+    'Á': 'A',
+    'À': 'A',
+    'Ä': 'A',
+    'Â': 'A',
+    'Ã': 'A',
+    'Å': 'A',
+    'é': 'e',
+    'è': 'e',
+    'ë': 'e',
+    'ê': 'e',
+    'É': 'E',
+    'È': 'E',
+    'Ë': 'E',
+    'Ê': 'E',
+    'í': 'i',
+    'ì': 'i',
+    'ï': 'i',
+    'î': 'i',
+    'Í': 'I',
+    'Ì': 'I',
+    'Ï': 'I',
+    'Î': 'I',
+    'ó': 'o',
+    'ò': 'o',
+    'ö': 'o',
+    'ô': 'o',
+    'õ': 'o',
+    'Ó': 'O',
+    'Ò': 'O',
+    'Ö': 'O',
+    'Ô': 'O',
+    'Õ': 'O',
+    'ú': 'u',
+    'ù': 'u',
+    'ü': 'u',
+    'û': 'u',
+    'Ú': 'U',
+    'Ù': 'U',
+    'Ü': 'U',
+    'Û': 'U',
+    'ñ': 'n',
+    'Ñ': 'N',
+    'ç': 'c',
+    'Ç': 'C',
+  };
+
+  final buffer = StringBuffer();
+  for (final rune in input.runes) {
+    final char = String.fromCharCode(rune);
+    buffer.write(replacements[char] ?? char);
+  }
+  return buffer.toString();
+}
+
 String _normalizeValue(Object? value) {
-  return value?.toString().trim().toUpperCase() ?? '';
+  final text = value?.toString().trim() ?? '';
+  if (text.isEmpty) return '';
+  return _stripDiacritics(text).toUpperCase();
 }
 
 String _normalizeKey(Object? key) {
-  return key
-      ?.toString()
+  final text = key?.toString() ?? '';
+  if (text.isEmpty) return '';
+  return _stripDiacritics(text)
       .toLowerCase()
       .replaceAll(RegExp(r'[^a-z0-9]'), '')
-      .trim() ??
-      '';
+      .trim();
 }
 
 const List<String> _primaryCodeKeys = [

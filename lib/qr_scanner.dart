@@ -107,7 +107,8 @@ class QRScannerState extends State<QrScanner> {
           ? worker!.code.trim()
           : rawValue;
       Navigator.pop(context, {
-        'code': rawValue,
+        'code': resolvedCode,
+        'scanned': rawValue,
         if (worker != null && worker.name.isNotEmpty) 'name': worker.name,
         'found': worker != null,
         if (worker != null) 'data': worker.raw,

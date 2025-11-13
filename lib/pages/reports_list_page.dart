@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'dart:collection';
 import '../data/db.dart';
 import '../services/auth_service.dart';
 import 'report_detail_page.dart';
@@ -203,20 +203,35 @@ class _ReportsListPageState extends State<ReportsListPage> {
           .toList()
           : resultados;
 
+      final Map<int, _AggregatedReport> aggregated = {};
+      for (final row in filtered) {
+        final group = aggregated.putIfAbsent(
+          row.reporteId,
+              () => _AggregatedReport(
+            reporteId: row.reporteId,
+            fecha: row.fecha,
+            turno: row.turno,
+            planillero: row.planillero,
+          ),
+        );
+        group.totalPersonal += row.cantidad;
+        group.totalKilos += row.kilos;
+        group.areaNames.add(row.areaNombre);
+      }
+
       setState(() {
         _items
           ..clear()
           ..addAll(
-            filtered.map(
-                  (r) => ReportSummary(
-                reporteId: r.reporteId,
-                reporteAreaId: r.reporteAreaId,
-                fecha: r.fecha,
-                area: r.areaNombre,
-                turno: r.turno,
-                totalPersonal: r.cantidad,
-                kilos: r.kilos,
-                planillero: r.planillero,
+            aggregated.values.map(
+                  (g) => ReportSummary(
+                reporteId: g.reporteId,
+                fecha: g.fecha,
+                turno: g.turno,
+                totalPersonal: g.totalPersonal,
+                kilos: g.totalKilos,
+                planillero: g.planillero,
+                areaNames: List<String>.unmodifiable(g.areaNames),
               ),
             ),
           );
@@ -243,7 +258,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final bool isPlanillero = user?.isPlanillero ?? false;
     final bool isAdmin = user?.isAdmin ?? false;
 
-    final totalAreas = _items.map((e) => e.area).toSet().length;
+    final totalAreas = _items.fold<int>(0, (acc, e) => acc + e.totalAreas);
     final totalPersonal =
     _items.fold<int>(0, (acc, e) => acc + e.totalPersonal);
     final totalKilos = _items.fold<double>(0, (acc, e) => acc + e.kilos);
@@ -472,27 +487,42 @@ class _ReportsListPageState extends State<ReportsListPage> {
 
 class ReportSummary {
   final int reporteId;
-  final int reporteAreaId;
   final DateTime fecha;
-  final String area;
   final String turno;
   final int totalPersonal;
   final double kilos;
   final String planillero;
+  final List<String> areaNames;
 
   ReportSummary({
     required this.reporteId,
-    required this.reporteAreaId,
     required this.fecha,
-    required this.area,
     required this.turno,
     required this.totalPersonal,
     required this.kilos,
     required this.planillero,
+    required this.areaNames,
   });
   String get formattedId => 'RPT-${reporteId.toString().padLeft(4, '0')}';
-}
 
+  int get totalAreas => areaNames.length;
+}
+class _AggregatedReport {
+  _AggregatedReport({
+    required this.reporteId,
+    required this.fecha,
+    required this.turno,
+    required this.planillero,
+  });
+
+  final int reporteId;
+  final DateTime fecha;
+  final String turno;
+  final String planillero;
+  int totalPersonal = 0;
+  double totalKilos = 0;
+  final LinkedHashSet<String> areaNames = LinkedHashSet();
+}
 class _ReportCard extends StatelessWidget {
   final ReportSummary data;
   final Color primaryColor;
@@ -507,6 +537,25 @@ class _ReportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     String fmt(DateTime d) =>
         '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+    final areaCountText = data.totalAreas == 0
+        ? 'Sin áreas registradas'
+        : data.totalAreas == 1
+        ? '1 área registrada'
+        : '${data.totalAreas} áreas registradas';
+
+    final displayedAreas = data.areaNames.take(3).toList();
+    final remainingAreas = data.totalAreas - displayedAreas.length;
+    final String? areaSummaryText;
+    if (displayedAreas.isEmpty) {
+      areaSummaryText = null;
+    } else {
+      final buffer = StringBuffer(displayedAreas.join(', '));
+      if (remainingAreas > 0) {
+        buffer.write(' +$remainingAreas más');
+      }
+      areaSummaryText = buffer.toString();
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -534,7 +583,7 @@ class _ReportCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      data.area,
+                      fmt(data.fecha),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -558,15 +607,7 @@ class _ReportCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(Icons.calendar_month_rounded,
-                      size: 18, color: Colors.black54),
-                  const SizedBox(width: 6),
-                  Text(fmt(data.fecha)),
-                ],
-              ),
+
               const SizedBox(height: 12),
               _InfoRow(
                 icon: Icons.person_outline,
@@ -574,6 +615,24 @@ class _ReportCard extends StatelessWidget {
                     ? 'Sin planillero'
                     : data.planillero,
               ),
+              const SizedBox(height: 8),
+              _InfoRow(
+                icon: Icons.apartment_rounded,
+                text: areaCountText,
+              ),
+              if (areaSummaryText != null) ...[
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.only(left: 26),
+                  child: Text(
+                    areaSummaryText,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               _InfoRow(
                 icon: Icons.groups_rounded,

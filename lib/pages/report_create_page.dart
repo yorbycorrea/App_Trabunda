@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'area_detalle_page.dart';
 import '../data/db.dart';
 import '../services/auth_service.dart';
+import 'report_detail_page.dart';
 
 // ===========================================================
 //  Crear Reporte
@@ -190,9 +191,58 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       turno: _turno,
       planillero: plan,
     );
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final reporteId = _reporteId;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Reporte #$_reporteId guardado')),
+      SnackBar(
+        backgroundColor: colorScheme.surface,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.check_circle, color: colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Reporte guardado',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'El reporte se guardó correctamente.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: reporteId == null
+            ? null
+            : SnackBarAction(
+          label: 'Ver reporte',
+          textColor: colorScheme.primary,
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ReportDetailPage(reporteId: reporteId),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 

@@ -250,6 +250,7 @@ class _AreaSection extends StatelessWidget {
     final subtitle =
         '${area.cantidad} ${_plural(area.cantidad, 'persona', 'personas')} • '
         '${area.totalKilos.toStringAsFixed(3)} kg';
+    final isFileteros = area.nombre.toLowerCase() == 'fileteros';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -270,6 +271,23 @@ class _AreaSection extends StatelessWidget {
           ),
         ),
         children: [
+          if (isFileteros) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: const Text('Descargar formato'),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Descarga de formato disponible próximamente.'),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (area.cuadrillas.isEmpty)
             const Padding(
               padding: EdgeInsets.only(top: 12),

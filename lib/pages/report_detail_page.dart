@@ -354,15 +354,15 @@ class _AreaSectionState extends State<_AreaSection> {
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                label: const Text('Descargar formato'),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Descarga de formato disponible próximamente.'),
-                    ),
-                  );
-                },
+                icon: _isLoading
+                    ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+                    : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: Text(_isLoading ? 'Generando formato...' : 'Descargar formato'),
+                onPressed: _isLoading ? null : () => _downloadReport(context),
               ),
             ),
             const SizedBox(height: 12),

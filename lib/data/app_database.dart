@@ -23,6 +23,17 @@ class ReporteAreas extends Table {
   IntColumn get reporteId => integer().references(Reportes, #id)();
   TextColumn get areaNombre => text()(); // 'Fileteros', etc.
   IntColumn get cantidad => integer().withDefault(const Constant(0))();
+  TextColumn get horaInicio => text().nullable()();
+  TextColumn get horaFin => text().nullable()();
+}
+
+class ReporteAreaDesgloses extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get reporteAreaId =>
+      integer().references(ReporteAreas, #id, onDelete: KeyAction.cascade)();
+  TextColumn get categoria => text()();
+  IntColumn get personas => integer().withDefault(const Constant(0))();
+  RealColumn get kilos => real().withDefault(const Constant(0.0))();
 }
 
 class Cuadrillas extends Table {
@@ -32,6 +43,15 @@ class Cuadrillas extends Table {
   TextColumn get horaInicio => text().nullable()(); // 'HH:mm'
   TextColumn get horaFin => text().nullable()(); // 'HH:mm'
   RealColumn get kilos => real().nullable()();
+}
+
+class CuadrillaDesgloses extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get cuadrillaId =>
+      integer().references(Cuadrillas, #id, onDelete: KeyAction.cascade)();
+  TextColumn get categoria => text()();
+  IntColumn get personas => integer().withDefault(const Constant(0))();
+  RealColumn get kilos => real().withDefault(const Constant(0.0))();
 }
 
 class Integrantes extends Table {
@@ -54,21 +74,48 @@ LazyDatabase _openConnection() {
 }
 
 @DriftDatabase(
-  tables: [Reportes, ReporteAreas, Cuadrillas, Integrantes],
+  tables: [
+    Reportes,
+    ReporteAreas,
+    ReporteAreaDesgloses,
+    Cuadrillas,
+    CuadrillaDesgloses,
+    Integrantes
+  ],
   daos: [ReportesDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(reporteAreas, reporteAreas.horaInicio);
+        await m.addColumn(reporteAreas, reporteAreas.horaFin);
+        await m.createTable(reporteAreaDesgloses);
+        await m.createTable(cuadrillaDesgloses);
+      }
+    },
+  );
 }
 
 /// =======================
 /// DAO
 /// =======================
 
-@DriftAccessor(tables: [Reportes, ReporteAreas, Cuadrillas, Integrantes])
+@DriftAccessor(
+    tables: [
+      Reportes,
+      ReporteAreas,
+      ReporteAreaDesgloses,
+      Cuadrillas,
+      CuadrillaDesgloses,
+      Integrantes
+    ])
 class ReportesDao extends DatabaseAccessor<AppDatabase>
     with _$ReportesDaoMixin {
   ReportesDao(AppDatabase db) : super(db);
@@ -165,9 +212,47 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   }
 
   /// Actualiza cantidad manualmente (si la editas en la pantalla 1).
-  Future<void> updateCantidadArea(int reporteAreaId, int cantidad) async {
-    await (update(reporteAreas)..where((t) => t.id.equals(reporteAreaId)))
-        .write(ReporteAreasCompanion(cantidad: Value(cantidad)));
+  Future<void> saveReporteAreaDatos({
+    required int reporteAreaId,
+    int? cantidad,
+    String? horaInicio,
+    String? horaFin,
+    List<Map<String, dynamic>>? desglose,
+  }) async {
+    await transaction(() async {
+      final companion = ReporteAreasCompanion(
+        cantidad:
+        cantidad != null ? Value(cantidad) : const Value.absent(),
+        horaInicio: Value(horaInicio),
+        horaFin: Value(horaFin),
+      );
+      await (update(reporteAreas)..where((t) => t.id.equals(reporteAreaId)))
+          .write(companion);
+
+      if (desglose != null) {
+        await (delete(reporteAreaDesgloses)
+          ..where((t) => t.reporteAreaId.equals(reporteAreaId)))
+            .go();
+
+        for (final entry in desglose) {
+          final categoria = (entry['categoria'] ?? '').toString();
+          final personas = entry['personas'];
+          final kilos = entry['kilos'];
+          await into(reporteAreaDesgloses).insert(
+            ReporteAreaDesglosesCompanion.insert(
+              reporteAreaId: reporteAreaId,
+              categoria: categoria,
+              personas: Value(
+                personas is num ? personas.toInt() : 0,
+              ),
+              kilos: Value(
+                kilos is num ? kilos.toDouble() : 0.0,
+              ),
+            ),
+          );
+        }
+      }
+    });
   }
 
   /// Crea/actualiza cuadrilla para un área de reporte.
@@ -178,28 +263,58 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     String? horaInicio,
     String? horaFin,
     double? kilos,
+    List<Map<String, dynamic>>? desglose,
   }) async {
-    if (id == null) {
-      return into(cuadrillas).insert(
-        CuadrillasCompanion.insert(
-          reporteAreaId: reporteAreaId,
-          nombre: Value(nombre),
-          horaInicio: Value(horaInicio),
-          horaFin: Value(horaFin),
-          kilos: Value(kilos),
-        ),
-      );
-    } else {
-      await (update(cuadrillas)..where((t) => t.id.equals(id))).write(
-        CuadrillasCompanion(
-          nombre: Value(nombre),
-          horaInicio: Value(horaInicio),
-          horaFin: Value(horaFin),
-          kilos: Value(kilos),
-        ),
-      );
-      return id;
-    }
+    return transaction(() async {
+      late int targetId;
+      if (id == null) {
+        targetId = await into(cuadrillas).insert(
+          CuadrillasCompanion.insert(
+            reporteAreaId: reporteAreaId,
+            nombre: Value(nombre),
+            horaInicio: Value(horaInicio),
+            horaFin: Value(horaFin),
+            kilos: Value(kilos),
+          ),
+        );
+      } else {
+        await (update(cuadrillas)..where((t) => t.id.equals(id))).write(
+          CuadrillasCompanion(
+            nombre: Value(nombre),
+            horaInicio: Value(horaInicio),
+            horaFin: Value(horaFin),
+            kilos: Value(kilos),
+          ),
+        );
+        targetId = id;
+      }
+
+      if (desglose != null) {
+        await (delete(cuadrillaDesgloses)
+          ..where((t) => t.cuadrillaId.equals(targetId)))
+            .go();
+
+        for (final entry in desglose) {
+          final categoria = (entry['categoria'] ?? '').toString();
+          final personas = entry['personas'];
+          final kilosEntry = entry['kilos'];
+          await into(cuadrillaDesgloses).insert(
+            CuadrillaDesglosesCompanion.insert(
+              cuadrillaId: targetId,
+              categoria: categoria,
+              personas: Value(
+                personas is num ? personas.toInt() : 0,
+              ),
+              kilos: Value(
+                kilosEntry is num ? kilosEntry.toDouble() : 0.0,
+              ),
+            ),
+          );
+        }
+      }
+
+      return targetId;
+    });
   }
 
   Future<void> replaceIntegrantes({
@@ -326,29 +441,25 @@ LEFT JOIN cuadrillas c ON c.reporte_area_id = a.id
         .getSingleOrNull();
     if (reporteRow == null) return null;
 
-    final areasRows = await (select(reporteAreas)
+    final areasQuery = await (select(reporteAreas)
       ..where((t) => t.reporteId.equals(reporteId)))
         .get();
-    areasRows.sort((a, b) => a.areaNombre.compareTo(b.areaNombre));
 
-    final List<ReporteAreaDetalle> areas = [];
+    final areas = <ReporteAreaDetalle>[];
 
-    for (final area in areasRows) {
-      final cuadrillasRows = await (select(cuadrillas)
-        ..where((c) => c.reporteAreaId.equals(area.id)))
+    for (final area in areasQuery) {
+      final cuadrillasQuery = await (select(cuadrillas)
+        ..where((t) => t.reporteAreaId.equals(area.id)))
           .get();
-      cuadrillasRows.sort((a, b) => a.nombre.compareTo(b.nombre));
 
-      final List<CuadrillaDetalle> cuadrillasDetalle = [];
-      double totalKilos = 0;
+      final cuadrillasDetalle = <CuadrillaDetalle>[];
 
-      for (final cuadrilla in cuadrillasRows) {
-        final integrantesRows = await (select(integrantes)
-          ..where((i) => i.cuadrillaId.equals(cuadrilla.id)))
+      for (final cuad in cuadrillasQuery) {
+        final integrantesQuery = await (select(integrantes)
+          ..where((t) => t.cuadrillaId.equals(cuad.id)))
             .get();
-        integrantesRows.sort((a, b) => a.nombre.compareTo(b.nombre));
 
-        final integrantesDetalle = integrantesRows
+        final integrantesDetalle = integrantesQuery
             .map(
               (it) => IntegranteDetalle(
             id: it.id,
@@ -358,19 +469,53 @@ LEFT JOIN cuadrillas c ON c.reporte_area_id = a.id
         )
             .toList();
 
-        final kilos = cuadrilla.kilos ?? 0;
-        totalKilos += kilos;
+        final desgloseCuadrillaRows = await (select(cuadrillaDesgloses)
+          ..where((t) => t.cuadrillaId.equals(cuad.id)))
+            .get();
+
+        final desgloseCuadrilla = desgloseCuadrillaRows
+            .map(
+              (d) => CategoriaDesglose(
+            categoria: d.categoria,
+            personas: d.personas,
+            kilos: d.kilos,
+          ),
+        )
+            .toList();
 
         cuadrillasDetalle.add(
           CuadrillaDetalle(
-            id: cuadrilla.id,
-            nombre: cuadrilla.nombre,
-            horaInicio: cuadrilla.horaInicio,
-            horaFin: cuadrilla.horaFin,
-            kilos: kilos,
+            id: cuad.id,
+            nombre: cuad.nombre,
+            horaInicio: cuad.horaInicio,
+            horaFin: cuad.horaFin,
+            kilos: cuad.kilos ?? 0,
             integrantes: integrantesDetalle,
+            desglose: desgloseCuadrilla,
           ),
         );
+      }
+
+      final areaDesgloseRows = await (select(reporteAreaDesgloses)
+        ..where((t) => t.reporteAreaId.equals(area.id)))
+          .get();
+
+      final areaDesglose = areaDesgloseRows
+          .map(
+            (d) => CategoriaDesglose(
+          categoria: d.categoria,
+          personas: d.personas,
+          kilos: d.kilos,
+        ),
+      )
+          .toList();
+
+      var totalKilos = cuadrillasDetalle.fold<double>(
+        0,
+            (sum, c) => sum + c.kilos,
+      );
+      if (totalKilos == 0 && areaDesglose.isNotEmpty) {
+        totalKilos = areaDesglose.fold<double>(0, (sum, d) => sum + d.kilos);
       }
 
       areas.add(
@@ -380,6 +525,9 @@ LEFT JOIN cuadrillas c ON c.reporte_area_id = a.id
           cantidad: area.cantidad,
           totalKilos: totalKilos,
           cuadrillas: cuadrillasDetalle,
+          horaInicio: area.horaInicio,
+          horaFin: area.horaFin,
+          desglose: areaDesglose,
         ),
       );
     }
@@ -448,6 +596,9 @@ class ReporteAreaDetalle {
   final int cantidad;
   final double totalKilos;
   final List<CuadrillaDetalle> cuadrillas;
+  final String? horaInicio;
+  final String? horaFin;
+  final List<CategoriaDesglose> desglose;
 
   const ReporteAreaDetalle({
     required this.id,
@@ -455,6 +606,9 @@ class ReporteAreaDetalle {
     required this.cantidad,
     required this.totalKilos,
     required this.cuadrillas,
+    this.horaInicio,
+    this.horaFin,
+    this.desglose = const [],
   });
 
   int get totalIntegrantes =>
@@ -468,6 +622,7 @@ class CuadrillaDetalle {
   final String? horaFin;
   final double kilos;
   final List<IntegranteDetalle> integrantes;
+  final List<CategoriaDesglose> desglose;
 
   const CuadrillaDetalle({
     required this.id,
@@ -476,6 +631,7 @@ class CuadrillaDetalle {
     this.horaFin,
     required this.kilos,
     required this.integrantes,
+    this.desglose = const [],
   });
 
   int get totalIntegrantes => integrantes.length;
@@ -490,5 +646,17 @@ class IntegranteDetalle {
     required this.id,
     required this.nombre,
     this.code,
+  });
+}
+
+class CategoriaDesglose {
+  final String categoria;
+  final int personas;
+  final double kilos;
+
+  const CategoriaDesglose({
+    required this.categoria,
+    this.personas = 0,
+    this.kilos = 0,
   });
 }

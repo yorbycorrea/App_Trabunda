@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'cuadrilla_config_page.dart';
 import '../data/db.dart';
 import 'package:flutter/scheduler.dart';
@@ -24,6 +23,10 @@ class AreaDetallePage extends StatefulWidget {
 }
 
 class _AreaDetallePageState extends State<AreaDetallePage> {
+  static const List<String> _categoriasDefault = [
+    'Recepción',
+    'Fileteado',
+  ];
   // Horas
   TimeOfDay? _inicio;
   TimeOfDay? _fin;
@@ -33,6 +36,9 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
   final _codigoCtrl = TextEditingController();
   final _nombreCtrl = TextEditingController();
   final _kilosIndividualCtrl = TextEditingController();
+
+  final Map<String, TextEditingController> _personasPorCategoria = {};
+  final Map<String, TextEditingController> _kilosPorCategoria = {};
 
   // Cuadrillas (múltiples)
   final List<CuadrillaData> _cuadrillas = [];
@@ -44,10 +50,25 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
   bool _cerrando = false;
 
   @override
+  void initState() {
+    super.initState();
+    for (final categoria in _categoriasDefault) {
+      _personasPorCategoria[categoria] = TextEditingController();
+      _kilosPorCategoria[categoria] = TextEditingController();
+    }
+  }
+
+  @override
   void dispose() {
     _codigoCtrl.dispose();
     _nombreCtrl.dispose();
     _kilosIndividualCtrl.dispose();
+    for (final ctrl in _personasPorCategoria.values) {
+      ctrl.dispose();
+    }
+    for (final ctrl in _kilosPorCategoria.values) {
+      ctrl.dispose();
+    }
     super.dispose();
   }
 
@@ -120,7 +141,14 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
             id: null,
             reporteAreaId: widget.reporteAreaId!,
             nombre: res['nombre'] ?? '',
-            kilos: (res['kilos'] ?? 0.0) as double?,
+            horaInicio: res['horaInicio'] as String?,
+            horaFin: res['horaFin'] as String?,
+            kilos: (res['kilos'] is num)
+                ? (res['kilos'] as num).toDouble()
+                : double.tryParse('${res['kilos'] ?? ''}'),
+            desglose: (res['desglose'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList(),
           );
 
           // 👇 usa el nombre de parámetro "integrantes" para tu DAO
@@ -143,6 +171,9 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           initialNombre: c.nombre,
           initialIntegrantes: c.integrantes,
           initialKilos: c.kilos,
+          initialHoraInicio: c.horaInicio,
+          initialHoraFin: c.horaFin,
+          initialDesglose: c.desglose,
         ),
       ),
     );
@@ -167,19 +198,58 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     }
     return _cuadrillas.fold<double>(
       0.0,
-          (sum, c) => sum + (c.kilos ?? 0.0),
+          (sum, c) {
+        final kilosDirecto = c.kilos;
+        final kilosDesglose = c.desglose.fold<double>(0.0, (acc, entry) {
+          final value = entry['kilos'];
+          if (value is num) return acc + value.toDouble();
+          final parsed = double.tryParse('$value');
+          return acc + (parsed ?? 0.0);
+        });
+        return sum + (kilosDirecto ?? (kilosDesglose == 0 ? 0.0 : kilosDesglose));
+      },
     );
+  }
+
+  List<Map<String, dynamic>> _desgloseCategorias() {
+    final List<Map<String, dynamic>> data = [];
+    for (final categoria in _categoriasDefault) {
+      final personas =
+          int.tryParse(_personasPorCategoria[categoria]!.text.trim()) ?? 0;
+      final kilos =
+          double.tryParse(_kilosPorCategoria[categoria]!.text.trim()) ?? 0.0;
+      if (personas == 0 && kilos == 0) continue;
+      data.add({
+        'categoria': categoria,
+        'personas': personas,
+        'kilos': kilos,
+      });
+    }
+    return data;
   }
 
   Map<String, dynamic> _resultadoParaVolver() {
     final personas = _calcularPersonas();
     final kilosTotal = _calcularKilosTotales();
+    final horaInicio = _inicio == null
+        ? null
+        : '${_inicio!.hour.toString().padLeft(2, '0')}:${_inicio!.minute.toString().padLeft(2, '0')}';
+    final horaFin = _fin == null
+        ? null
+        : '${_fin!.hour.toString().padLeft(2, '0')}:${_fin!.minute.toString().padLeft(2, '0')}';
+    final desglose = _desgloseCategorias();
 
     return {
       'area': widget.areaName,
       'modo': _modo.name,
-      'hora_inicio': _inicio == null ? null : {'h': _inicio!.hour, 'm': _inicio!.minute},
-      'hora_fin': _fin == null ? null : {'h': _fin!.hour, 'm': _fin!.minute},
+      'hora_inicio': _inicio == null
+          ? null
+          : {'h': _inicio!.hour, 'm': _inicio!.minute},
+      'hora_fin': _fin == null
+          ? null
+          : {'h': _fin!.hour, 'm': _fin!.minute},
+      'horaInicio': horaInicio,
+      'horaFin': horaFin,
       'trabajador': _modo == ModoTrabajo.individual
           ? {
         'code': _codigoCtrl.text.trim(),
@@ -192,6 +262,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           : null,
       'kilos_total': kilosTotal,
       'personas': personas,
+      'desglose': desglose,
       'resumen': _modo == ModoTrabajo.cuadrilla
           ? {
         'titulo': 'Cuadrillas (${_cuadrillas.length})',
@@ -215,9 +286,19 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
 
     if (usaBD && widget.reporteAreaId != null) {
       final personas = result['personas'] as int;
+      final horaInicio = result['horaInicio'] as String?;
+      final horaFin = result['horaFin'] as String?;
+      final desglose =
+      (result['desglose'] as List?)?.cast<Map<String, dynamic>>();
       Future.microtask(() async {
         try {
-          await db.reportesDao.updateCantidadArea(widget.reporteAreaId!, personas);
+          await db.reportesDao.saveReporteAreaDatos(
+            reporteAreaId: widget.reporteAreaId!,
+            cantidad: personas,
+            horaInicio: horaInicio,
+            horaFin: horaFin,
+            desglose: desglose,
+          );
         } catch (_) {}
       });
     }
@@ -335,6 +416,37 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                         ),
                       ],
                     ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Totales por categoría',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    for (final categoria in _categoriasDefault) ...[
+                      _CategoriaRow(
+                        categoria: categoria,
+                        personasCtrl: _personasPorCategoria[categoria]!,
+                        kilosCtrl: _kilosPorCategoria[categoria]!,
+                      ),
+                      if (categoria != _categoriasDefault.last)
+                        const Divider(height: 28),
+                    ],
                   ],
                 ),
               ),
@@ -528,6 +640,7 @@ class _HoraTile extends StatelessWidget {
   final String value;
   final VoidCallback onTap;
   final IconData icon;
+
   const _HoraTile({
     required this.label,
     required this.value,
@@ -539,12 +652,12 @@ class _HoraTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: const [
             BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2))
           ],
@@ -578,13 +691,26 @@ class CuadrillaData {
   final String? nombre;
   final List<Map<String, String>> integrantes;
   final double? kilos;
+  final String? horaInicio;
+  final String? horaFin;
+  final List<Map<String, dynamic>> desglose;
 
-  CuadrillaData({this.nombre, required this.integrantes, this.kilos});
+  CuadrillaData({
+    this.nombre,
+    required this.integrantes,
+    this.kilos,
+    this.horaInicio,
+    this.horaFin,
+    this.desglose = const [],
+  });
 
   Map<String, dynamic> toMap() => {
     'nombre': nombre,
     'integrantes': integrantes,
     'kilos': kilos,
+    'horaInicio': horaInicio,
+    'horaFin': horaFin,
+    'desglose': desglose,
   };
 
   static CuadrillaData fromMap(Map<String, dynamic> m) => CuadrillaData(
@@ -595,5 +721,65 @@ class CuadrillaData {
     kilos: (m['kilos'] is num)
         ? (m['kilos'] as num).toDouble()
         : double.tryParse('${m['kilos'] ?? 0}') ?? 0.0,
+    horaInicio: m['horaInicio'] as String?,
+    horaFin: m['horaFin'] as String?,
+    desglose: (m['desglose'] as List?)
+        ?.map((e) => Map<String, dynamic>.from(e as Map))
+        .toList() ??
+        const [],
   );
+}
+
+class _CategoriaRow extends StatelessWidget {
+  const _CategoriaRow({
+    required this.categoria,
+    required this.personasCtrl,
+    required this.kilosCtrl,
+  });
+
+  final String categoria;
+  final TextEditingController personasCtrl;
+  final TextEditingController kilosCtrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          categoria,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: personasCtrl,
+                keyboardType: const TextInputType.numberWithOptions(),
+                decoration: const InputDecoration(
+                  labelText: 'Personas',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: kilosCtrl,
+                keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Kilos',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }

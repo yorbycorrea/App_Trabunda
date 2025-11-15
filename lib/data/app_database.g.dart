@@ -356,8 +356,37 @@ class $ReporteAreasTable extends ReporteAreas
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _horaInicioMeta = const VerificationMeta(
+    'horaInicio',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, reporteId, areaNombre, cantidad];
+  late final GeneratedColumn<String> horaInicio = GeneratedColumn<String>(
+    'hora_inicio',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _horaFinMeta = const VerificationMeta(
+    'horaFin',
+  );
+  @override
+  late final GeneratedColumn<String> horaFin = GeneratedColumn<String>(
+    'hora_fin',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    reporteId,
+    areaNombre,
+    cantidad,
+    horaInicio,
+    horaFin,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -395,6 +424,18 @@ class $ReporteAreasTable extends ReporteAreas
         cantidad.isAcceptableOrUnknown(data['cantidad']!, _cantidadMeta),
       );
     }
+    if (data.containsKey('hora_inicio')) {
+      context.handle(
+        _horaInicioMeta,
+        horaInicio.isAcceptableOrUnknown(data['hora_inicio']!, _horaInicioMeta),
+      );
+    }
+    if (data.containsKey('hora_fin')) {
+      context.handle(
+        _horaFinMeta,
+        horaFin.isAcceptableOrUnknown(data['hora_fin']!, _horaFinMeta),
+      );
+    }
     return context;
   }
 
@@ -420,6 +461,14 @@ class $ReporteAreasTable extends ReporteAreas
         DriftSqlType.int,
         data['${effectivePrefix}cantidad'],
       )!,
+      horaInicio: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hora_inicio'],
+      ),
+      horaFin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hora_fin'],
+      ),
     );
   }
 
@@ -434,11 +483,15 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
   final int reporteId;
   final String areaNombre;
   final int cantidad;
+  final String? horaInicio;
+  final String? horaFin;
   const ReporteArea({
     required this.id,
     required this.reporteId,
     required this.areaNombre,
     required this.cantidad,
+    this.horaInicio,
+    this.horaFin,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -447,6 +500,12 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
     map['reporte_id'] = Variable<int>(reporteId);
     map['area_nombre'] = Variable<String>(areaNombre);
     map['cantidad'] = Variable<int>(cantidad);
+    if (!nullToAbsent || horaInicio != null) {
+      map['hora_inicio'] = Variable<String>(horaInicio);
+    }
+    if (!nullToAbsent || horaFin != null) {
+      map['hora_fin'] = Variable<String>(horaFin);
+    }
     return map;
   }
 
@@ -456,6 +515,12 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
       reporteId: Value(reporteId),
       areaNombre: Value(areaNombre),
       cantidad: Value(cantidad),
+      horaInicio: horaInicio == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horaInicio),
+      horaFin: horaFin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horaFin),
     );
   }
 
@@ -469,6 +534,8 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
       reporteId: serializer.fromJson<int>(json['reporteId']),
       areaNombre: serializer.fromJson<String>(json['areaNombre']),
       cantidad: serializer.fromJson<int>(json['cantidad']),
+      horaInicio: serializer.fromJson<String?>(json['horaInicio']),
+      horaFin: serializer.fromJson<String?>(json['horaFin']),
     );
   }
   @override
@@ -479,6 +546,8 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
       'reporteId': serializer.toJson<int>(reporteId),
       'areaNombre': serializer.toJson<String>(areaNombre),
       'cantidad': serializer.toJson<int>(cantidad),
+      'horaInicio': serializer.toJson<String?>(horaInicio),
+      'horaFin': serializer.toJson<String?>(horaFin),
     };
   }
 
@@ -487,11 +556,15 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
     int? reporteId,
     String? areaNombre,
     int? cantidad,
+    Value<String?> horaInicio = const Value.absent(),
+    Value<String?> horaFin = const Value.absent(),
   }) => ReporteArea(
     id: id ?? this.id,
     reporteId: reporteId ?? this.reporteId,
     areaNombre: areaNombre ?? this.areaNombre,
     cantidad: cantidad ?? this.cantidad,
+    horaInicio: horaInicio.present ? horaInicio.value : this.horaInicio,
+    horaFin: horaFin.present ? horaFin.value : this.horaFin,
   );
   ReporteArea copyWithCompanion(ReporteAreasCompanion data) {
     return ReporteArea(
@@ -501,6 +574,10 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
           ? data.areaNombre.value
           : this.areaNombre,
       cantidad: data.cantidad.present ? data.cantidad.value : this.cantidad,
+      horaInicio: data.horaInicio.present
+          ? data.horaInicio.value
+          : this.horaInicio,
+      horaFin: data.horaFin.present ? data.horaFin.value : this.horaFin,
     );
   }
 
@@ -510,13 +587,16 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
           ..write('id: $id, ')
           ..write('reporteId: $reporteId, ')
           ..write('areaNombre: $areaNombre, ')
-          ..write('cantidad: $cantidad')
+          ..write('cantidad: $cantidad, ')
+          ..write('horaInicio: $horaInicio, ')
+          ..write('horaFin: $horaFin')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, reporteId, areaNombre, cantidad);
+  int get hashCode =>
+      Object.hash(id, reporteId, areaNombre, cantidad, horaInicio, horaFin);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -524,7 +604,9 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
           other.id == this.id &&
           other.reporteId == this.reporteId &&
           other.areaNombre == this.areaNombre &&
-          other.cantidad == this.cantidad);
+          other.cantidad == this.cantidad &&
+          other.horaInicio == this.horaInicio &&
+          other.horaFin == this.horaFin);
 }
 
 class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
@@ -532,17 +614,23 @@ class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
   final Value<int> reporteId;
   final Value<String> areaNombre;
   final Value<int> cantidad;
+  final Value<String?> horaInicio;
+  final Value<String?> horaFin;
   const ReporteAreasCompanion({
     this.id = const Value.absent(),
     this.reporteId = const Value.absent(),
     this.areaNombre = const Value.absent(),
     this.cantidad = const Value.absent(),
+    this.horaInicio = const Value.absent(),
+    this.horaFin = const Value.absent(),
   });
   ReporteAreasCompanion.insert({
     this.id = const Value.absent(),
     required int reporteId,
     required String areaNombre,
     this.cantidad = const Value.absent(),
+    this.horaInicio = const Value.absent(),
+    this.horaFin = const Value.absent(),
   }) : reporteId = Value(reporteId),
        areaNombre = Value(areaNombre);
   static Insertable<ReporteArea> custom({
@@ -550,12 +638,16 @@ class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
     Expression<int>? reporteId,
     Expression<String>? areaNombre,
     Expression<int>? cantidad,
+    Expression<String>? horaInicio,
+    Expression<String>? horaFin,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (reporteId != null) 'reporte_id': reporteId,
       if (areaNombre != null) 'area_nombre': areaNombre,
       if (cantidad != null) 'cantidad': cantidad,
+      if (horaInicio != null) 'hora_inicio': horaInicio,
+      if (horaFin != null) 'hora_fin': horaFin,
     });
   }
 
@@ -564,12 +656,16 @@ class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
     Value<int>? reporteId,
     Value<String>? areaNombre,
     Value<int>? cantidad,
+    Value<String?>? horaInicio,
+    Value<String?>? horaFin,
   }) {
     return ReporteAreasCompanion(
       id: id ?? this.id,
       reporteId: reporteId ?? this.reporteId,
       areaNombre: areaNombre ?? this.areaNombre,
       cantidad: cantidad ?? this.cantidad,
+      horaInicio: horaInicio ?? this.horaInicio,
+      horaFin: horaFin ?? this.horaFin,
     );
   }
 
@@ -588,6 +684,12 @@ class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
     if (cantidad.present) {
       map['cantidad'] = Variable<int>(cantidad.value);
     }
+    if (horaInicio.present) {
+      map['hora_inicio'] = Variable<String>(horaInicio.value);
+    }
+    if (horaFin.present) {
+      map['hora_fin'] = Variable<String>(horaFin.value);
+    }
     return map;
   }
 
@@ -597,7 +699,366 @@ class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
           ..write('id: $id, ')
           ..write('reporteId: $reporteId, ')
           ..write('areaNombre: $areaNombre, ')
-          ..write('cantidad: $cantidad')
+          ..write('cantidad: $cantidad, ')
+          ..write('horaInicio: $horaInicio, ')
+          ..write('horaFin: $horaFin')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ReporteAreaDesglosesTable extends ReporteAreaDesgloses
+    with TableInfo<$ReporteAreaDesglosesTable, ReporteAreaDesglose> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReporteAreaDesglosesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _reporteAreaIdMeta = const VerificationMeta(
+    'reporteAreaId',
+  );
+  @override
+  late final GeneratedColumn<int> reporteAreaId = GeneratedColumn<int>(
+    'reporte_area_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES reporte_areas (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _categoriaMeta = const VerificationMeta(
+    'categoria',
+  );
+  @override
+  late final GeneratedColumn<String> categoria = GeneratedColumn<String>(
+    'categoria',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personasMeta = const VerificationMeta(
+    'personas',
+  );
+  @override
+  late final GeneratedColumn<int> personas = GeneratedColumn<int>(
+    'personas',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _kilosMeta = const VerificationMeta('kilos');
+  @override
+  late final GeneratedColumn<double> kilos = GeneratedColumn<double>(
+    'kilos',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    reporteAreaId,
+    categoria,
+    personas,
+    kilos,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'reporte_area_desgloses';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReporteAreaDesglose> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('reporte_area_id')) {
+      context.handle(
+        _reporteAreaIdMeta,
+        reporteAreaId.isAcceptableOrUnknown(
+          data['reporte_area_id']!,
+          _reporteAreaIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_reporteAreaIdMeta);
+    }
+    if (data.containsKey('categoria')) {
+      context.handle(
+        _categoriaMeta,
+        categoria.isAcceptableOrUnknown(data['categoria']!, _categoriaMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoriaMeta);
+    }
+    if (data.containsKey('personas')) {
+      context.handle(
+        _personasMeta,
+        personas.isAcceptableOrUnknown(data['personas']!, _personasMeta),
+      );
+    }
+    if (data.containsKey('kilos')) {
+      context.handle(
+        _kilosMeta,
+        kilos.isAcceptableOrUnknown(data['kilos']!, _kilosMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ReporteAreaDesglose map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReporteAreaDesglose(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      reporteAreaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}reporte_area_id'],
+      )!,
+      categoria: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}categoria'],
+      )!,
+      personas: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}personas'],
+      )!,
+      kilos: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}kilos'],
+      )!,
+    );
+  }
+
+  @override
+  $ReporteAreaDesglosesTable createAlias(String alias) {
+    return $ReporteAreaDesglosesTable(attachedDatabase, alias);
+  }
+}
+
+class ReporteAreaDesglose extends DataClass
+    implements Insertable<ReporteAreaDesglose> {
+  final int id;
+  final int reporteAreaId;
+  final String categoria;
+  final int personas;
+  final double kilos;
+  const ReporteAreaDesglose({
+    required this.id,
+    required this.reporteAreaId,
+    required this.categoria,
+    required this.personas,
+    required this.kilos,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['reporte_area_id'] = Variable<int>(reporteAreaId);
+    map['categoria'] = Variable<String>(categoria);
+    map['personas'] = Variable<int>(personas);
+    map['kilos'] = Variable<double>(kilos);
+    return map;
+  }
+
+  ReporteAreaDesglosesCompanion toCompanion(bool nullToAbsent) {
+    return ReporteAreaDesglosesCompanion(
+      id: Value(id),
+      reporteAreaId: Value(reporteAreaId),
+      categoria: Value(categoria),
+      personas: Value(personas),
+      kilos: Value(kilos),
+    );
+  }
+
+  factory ReporteAreaDesglose.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReporteAreaDesglose(
+      id: serializer.fromJson<int>(json['id']),
+      reporteAreaId: serializer.fromJson<int>(json['reporteAreaId']),
+      categoria: serializer.fromJson<String>(json['categoria']),
+      personas: serializer.fromJson<int>(json['personas']),
+      kilos: serializer.fromJson<double>(json['kilos']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'reporteAreaId': serializer.toJson<int>(reporteAreaId),
+      'categoria': serializer.toJson<String>(categoria),
+      'personas': serializer.toJson<int>(personas),
+      'kilos': serializer.toJson<double>(kilos),
+    };
+  }
+
+  ReporteAreaDesglose copyWith({
+    int? id,
+    int? reporteAreaId,
+    String? categoria,
+    int? personas,
+    double? kilos,
+  }) => ReporteAreaDesglose(
+    id: id ?? this.id,
+    reporteAreaId: reporteAreaId ?? this.reporteAreaId,
+    categoria: categoria ?? this.categoria,
+    personas: personas ?? this.personas,
+    kilos: kilos ?? this.kilos,
+  );
+  ReporteAreaDesglose copyWithCompanion(ReporteAreaDesglosesCompanion data) {
+    return ReporteAreaDesglose(
+      id: data.id.present ? data.id.value : this.id,
+      reporteAreaId: data.reporteAreaId.present
+          ? data.reporteAreaId.value
+          : this.reporteAreaId,
+      categoria: data.categoria.present ? data.categoria.value : this.categoria,
+      personas: data.personas.present ? data.personas.value : this.personas,
+      kilos: data.kilos.present ? data.kilos.value : this.kilos,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReporteAreaDesglose(')
+          ..write('id: $id, ')
+          ..write('reporteAreaId: $reporteAreaId, ')
+          ..write('categoria: $categoria, ')
+          ..write('personas: $personas, ')
+          ..write('kilos: $kilos')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, reporteAreaId, categoria, personas, kilos);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReporteAreaDesglose &&
+          other.id == this.id &&
+          other.reporteAreaId == this.reporteAreaId &&
+          other.categoria == this.categoria &&
+          other.personas == this.personas &&
+          other.kilos == this.kilos);
+}
+
+class ReporteAreaDesglosesCompanion
+    extends UpdateCompanion<ReporteAreaDesglose> {
+  final Value<int> id;
+  final Value<int> reporteAreaId;
+  final Value<String> categoria;
+  final Value<int> personas;
+  final Value<double> kilos;
+  const ReporteAreaDesglosesCompanion({
+    this.id = const Value.absent(),
+    this.reporteAreaId = const Value.absent(),
+    this.categoria = const Value.absent(),
+    this.personas = const Value.absent(),
+    this.kilos = const Value.absent(),
+  });
+  ReporteAreaDesglosesCompanion.insert({
+    this.id = const Value.absent(),
+    required int reporteAreaId,
+    required String categoria,
+    this.personas = const Value.absent(),
+    this.kilos = const Value.absent(),
+  }) : reporteAreaId = Value(reporteAreaId),
+       categoria = Value(categoria);
+  static Insertable<ReporteAreaDesglose> custom({
+    Expression<int>? id,
+    Expression<int>? reporteAreaId,
+    Expression<String>? categoria,
+    Expression<int>? personas,
+    Expression<double>? kilos,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (reporteAreaId != null) 'reporte_area_id': reporteAreaId,
+      if (categoria != null) 'categoria': categoria,
+      if (personas != null) 'personas': personas,
+      if (kilos != null) 'kilos': kilos,
+    });
+  }
+
+  ReporteAreaDesglosesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? reporteAreaId,
+    Value<String>? categoria,
+    Value<int>? personas,
+    Value<double>? kilos,
+  }) {
+    return ReporteAreaDesglosesCompanion(
+      id: id ?? this.id,
+      reporteAreaId: reporteAreaId ?? this.reporteAreaId,
+      categoria: categoria ?? this.categoria,
+      personas: personas ?? this.personas,
+      kilos: kilos ?? this.kilos,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (reporteAreaId.present) {
+      map['reporte_area_id'] = Variable<int>(reporteAreaId.value);
+    }
+    if (categoria.present) {
+      map['categoria'] = Variable<String>(categoria.value);
+    }
+    if (personas.present) {
+      map['personas'] = Variable<int>(personas.value);
+    }
+    if (kilos.present) {
+      map['kilos'] = Variable<double>(kilos.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReporteAreaDesglosesCompanion(')
+          ..write('id: $id, ')
+          ..write('reporteAreaId: $reporteAreaId, ')
+          ..write('categoria: $categoria, ')
+          ..write('personas: $personas, ')
+          ..write('kilos: $kilos')
           ..write(')'))
         .toString();
   }
@@ -1010,6 +1471,361 @@ class CuadrillasCompanion extends UpdateCompanion<Cuadrilla> {
   }
 }
 
+class $CuadrillaDesglosesTable extends CuadrillaDesgloses
+    with TableInfo<$CuadrillaDesglosesTable, CuadrillaDesglose> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CuadrillaDesglosesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _cuadrillaIdMeta = const VerificationMeta(
+    'cuadrillaId',
+  );
+  @override
+  late final GeneratedColumn<int> cuadrillaId = GeneratedColumn<int>(
+    'cuadrilla_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES cuadrillas (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _categoriaMeta = const VerificationMeta(
+    'categoria',
+  );
+  @override
+  late final GeneratedColumn<String> categoria = GeneratedColumn<String>(
+    'categoria',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personasMeta = const VerificationMeta(
+    'personas',
+  );
+  @override
+  late final GeneratedColumn<int> personas = GeneratedColumn<int>(
+    'personas',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _kilosMeta = const VerificationMeta('kilos');
+  @override
+  late final GeneratedColumn<double> kilos = GeneratedColumn<double>(
+    'kilos',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    cuadrillaId,
+    categoria,
+    personas,
+    kilos,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cuadrilla_desgloses';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CuadrillaDesglose> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('cuadrilla_id')) {
+      context.handle(
+        _cuadrillaIdMeta,
+        cuadrillaId.isAcceptableOrUnknown(
+          data['cuadrilla_id']!,
+          _cuadrillaIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cuadrillaIdMeta);
+    }
+    if (data.containsKey('categoria')) {
+      context.handle(
+        _categoriaMeta,
+        categoria.isAcceptableOrUnknown(data['categoria']!, _categoriaMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoriaMeta);
+    }
+    if (data.containsKey('personas')) {
+      context.handle(
+        _personasMeta,
+        personas.isAcceptableOrUnknown(data['personas']!, _personasMeta),
+      );
+    }
+    if (data.containsKey('kilos')) {
+      context.handle(
+        _kilosMeta,
+        kilos.isAcceptableOrUnknown(data['kilos']!, _kilosMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CuadrillaDesglose map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CuadrillaDesglose(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      cuadrillaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cuadrilla_id'],
+      )!,
+      categoria: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}categoria'],
+      )!,
+      personas: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}personas'],
+      )!,
+      kilos: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}kilos'],
+      )!,
+    );
+  }
+
+  @override
+  $CuadrillaDesglosesTable createAlias(String alias) {
+    return $CuadrillaDesglosesTable(attachedDatabase, alias);
+  }
+}
+
+class CuadrillaDesglose extends DataClass
+    implements Insertable<CuadrillaDesglose> {
+  final int id;
+  final int cuadrillaId;
+  final String categoria;
+  final int personas;
+  final double kilos;
+  const CuadrillaDesglose({
+    required this.id,
+    required this.cuadrillaId,
+    required this.categoria,
+    required this.personas,
+    required this.kilos,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['cuadrilla_id'] = Variable<int>(cuadrillaId);
+    map['categoria'] = Variable<String>(categoria);
+    map['personas'] = Variable<int>(personas);
+    map['kilos'] = Variable<double>(kilos);
+    return map;
+  }
+
+  CuadrillaDesglosesCompanion toCompanion(bool nullToAbsent) {
+    return CuadrillaDesglosesCompanion(
+      id: Value(id),
+      cuadrillaId: Value(cuadrillaId),
+      categoria: Value(categoria),
+      personas: Value(personas),
+      kilos: Value(kilos),
+    );
+  }
+
+  factory CuadrillaDesglose.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CuadrillaDesglose(
+      id: serializer.fromJson<int>(json['id']),
+      cuadrillaId: serializer.fromJson<int>(json['cuadrillaId']),
+      categoria: serializer.fromJson<String>(json['categoria']),
+      personas: serializer.fromJson<int>(json['personas']),
+      kilos: serializer.fromJson<double>(json['kilos']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'cuadrillaId': serializer.toJson<int>(cuadrillaId),
+      'categoria': serializer.toJson<String>(categoria),
+      'personas': serializer.toJson<int>(personas),
+      'kilos': serializer.toJson<double>(kilos),
+    };
+  }
+
+  CuadrillaDesglose copyWith({
+    int? id,
+    int? cuadrillaId,
+    String? categoria,
+    int? personas,
+    double? kilos,
+  }) => CuadrillaDesglose(
+    id: id ?? this.id,
+    cuadrillaId: cuadrillaId ?? this.cuadrillaId,
+    categoria: categoria ?? this.categoria,
+    personas: personas ?? this.personas,
+    kilos: kilos ?? this.kilos,
+  );
+  CuadrillaDesglose copyWithCompanion(CuadrillaDesglosesCompanion data) {
+    return CuadrillaDesglose(
+      id: data.id.present ? data.id.value : this.id,
+      cuadrillaId: data.cuadrillaId.present
+          ? data.cuadrillaId.value
+          : this.cuadrillaId,
+      categoria: data.categoria.present ? data.categoria.value : this.categoria,
+      personas: data.personas.present ? data.personas.value : this.personas,
+      kilos: data.kilos.present ? data.kilos.value : this.kilos,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CuadrillaDesglose(')
+          ..write('id: $id, ')
+          ..write('cuadrillaId: $cuadrillaId, ')
+          ..write('categoria: $categoria, ')
+          ..write('personas: $personas, ')
+          ..write('kilos: $kilos')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, cuadrillaId, categoria, personas, kilos);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CuadrillaDesglose &&
+          other.id == this.id &&
+          other.cuadrillaId == this.cuadrillaId &&
+          other.categoria == this.categoria &&
+          other.personas == this.personas &&
+          other.kilos == this.kilos);
+}
+
+class CuadrillaDesglosesCompanion extends UpdateCompanion<CuadrillaDesglose> {
+  final Value<int> id;
+  final Value<int> cuadrillaId;
+  final Value<String> categoria;
+  final Value<int> personas;
+  final Value<double> kilos;
+  const CuadrillaDesglosesCompanion({
+    this.id = const Value.absent(),
+    this.cuadrillaId = const Value.absent(),
+    this.categoria = const Value.absent(),
+    this.personas = const Value.absent(),
+    this.kilos = const Value.absent(),
+  });
+  CuadrillaDesglosesCompanion.insert({
+    this.id = const Value.absent(),
+    required int cuadrillaId,
+    required String categoria,
+    this.personas = const Value.absent(),
+    this.kilos = const Value.absent(),
+  }) : cuadrillaId = Value(cuadrillaId),
+       categoria = Value(categoria);
+  static Insertable<CuadrillaDesglose> custom({
+    Expression<int>? id,
+    Expression<int>? cuadrillaId,
+    Expression<String>? categoria,
+    Expression<int>? personas,
+    Expression<double>? kilos,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (cuadrillaId != null) 'cuadrilla_id': cuadrillaId,
+      if (categoria != null) 'categoria': categoria,
+      if (personas != null) 'personas': personas,
+      if (kilos != null) 'kilos': kilos,
+    });
+  }
+
+  CuadrillaDesglosesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? cuadrillaId,
+    Value<String>? categoria,
+    Value<int>? personas,
+    Value<double>? kilos,
+  }) {
+    return CuadrillaDesglosesCompanion(
+      id: id ?? this.id,
+      cuadrillaId: cuadrillaId ?? this.cuadrillaId,
+      categoria: categoria ?? this.categoria,
+      personas: personas ?? this.personas,
+      kilos: kilos ?? this.kilos,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (cuadrillaId.present) {
+      map['cuadrilla_id'] = Variable<int>(cuadrillaId.value);
+    }
+    if (categoria.present) {
+      map['categoria'] = Variable<String>(categoria.value);
+    }
+    if (personas.present) {
+      map['personas'] = Variable<int>(personas.value);
+    }
+    if (kilos.present) {
+      map['kilos'] = Variable<double>(kilos.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CuadrillaDesglosesCompanion(')
+          ..write('id: $id, ')
+          ..write('cuadrillaId: $cuadrillaId, ')
+          ..write('categoria: $categoria, ')
+          ..write('personas: $personas, ')
+          ..write('kilos: $kilos')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $IntegrantesTable extends Integrantes
     with TableInfo<$IntegrantesTable, Integrante> {
   @override
@@ -1318,7 +2134,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ReportesTable reportes = $ReportesTable(this);
   late final $ReporteAreasTable reporteAreas = $ReporteAreasTable(this);
+  late final $ReporteAreaDesglosesTable reporteAreaDesgloses =
+      $ReporteAreaDesglosesTable(this);
   late final $CuadrillasTable cuadrillas = $CuadrillasTable(this);
+  late final $CuadrillaDesglosesTable cuadrillaDesgloses =
+      $CuadrillaDesglosesTable(this);
   late final $IntegrantesTable integrantes = $IntegrantesTable(this);
   late final ReportesDao reportesDao = ReportesDao(this as AppDatabase);
   @override
@@ -1328,9 +2148,28 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     reportes,
     reporteAreas,
+    reporteAreaDesgloses,
     cuadrillas,
+    cuadrillaDesgloses,
     integrantes,
   ];
+  @override
+  StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'reporte_areas',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('reporte_area_desgloses', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'cuadrillas',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('cuadrilla_desgloses', kind: UpdateKind.delete)],
+    ),
+  ]);
 }
 
 typedef $$ReportesTableCreateCompanionBuilder =
@@ -1616,6 +2455,8 @@ typedef $$ReporteAreasTableCreateCompanionBuilder =
       required int reporteId,
       required String areaNombre,
       Value<int> cantidad,
+      Value<String?> horaInicio,
+      Value<String?> horaFin,
     });
 typedef $$ReporteAreasTableUpdateCompanionBuilder =
     ReporteAreasCompanion Function({
@@ -1623,6 +2464,8 @@ typedef $$ReporteAreasTableUpdateCompanionBuilder =
       Value<int> reporteId,
       Value<String> areaNombre,
       Value<int> cantidad,
+      Value<String?> horaInicio,
+      Value<String?> horaFin,
     });
 
 final class $$ReporteAreasTableReferences
@@ -1645,6 +2488,34 @@ final class $$ReporteAreasTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ReporteAreaDesglosesTable,
+    List<ReporteAreaDesglose>
+  >
+  _reporteAreaDesglosesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.reporteAreaDesgloses,
+        aliasName: $_aliasNameGenerator(
+          db.reporteAreas.id,
+          db.reporteAreaDesgloses.reporteAreaId,
+        ),
+      );
+
+  $$ReporteAreaDesglosesTableProcessedTableManager
+  get reporteAreaDesglosesRefs {
+    final manager = $$ReporteAreaDesglosesTableTableManager(
+      $_db,
+      $_db.reporteAreaDesgloses,
+    ).filter((f) => f.reporteAreaId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _reporteAreaDesglosesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 
@@ -1694,6 +2565,16 @@ class $$ReporteAreasTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get horaInicio => $composableBuilder(
+    column: $table.horaInicio,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get horaFin => $composableBuilder(
+    column: $table.horaFin,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ReportesTableFilterComposer get reporteId {
     final $$ReportesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -1715,6 +2596,31 @@ class $$ReporteAreasTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> reporteAreaDesglosesRefs(
+    Expression<bool> Function($$ReporteAreaDesglosesTableFilterComposer f) f,
+  ) {
+    final $$ReporteAreaDesglosesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.reporteAreaDesgloses,
+      getReferencedColumn: (t) => t.reporteAreaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReporteAreaDesglosesTableFilterComposer(
+            $db: $db,
+            $table: $db.reporteAreaDesgloses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 
   Expression<bool> cuadrillasRefs(
@@ -1767,6 +2673,16 @@ class $$ReporteAreasTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get horaInicio => $composableBuilder(
+    column: $table.horaInicio,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get horaFin => $composableBuilder(
+    column: $table.horaFin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ReportesTableOrderingComposer get reporteId {
     final $$ReportesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -1811,6 +2727,14 @@ class $$ReporteAreasTableAnnotationComposer
   GeneratedColumn<int> get cantidad =>
       $composableBuilder(column: $table.cantidad, builder: (column) => column);
 
+  GeneratedColumn<String> get horaInicio => $composableBuilder(
+    column: $table.horaInicio,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get horaFin =>
+      $composableBuilder(column: $table.horaFin, builder: (column) => column);
+
   $$ReportesTableAnnotationComposer get reporteId {
     final $$ReportesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -1832,6 +2756,32 @@ class $$ReporteAreasTableAnnotationComposer
           ),
     );
     return composer;
+  }
+
+  Expression<T> reporteAreaDesglosesRefs<T extends Object>(
+    Expression<T> Function($$ReporteAreaDesglosesTableAnnotationComposer a) f,
+  ) {
+    final $$ReporteAreaDesglosesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.reporteAreaDesgloses,
+          getReferencedColumn: (t) => t.reporteAreaId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ReporteAreaDesglosesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.reporteAreaDesgloses,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
   }
 
   Expression<T> cuadrillasRefs<T extends Object>(
@@ -1873,7 +2823,11 @@ class $$ReporteAreasTableTableManager
           $$ReporteAreasTableUpdateCompanionBuilder,
           (ReporteArea, $$ReporteAreasTableReferences),
           ReporteArea,
-          PrefetchHooks Function({bool reporteId, bool cuadrillasRefs})
+          PrefetchHooks Function({
+            bool reporteId,
+            bool reporteAreaDesglosesRefs,
+            bool cuadrillasRefs,
+          })
         > {
   $$ReporteAreasTableTableManager(_$AppDatabase db, $ReporteAreasTable table)
     : super(
@@ -1892,11 +2846,15 @@ class $$ReporteAreasTableTableManager
                 Value<int> reporteId = const Value.absent(),
                 Value<String> areaNombre = const Value.absent(),
                 Value<int> cantidad = const Value.absent(),
+                Value<String?> horaInicio = const Value.absent(),
+                Value<String?> horaFin = const Value.absent(),
               }) => ReporteAreasCompanion(
                 id: id,
                 reporteId: reporteId,
                 areaNombre: areaNombre,
                 cantidad: cantidad,
+                horaInicio: horaInicio,
+                horaFin: horaFin,
               ),
           createCompanionCallback:
               ({
@@ -1904,11 +2862,15 @@ class $$ReporteAreasTableTableManager
                 required int reporteId,
                 required String areaNombre,
                 Value<int> cantidad = const Value.absent(),
+                Value<String?> horaInicio = const Value.absent(),
+                Value<String?> horaFin = const Value.absent(),
               }) => ReporteAreasCompanion.insert(
                 id: id,
                 reporteId: reporteId,
                 areaNombre: areaNombre,
                 cantidad: cantidad,
+                horaInicio: horaInicio,
+                horaFin: horaFin,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -1918,69 +2880,100 @@ class $$ReporteAreasTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({reporteId = false, cuadrillasRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (cuadrillasRefs) db.cuadrillas],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (reporteId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.reporteId,
-                                referencedTable: $$ReporteAreasTableReferences
-                                    ._reporteIdTable(db),
-                                referencedColumn: $$ReporteAreasTableReferences
-                                    ._reporteIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                reporteId = false,
+                reporteAreaDesglosesRefs = false,
+                cuadrillasRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (reporteAreaDesglosesRefs) db.reporteAreaDesgloses,
+                    if (cuadrillasRefs) db.cuadrillas,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (reporteId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.reporteId,
+                                    referencedTable:
+                                        $$ReporteAreasTableReferences
+                                            ._reporteIdTable(db),
+                                    referencedColumn:
+                                        $$ReporteAreasTableReferences
+                                            ._reporteIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (reporteAreaDesglosesRefs)
+                        await $_getPrefetchedData<
+                          ReporteArea,
+                          $ReporteAreasTable,
+                          ReporteAreaDesglose
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ReporteAreasTableReferences
+                              ._reporteAreaDesglosesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ReporteAreasTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).reporteAreaDesglosesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.reporteAreaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (cuadrillasRefs)
+                        await $_getPrefetchedData<
+                          ReporteArea,
+                          $ReporteAreasTable,
+                          Cuadrilla
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ReporteAreasTableReferences
+                              ._cuadrillasRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ReporteAreasTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).cuadrillasRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.reporteAreaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (cuadrillasRefs)
-                    await $_getPrefetchedData<
-                      ReporteArea,
-                      $ReporteAreasTable,
-                      Cuadrilla
-                    >(
-                      currentTable: table,
-                      referencedTable: $$ReporteAreasTableReferences
-                          ._cuadrillasRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$ReporteAreasTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).cuadrillasRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where(
-                            (e) => e.reporteAreaId == item.id,
-                          ),
-                      typedResults: items,
-                    ),
-                ];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -1997,7 +2990,346 @@ typedef $$ReporteAreasTableProcessedTableManager =
       $$ReporteAreasTableUpdateCompanionBuilder,
       (ReporteArea, $$ReporteAreasTableReferences),
       ReporteArea,
-      PrefetchHooks Function({bool reporteId, bool cuadrillasRefs})
+      PrefetchHooks Function({
+        bool reporteId,
+        bool reporteAreaDesglosesRefs,
+        bool cuadrillasRefs,
+      })
+    >;
+typedef $$ReporteAreaDesglosesTableCreateCompanionBuilder =
+    ReporteAreaDesglosesCompanion Function({
+      Value<int> id,
+      required int reporteAreaId,
+      required String categoria,
+      Value<int> personas,
+      Value<double> kilos,
+    });
+typedef $$ReporteAreaDesglosesTableUpdateCompanionBuilder =
+    ReporteAreaDesglosesCompanion Function({
+      Value<int> id,
+      Value<int> reporteAreaId,
+      Value<String> categoria,
+      Value<int> personas,
+      Value<double> kilos,
+    });
+
+final class $$ReporteAreaDesglosesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ReporteAreaDesglosesTable,
+          ReporteAreaDesglose
+        > {
+  $$ReporteAreaDesglosesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ReporteAreasTable _reporteAreaIdTable(_$AppDatabase db) =>
+      db.reporteAreas.createAlias(
+        $_aliasNameGenerator(
+          db.reporteAreaDesgloses.reporteAreaId,
+          db.reporteAreas.id,
+        ),
+      );
+
+  $$ReporteAreasTableProcessedTableManager get reporteAreaId {
+    final $_column = $_itemColumn<int>('reporte_area_id')!;
+
+    final manager = $$ReporteAreasTableTableManager(
+      $_db,
+      $_db.reporteAreas,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_reporteAreaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ReporteAreaDesglosesTableFilterComposer
+    extends Composer<_$AppDatabase, $ReporteAreaDesglosesTable> {
+  $$ReporteAreaDesglosesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoria => $composableBuilder(
+    column: $table.categoria,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get personas => $composableBuilder(
+    column: $table.personas,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get kilos => $composableBuilder(
+    column: $table.kilos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ReporteAreasTableFilterComposer get reporteAreaId {
+    final $$ReporteAreasTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.reporteAreaId,
+      referencedTable: $db.reporteAreas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReporteAreasTableFilterComposer(
+            $db: $db,
+            $table: $db.reporteAreas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ReporteAreaDesglosesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReporteAreaDesglosesTable> {
+  $$ReporteAreaDesglosesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get categoria => $composableBuilder(
+    column: $table.categoria,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get personas => $composableBuilder(
+    column: $table.personas,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get kilos => $composableBuilder(
+    column: $table.kilos,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ReporteAreasTableOrderingComposer get reporteAreaId {
+    final $$ReporteAreasTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.reporteAreaId,
+      referencedTable: $db.reporteAreas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReporteAreasTableOrderingComposer(
+            $db: $db,
+            $table: $db.reporteAreas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ReporteAreaDesglosesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReporteAreaDesglosesTable> {
+  $$ReporteAreaDesglosesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get categoria =>
+      $composableBuilder(column: $table.categoria, builder: (column) => column);
+
+  GeneratedColumn<int> get personas =>
+      $composableBuilder(column: $table.personas, builder: (column) => column);
+
+  GeneratedColumn<double> get kilos =>
+      $composableBuilder(column: $table.kilos, builder: (column) => column);
+
+  $$ReporteAreasTableAnnotationComposer get reporteAreaId {
+    final $$ReporteAreasTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.reporteAreaId,
+      referencedTable: $db.reporteAreas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReporteAreasTableAnnotationComposer(
+            $db: $db,
+            $table: $db.reporteAreas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ReporteAreaDesglosesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ReporteAreaDesglosesTable,
+          ReporteAreaDesglose,
+          $$ReporteAreaDesglosesTableFilterComposer,
+          $$ReporteAreaDesglosesTableOrderingComposer,
+          $$ReporteAreaDesglosesTableAnnotationComposer,
+          $$ReporteAreaDesglosesTableCreateCompanionBuilder,
+          $$ReporteAreaDesglosesTableUpdateCompanionBuilder,
+          (ReporteAreaDesglose, $$ReporteAreaDesglosesTableReferences),
+          ReporteAreaDesglose,
+          PrefetchHooks Function({bool reporteAreaId})
+        > {
+  $$ReporteAreaDesglosesTableTableManager(
+    _$AppDatabase db,
+    $ReporteAreaDesglosesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReporteAreaDesglosesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ReporteAreaDesglosesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ReporteAreaDesglosesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> reporteAreaId = const Value.absent(),
+                Value<String> categoria = const Value.absent(),
+                Value<int> personas = const Value.absent(),
+                Value<double> kilos = const Value.absent(),
+              }) => ReporteAreaDesglosesCompanion(
+                id: id,
+                reporteAreaId: reporteAreaId,
+                categoria: categoria,
+                personas: personas,
+                kilos: kilos,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int reporteAreaId,
+                required String categoria,
+                Value<int> personas = const Value.absent(),
+                Value<double> kilos = const Value.absent(),
+              }) => ReporteAreaDesglosesCompanion.insert(
+                id: id,
+                reporteAreaId: reporteAreaId,
+                categoria: categoria,
+                personas: personas,
+                kilos: kilos,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ReporteAreaDesglosesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({reporteAreaId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (reporteAreaId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.reporteAreaId,
+                                referencedTable:
+                                    $$ReporteAreaDesglosesTableReferences
+                                        ._reporteAreaIdTable(db),
+                                referencedColumn:
+                                    $$ReporteAreaDesglosesTableReferences
+                                        ._reporteAreaIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ReporteAreaDesglosesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ReporteAreaDesglosesTable,
+      ReporteAreaDesglose,
+      $$ReporteAreaDesglosesTableFilterComposer,
+      $$ReporteAreaDesglosesTableOrderingComposer,
+      $$ReporteAreaDesglosesTableAnnotationComposer,
+      $$ReporteAreaDesglosesTableCreateCompanionBuilder,
+      $$ReporteAreaDesglosesTableUpdateCompanionBuilder,
+      (ReporteAreaDesglose, $$ReporteAreaDesglosesTableReferences),
+      ReporteAreaDesglose,
+      PrefetchHooks Function({bool reporteAreaId})
     >;
 typedef $$CuadrillasTableCreateCompanionBuilder =
     CuadrillasCompanion Function({
@@ -2038,6 +3370,30 @@ final class $$CuadrillasTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$CuadrillaDesglosesTable, List<CuadrillaDesglose>>
+  _cuadrillaDesglosesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.cuadrillaDesgloses,
+        aliasName: $_aliasNameGenerator(
+          db.cuadrillas.id,
+          db.cuadrillaDesgloses.cuadrillaId,
+        ),
+      );
+
+  $$CuadrillaDesglosesTableProcessedTableManager get cuadrillaDesglosesRefs {
+    final manager = $$CuadrillaDesglosesTableTableManager(
+      $_db,
+      $_db.cuadrillaDesgloses,
+    ).filter((f) => f.cuadrillaId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _cuadrillaDesglosesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 
@@ -2118,6 +3474,31 @@ class $$CuadrillasTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> cuadrillaDesglosesRefs(
+    Expression<bool> Function($$CuadrillaDesglosesTableFilterComposer f) f,
+  ) {
+    final $$CuadrillaDesglosesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.cuadrillaDesgloses,
+      getReferencedColumn: (t) => t.cuadrillaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CuadrillaDesglosesTableFilterComposer(
+            $db: $db,
+            $table: $db.cuadrillaDesgloses,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 
   Expression<bool> integrantesRefs(
@@ -2253,6 +3634,32 @@ class $$CuadrillasTableAnnotationComposer
     return composer;
   }
 
+  Expression<T> cuadrillaDesglosesRefs<T extends Object>(
+    Expression<T> Function($$CuadrillaDesglosesTableAnnotationComposer a) f,
+  ) {
+    final $$CuadrillaDesglosesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.cuadrillaDesgloses,
+          getReferencedColumn: (t) => t.cuadrillaId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$CuadrillaDesglosesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.cuadrillaDesgloses,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> integrantesRefs<T extends Object>(
     Expression<T> Function($$IntegrantesTableAnnotationComposer a) f,
   ) {
@@ -2292,7 +3699,11 @@ class $$CuadrillasTableTableManager
           $$CuadrillasTableUpdateCompanionBuilder,
           (Cuadrilla, $$CuadrillasTableReferences),
           Cuadrilla,
-          PrefetchHooks Function({bool reporteAreaId, bool integrantesRefs})
+          PrefetchHooks Function({
+            bool reporteAreaId,
+            bool cuadrillaDesglosesRefs,
+            bool integrantesRefs,
+          })
         > {
   $$CuadrillasTableTableManager(_$AppDatabase db, $CuadrillasTable table)
     : super(
@@ -2346,10 +3757,15 @@ class $$CuadrillasTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({reporteAreaId = false, integrantesRefs = false}) {
+              ({
+                reporteAreaId = false,
+                cuadrillaDesglosesRefs = false,
+                integrantesRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
+                    if (cuadrillaDesglosesRefs) db.cuadrillaDesgloses,
                     if (integrantesRefs) db.integrantes,
                   ],
                   addJoins:
@@ -2387,6 +3803,27 @@ class $$CuadrillasTableTableManager
                       },
                   getPrefetchedDataCallback: (items) async {
                     return [
+                      if (cuadrillaDesglosesRefs)
+                        await $_getPrefetchedData<
+                          Cuadrilla,
+                          $CuadrillasTable,
+                          CuadrillaDesglose
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CuadrillasTableReferences
+                              ._cuadrillaDesglosesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CuadrillasTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).cuadrillaDesglosesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.cuadrillaId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (integrantesRefs)
                         await $_getPrefetchedData<
                           Cuadrilla,
@@ -2428,7 +3865,343 @@ typedef $$CuadrillasTableProcessedTableManager =
       $$CuadrillasTableUpdateCompanionBuilder,
       (Cuadrilla, $$CuadrillasTableReferences),
       Cuadrilla,
-      PrefetchHooks Function({bool reporteAreaId, bool integrantesRefs})
+      PrefetchHooks Function({
+        bool reporteAreaId,
+        bool cuadrillaDesglosesRefs,
+        bool integrantesRefs,
+      })
+    >;
+typedef $$CuadrillaDesglosesTableCreateCompanionBuilder =
+    CuadrillaDesglosesCompanion Function({
+      Value<int> id,
+      required int cuadrillaId,
+      required String categoria,
+      Value<int> personas,
+      Value<double> kilos,
+    });
+typedef $$CuadrillaDesglosesTableUpdateCompanionBuilder =
+    CuadrillaDesglosesCompanion Function({
+      Value<int> id,
+      Value<int> cuadrillaId,
+      Value<String> categoria,
+      Value<int> personas,
+      Value<double> kilos,
+    });
+
+final class $$CuadrillaDesglosesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $CuadrillaDesglosesTable,
+          CuadrillaDesglose
+        > {
+  $$CuadrillaDesglosesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CuadrillasTable _cuadrillaIdTable(_$AppDatabase db) =>
+      db.cuadrillas.createAlias(
+        $_aliasNameGenerator(
+          db.cuadrillaDesgloses.cuadrillaId,
+          db.cuadrillas.id,
+        ),
+      );
+
+  $$CuadrillasTableProcessedTableManager get cuadrillaId {
+    final $_column = $_itemColumn<int>('cuadrilla_id')!;
+
+    final manager = $$CuadrillasTableTableManager(
+      $_db,
+      $_db.cuadrillas,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_cuadrillaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$CuadrillaDesglosesTableFilterComposer
+    extends Composer<_$AppDatabase, $CuadrillaDesglosesTable> {
+  $$CuadrillaDesglosesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoria => $composableBuilder(
+    column: $table.categoria,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get personas => $composableBuilder(
+    column: $table.personas,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get kilos => $composableBuilder(
+    column: $table.kilos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CuadrillasTableFilterComposer get cuadrillaId {
+    final $$CuadrillasTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.cuadrillaId,
+      referencedTable: $db.cuadrillas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CuadrillasTableFilterComposer(
+            $db: $db,
+            $table: $db.cuadrillas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CuadrillaDesglosesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CuadrillaDesglosesTable> {
+  $$CuadrillaDesglosesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get categoria => $composableBuilder(
+    column: $table.categoria,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get personas => $composableBuilder(
+    column: $table.personas,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get kilos => $composableBuilder(
+    column: $table.kilos,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CuadrillasTableOrderingComposer get cuadrillaId {
+    final $$CuadrillasTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.cuadrillaId,
+      referencedTable: $db.cuadrillas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CuadrillasTableOrderingComposer(
+            $db: $db,
+            $table: $db.cuadrillas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CuadrillaDesglosesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CuadrillaDesglosesTable> {
+  $$CuadrillaDesglosesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get categoria =>
+      $composableBuilder(column: $table.categoria, builder: (column) => column);
+
+  GeneratedColumn<int> get personas =>
+      $composableBuilder(column: $table.personas, builder: (column) => column);
+
+  GeneratedColumn<double> get kilos =>
+      $composableBuilder(column: $table.kilos, builder: (column) => column);
+
+  $$CuadrillasTableAnnotationComposer get cuadrillaId {
+    final $$CuadrillasTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.cuadrillaId,
+      referencedTable: $db.cuadrillas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CuadrillasTableAnnotationComposer(
+            $db: $db,
+            $table: $db.cuadrillas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CuadrillaDesglosesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CuadrillaDesglosesTable,
+          CuadrillaDesglose,
+          $$CuadrillaDesglosesTableFilterComposer,
+          $$CuadrillaDesglosesTableOrderingComposer,
+          $$CuadrillaDesglosesTableAnnotationComposer,
+          $$CuadrillaDesglosesTableCreateCompanionBuilder,
+          $$CuadrillaDesglosesTableUpdateCompanionBuilder,
+          (CuadrillaDesglose, $$CuadrillaDesglosesTableReferences),
+          CuadrillaDesglose,
+          PrefetchHooks Function({bool cuadrillaId})
+        > {
+  $$CuadrillaDesglosesTableTableManager(
+    _$AppDatabase db,
+    $CuadrillaDesglosesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CuadrillaDesglosesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CuadrillaDesglosesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CuadrillaDesglosesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> cuadrillaId = const Value.absent(),
+                Value<String> categoria = const Value.absent(),
+                Value<int> personas = const Value.absent(),
+                Value<double> kilos = const Value.absent(),
+              }) => CuadrillaDesglosesCompanion(
+                id: id,
+                cuadrillaId: cuadrillaId,
+                categoria: categoria,
+                personas: personas,
+                kilos: kilos,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int cuadrillaId,
+                required String categoria,
+                Value<int> personas = const Value.absent(),
+                Value<double> kilos = const Value.absent(),
+              }) => CuadrillaDesglosesCompanion.insert(
+                id: id,
+                cuadrillaId: cuadrillaId,
+                categoria: categoria,
+                personas: personas,
+                kilos: kilos,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$CuadrillaDesglosesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({cuadrillaId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (cuadrillaId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.cuadrillaId,
+                                referencedTable:
+                                    $$CuadrillaDesglosesTableReferences
+                                        ._cuadrillaIdTable(db),
+                                referencedColumn:
+                                    $$CuadrillaDesglosesTableReferences
+                                        ._cuadrillaIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$CuadrillaDesglosesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CuadrillaDesglosesTable,
+      CuadrillaDesglose,
+      $$CuadrillaDesglosesTableFilterComposer,
+      $$CuadrillaDesglosesTableOrderingComposer,
+      $$CuadrillaDesglosesTableAnnotationComposer,
+      $$CuadrillaDesglosesTableCreateCompanionBuilder,
+      $$CuadrillaDesglosesTableUpdateCompanionBuilder,
+      (CuadrillaDesglose, $$CuadrillaDesglosesTableReferences),
+      CuadrillaDesglose,
+      PrefetchHooks Function({bool cuadrillaId})
     >;
 typedef $$IntegrantesTableCreateCompanionBuilder =
     IntegrantesCompanion Function({
@@ -2732,8 +4505,12 @@ class $AppDatabaseManager {
       $$ReportesTableTableManager(_db, _db.reportes);
   $$ReporteAreasTableTableManager get reporteAreas =>
       $$ReporteAreasTableTableManager(_db, _db.reporteAreas);
+  $$ReporteAreaDesglosesTableTableManager get reporteAreaDesgloses =>
+      $$ReporteAreaDesglosesTableTableManager(_db, _db.reporteAreaDesgloses);
   $$CuadrillasTableTableManager get cuadrillas =>
       $$CuadrillasTableTableManager(_db, _db.cuadrillas);
+  $$CuadrillaDesglosesTableTableManager get cuadrillaDesgloses =>
+      $$CuadrillaDesglosesTableTableManager(_db, _db.cuadrillaDesgloses);
   $$IntegrantesTableTableManager get integrantes =>
       $$IntegrantesTableTableManager(_db, _db.integrantes);
 }
@@ -2741,6 +4518,10 @@ class $AppDatabaseManager {
 mixin _$ReportesDaoMixin on DatabaseAccessor<AppDatabase> {
   $ReportesTable get reportes => attachedDatabase.reportes;
   $ReporteAreasTable get reporteAreas => attachedDatabase.reporteAreas;
+  $ReporteAreaDesglosesTable get reporteAreaDesgloses =>
+      attachedDatabase.reporteAreaDesgloses;
   $CuadrillasTable get cuadrillas => attachedDatabase.cuadrillas;
+  $CuadrillaDesglosesTable get cuadrillaDesgloses =>
+      attachedDatabase.cuadrillaDesgloses;
   $IntegrantesTable get integrantes => attachedDatabase.integrantes;
 }

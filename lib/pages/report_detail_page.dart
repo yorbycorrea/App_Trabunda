@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../data/app_database.dart';
 import '../data/db.dart';
+import '../services/auth_service.dart';
+import '../services/report_pdf_service.dart';
 
 class ReportDetailPage extends StatefulWidget {
   const ReportDetailPage({
@@ -76,7 +78,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   const _NoAreasCard()
                 else
                   ...detalle.areas.map(
-                        (area) => _AreaSection(area: area),
+                        (area) => _AreaSection(
+                      area: area,
+                      reporte: detalle,
+                    ),
                   ),
               ],
             ),
@@ -239,18 +244,73 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _AreaSection extends StatelessWidget {
-  const _AreaSection({required this.area});
+class _AreaSection extends StatefulWidget {
+  const _AreaSection({
+    required this.area,
+    required this.reporte,
+  });
 
   final ReporteAreaDetalle area;
+  final ReporteDetalle reporte;
+
+  @override
+  State<_AreaSection> createState() => _AreaSectionState();
+}
+
+class _AreaSectionState extends State<_AreaSection> {
+  final ReportPdfService _pdfService = const ReportPdfService();
+  bool _isLoading = false;
+
+  bool get _shouldShowDownload {
+    final name = widget.area.nombre.toLowerCase();
+    return name == 'fileteros' || name == 'recepción' || name == 'recepcion';
+  }
+
+  Future<void> _downloadReport(BuildContext context) async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+
+    final scaffold = ScaffoldMessenger.of(context);
+
+    try {
+      final auth = AuthScope.read(context);
+      final elaboradoPor =
+          auth.currentUser?.name ?? widget.reporte.planillero;
+
+      final result = await _pdfService.generateAreaReport(
+        reporte: widget.reporte,
+        area: widget.area,
+        elaboradoPor: elaboradoPor,
+      );
+
+      await _pdfService.share(result);
+
+      scaffold.showSnackBar(
+        SnackBar(
+          content: Text('Reporte guardado en ${result.file.path}'),
+        ),
+      );
+    } catch (error) {
+      scaffold.showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo generar el PDF. Intenta nuevamente.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final area = widget.area;
     final theme = Theme.of(context);
     final subtitle =
         '${area.cantidad} ${_plural(area.cantidad, 'persona', 'personas')} • '
         '${area.totalKilos.toStringAsFixed(3)} kg';
-    final isFileteros = area.nombre.toLowerCase() == 'fileteros';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -271,6 +331,25 @@ class _AreaSection extends StatelessWidget {
           ),
         ),
         children: [
+          if ((area.horaInicio != null && area.horaInicio!.isNotEmpty) ||
+              (area.horaFin != null && area.horaFin!.isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.schedule_rounded, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    _formatRange(area.horaInicio, area.horaFin),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          if (area.desglose.isNotEmpty) ...[
+            _DesgloseCard(desglose: area.desglose),
+            const SizedBox(height: 12),
+          ],
           if (isFileteros) ...[
             Align(
               alignment: Alignment.centerLeft,
@@ -309,14 +388,7 @@ class _CuadrillaTile extends StatelessWidget {
 
   final CuadrillaDetalle cuadrilla;
 
-  String _formatRange(String? start, String? end) {
-    if ((start == null || start.isEmpty) && (end == null || end.isEmpty)) {
-      return 'Horario no registrado';
-    }
-    final startText = start == null || start.isEmpty ? '--:--' : start;
-    final endText = end == null || end.isEmpty ? '--:--' : end;
-    return '$startText - $endText';
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -374,6 +446,10 @@ class _CuadrillaTile extends StatelessWidget {
               ),
             ],
           ),
+          if (cuadrilla.desglose.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _DesgloseList(desglose: cuadrilla.desglose),
+          ],
           if (integrants.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
@@ -471,4 +547,84 @@ class _EmptyState extends StatelessWidget {
 
 String _plural(int value, String singular, String plural) {
   return value == 1 ? singular : plural;
+}
+String _formatRange(String? start, String? end) {
+  if ((start == null || start.isEmpty) && (end == null || end.isEmpty)) {
+    return 'Horario no registrado';
+  }
+  final startText = start == null || start.isEmpty ? '--:--' : start;
+  final endText = end == null || end.isEmpty ? '--:--' : end;
+  return '$startText - $endText';
+}
+
+class _DesgloseCard extends StatelessWidget {
+  const _DesgloseCard({required this.desglose});
+
+  final List<CategoriaDesglose> desglose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Desglose por categoría',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _DesgloseList(desglose: desglose),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesgloseList extends StatelessWidget {
+  const _DesgloseList({required this.desglose});
+
+  final List<CategoriaDesglose> desglose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: desglose
+          .map(
+            (d) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  d.categoria,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              Text(
+                '${d.personas} ${_plural(d.personas, 'persona', 'personas')}',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${d.kilos.toStringAsFixed(3)} kg',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      )
+          .toList(),
+    );
+  }
 }

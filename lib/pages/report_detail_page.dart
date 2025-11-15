@@ -350,7 +350,7 @@ class _AreaSectionState extends State<_AreaSection> {
             _DesgloseCard(desglose: area.desglose),
             const SizedBox(height: 12),
           ],
-          if (isFileteros) ...[
+          if (_shouldShowDownload) ...[
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(

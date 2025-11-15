@@ -271,6 +271,25 @@ class _AreaSection extends StatelessWidget {
           ),
         ),
         children: [
+          if ((area.horaInicio != null && area.horaInicio!.isNotEmpty) ||
+              (area.horaFin != null && area.horaFin!.isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.schedule_rounded, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    _formatRange(area.horaInicio, area.horaFin),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          if (area.desglose.isNotEmpty) ...[
+            _DesgloseCard(desglose: area.desglose),
+            const SizedBox(height: 12),
+          ],
           if (isFileteros) ...[
             Align(
               alignment: Alignment.centerLeft,
@@ -308,15 +327,6 @@ class _CuadrillaTile extends StatelessWidget {
   const _CuadrillaTile({required this.cuadrilla});
 
   final CuadrillaDetalle cuadrilla;
-
-  String _formatRange(String? start, String? end) {
-    if ((start == null || start.isEmpty) && (end == null || end.isEmpty)) {
-      return 'Horario no registrado';
-    }
-    final startText = start == null || start.isEmpty ? '--:--' : start;
-    final endText = end == null || end.isEmpty ? '--:--' : end;
-    return '$startText - $endText';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -374,6 +384,10 @@ class _CuadrillaTile extends StatelessWidget {
               ),
             ],
           ),
+          if (cuadrilla.desglose.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _DesgloseList(desglose: cuadrilla.desglose),
+          ],
           if (integrants.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
@@ -471,4 +485,85 @@ class _EmptyState extends StatelessWidget {
 
 String _plural(int value, String singular, String plural) {
   return value == 1 ? singular : plural;
+}
+
+String _formatRange(String? start, String? end) {
+  if ((start == null || start.isEmpty) && (end == null || end.isEmpty)) {
+    return 'Horario no registrado';
+  }
+  final startText = start == null || start.isEmpty ? '--:--' : start;
+  final endText = end == null || end.isEmpty ? '--:--' : end;
+  return '$startText - $endText';
+}
+
+class _DesgloseCard extends StatelessWidget {
+  const _DesgloseCard({required this.desglose});
+
+  final List<CategoriaDesglose> desglose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Desglose por categoría',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _DesgloseList(desglose: desglose),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesgloseList extends StatelessWidget {
+  const _DesgloseList({required this.desglose});
+
+  final List<CategoriaDesglose> desglose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: desglose
+          .map(
+            (d) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      d.categoria,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                  Text(
+                    '${d.personas} ${_plural(d.personas, 'persona', 'personas')}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${d.kilos.toStringAsFixed(3)} kg',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
 }

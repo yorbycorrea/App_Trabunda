@@ -270,8 +270,18 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
 
     if (result != null && mounted) {
       final personas = (result['personas'] ?? 0) as int;
+      final horaInicio = result['horaInicio'] as String?;
+      final horaFin = result['horaFin'] as String?;
+      final desglose =
+          (result['desglose'] as List?)?.cast<Map<String, dynamic>>();
       setState(() => areaRow.cantidadCtrl.text = '$personas');
-      await db.reportesDao.updateCantidadArea(reporteAreaId, personas);
+      await db.reportesDao.saveReporteAreaDatos(
+        reporteAreaId: reporteAreaId,
+        cantidad: personas,
+        horaInicio: horaInicio,
+        horaFin: horaFin,
+        desglose: desglose,
+      );
     }
   }
 

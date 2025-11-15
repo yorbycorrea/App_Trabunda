@@ -356,8 +356,35 @@ class $ReporteAreasTable extends ReporteAreas
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _horaInicioMeta = const VerificationMeta(
+    'horaInicio',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, reporteId, areaNombre, cantidad];
+  late final GeneratedColumn<String> horaInicio = GeneratedColumn<String>(
+    'hora_inicio',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _horaFinMeta = const VerificationMeta('horaFin');
+  @override
+  late final GeneratedColumn<String> horaFin = GeneratedColumn<String>(
+    'hora_fin',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        reporteId,
+        areaNombre,
+        cantidad,
+        horaInicio,
+        horaFin,
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -395,6 +422,21 @@ class $ReporteAreasTable extends ReporteAreas
         cantidad.isAcceptableOrUnknown(data['cantidad']!, _cantidadMeta),
       );
     }
+    if (data.containsKey('hora_inicio')) {
+      context.handle(
+        _horaInicioMeta,
+        horaInicio.isAcceptableOrUnknown(
+          data['hora_inicio']!,
+          _horaInicioMeta,
+        ),
+      );
+    }
+    if (data.containsKey('hora_fin')) {
+      context.handle(
+        _horaFinMeta,
+        horaFin.isAcceptableOrUnknown(data['hora_fin']!, _horaFinMeta),
+      );
+    }
     return context;
   }
 
@@ -420,6 +462,14 @@ class $ReporteAreasTable extends ReporteAreas
         DriftSqlType.int,
         data['${effectivePrefix}cantidad'],
       )!,
+      horaInicio: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hora_inicio'],
+      ),
+      horaFin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hora_fin'],
+      ),
     );
   }
 
@@ -434,11 +484,15 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
   final int reporteId;
   final String areaNombre;
   final int cantidad;
+  final String? horaInicio;
+  final String? horaFin;
   const ReporteArea({
     required this.id,
     required this.reporteId,
     required this.areaNombre,
     required this.cantidad,
+    this.horaInicio,
+    this.horaFin,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -447,6 +501,12 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
     map['reporte_id'] = Variable<int>(reporteId);
     map['area_nombre'] = Variable<String>(areaNombre);
     map['cantidad'] = Variable<int>(cantidad);
+    if (!nullToAbsent || horaInicio != null) {
+      map['hora_inicio'] = Variable<String?>(horaInicio);
+    }
+    if (!nullToAbsent || horaFin != null) {
+      map['hora_fin'] = Variable<String?>(horaFin);
+    }
     return map;
   }
 
@@ -456,6 +516,12 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
       reporteId: Value(reporteId),
       areaNombre: Value(areaNombre),
       cantidad: Value(cantidad),
+      horaInicio: horaInicio == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horaInicio),
+      horaFin: horaFin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horaFin),
     );
   }
 
@@ -469,6 +535,8 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
       reporteId: serializer.fromJson<int>(json['reporteId']),
       areaNombre: serializer.fromJson<String>(json['areaNombre']),
       cantidad: serializer.fromJson<int>(json['cantidad']),
+      horaInicio: serializer.fromJson<String?>(json['horaInicio']),
+      horaFin: serializer.fromJson<String?>(json['horaFin']),
     );
   }
   @override
@@ -479,6 +547,8 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
       'reporteId': serializer.toJson<int>(reporteId),
       'areaNombre': serializer.toJson<String>(areaNombre),
       'cantidad': serializer.toJson<int>(cantidad),
+      'horaInicio': serializer.toJson<String?>(horaInicio),
+      'horaFin': serializer.toJson<String?>(horaFin),
     };
   }
 
@@ -487,12 +557,19 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
     int? reporteId,
     String? areaNombre,
     int? cantidad,
+    Value<String?>? horaInicio,
+    Value<String?>? horaFin,
   }) => ReporteArea(
-    id: id ?? this.id,
-    reporteId: reporteId ?? this.reporteId,
-    areaNombre: areaNombre ?? this.areaNombre,
-    cantidad: cantidad ?? this.cantidad,
-  );
+        id: id ?? this.id,
+        reporteId: reporteId ?? this.reporteId,
+        areaNombre: areaNombre ?? this.areaNombre,
+        cantidad: cantidad ?? this.cantidad,
+        horaInicio: horaInicio?.present == true
+            ? horaInicio!.value
+            : this.horaInicio,
+        horaFin:
+            horaFin?.present == true ? horaFin!.value : this.horaFin,
+      );
   ReporteArea copyWithCompanion(ReporteAreasCompanion data) {
     return ReporteArea(
       id: data.id.present ? data.id.value : this.id,
@@ -501,6 +578,9 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
           ? data.areaNombre.value
           : this.areaNombre,
       cantidad: data.cantidad.present ? data.cantidad.value : this.cantidad,
+      horaInicio:
+          data.horaInicio.present ? data.horaInicio.value : this.horaInicio,
+      horaFin: data.horaFin.present ? data.horaFin.value : this.horaFin,
     );
   }
 
@@ -510,13 +590,16 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
           ..write('id: $id, ')
           ..write('reporteId: $reporteId, ')
           ..write('areaNombre: $areaNombre, ')
-          ..write('cantidad: $cantidad')
+          ..write('cantidad: $cantidad, ')
+          ..write('horaInicio: $horaInicio, ')
+          ..write('horaFin: $horaFin')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, reporteId, areaNombre, cantidad);
+  int get hashCode =>
+      Object.hash(id, reporteId, areaNombre, cantidad, horaInicio, horaFin);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -524,7 +607,9 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
           other.id == this.id &&
           other.reporteId == this.reporteId &&
           other.areaNombre == this.areaNombre &&
-          other.cantidad == this.cantidad);
+          other.cantidad == this.cantidad &&
+          other.horaInicio == this.horaInicio &&
+          other.horaFin == this.horaFin);
 }
 
 class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
@@ -532,30 +617,40 @@ class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
   final Value<int> reporteId;
   final Value<String> areaNombre;
   final Value<int> cantidad;
+  final Value<String?> horaInicio;
+  final Value<String?> horaFin;
   const ReporteAreasCompanion({
     this.id = const Value.absent(),
     this.reporteId = const Value.absent(),
     this.areaNombre = const Value.absent(),
     this.cantidad = const Value.absent(),
+    this.horaInicio = const Value.absent(),
+    this.horaFin = const Value.absent(),
   });
   ReporteAreasCompanion.insert({
     this.id = const Value.absent(),
     required int reporteId,
     required String areaNombre,
     this.cantidad = const Value.absent(),
-  }) : reporteId = Value(reporteId),
-       areaNombre = Value(areaNombre);
+    this.horaInicio = const Value.absent(),
+    this.horaFin = const Value.absent(),
+  })  : reporteId = Value(reporteId),
+        areaNombre = Value(areaNombre);
   static Insertable<ReporteArea> custom({
     Expression<int>? id,
     Expression<int>? reporteId,
     Expression<String>? areaNombre,
     Expression<int>? cantidad,
+    Expression<String>? horaInicio,
+    Expression<String>? horaFin,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (reporteId != null) 'reporte_id': reporteId,
       if (areaNombre != null) 'area_nombre': areaNombre,
       if (cantidad != null) 'cantidad': cantidad,
+      if (horaInicio != null) 'hora_inicio': horaInicio,
+      if (horaFin != null) 'hora_fin': horaFin,
     });
   }
 
@@ -564,12 +659,16 @@ class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
     Value<int>? reporteId,
     Value<String>? areaNombre,
     Value<int>? cantidad,
+    Value<String?>? horaInicio,
+    Value<String?>? horaFin,
   }) {
     return ReporteAreasCompanion(
       id: id ?? this.id,
       reporteId: reporteId ?? this.reporteId,
       areaNombre: areaNombre ?? this.areaNombre,
       cantidad: cantidad ?? this.cantidad,
+      horaInicio: horaInicio ?? this.horaInicio,
+      horaFin: horaFin ?? this.horaFin,
     );
   }
 
@@ -588,6 +687,12 @@ class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
     if (cantidad.present) {
       map['cantidad'] = Variable<int>(cantidad.value);
     }
+    if (horaInicio.present) {
+      map['hora_inicio'] = Variable<String?>(horaInicio.value);
+    }
+    if (horaFin.present) {
+      map['hora_fin'] = Variable<String?>(horaFin.value);
+    }
     return map;
   }
 
@@ -597,7 +702,368 @@ class ReporteAreasCompanion extends UpdateCompanion<ReporteArea> {
           ..write('id: $id, ')
           ..write('reporteId: $reporteId, ')
           ..write('areaNombre: $areaNombre, ')
-          ..write('cantidad: $cantidad')
+          ..write('cantidad: $cantidad, ')
+          ..write('horaInicio: $horaInicio, ')
+          ..write('horaFin: $horaFin')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ReporteAreaDesglosesTable extends ReporteAreaDesgloses
+    with TableInfo<$ReporteAreaDesglosesTable, ReporteAreaDesglose> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReporteAreaDesglosesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _reporteAreaIdMeta = const VerificationMeta(
+    'reporteAreaId',
+  );
+  @override
+  late final GeneratedColumn<int> reporteAreaId = GeneratedColumn<int>(
+    'reporte_area_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES reporte_areas (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _categoriaMeta = const VerificationMeta(
+    'categoria',
+  );
+  @override
+  late final GeneratedColumn<String> categoria = GeneratedColumn<String>(
+    'categoria',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personasMeta = const VerificationMeta(
+    'personas',
+  );
+  @override
+  late final GeneratedColumn<int> personas = GeneratedColumn<int>(
+    'personas',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _kilosMeta = const VerificationMeta('kilos');
+  @override
+  late final GeneratedColumn<double> kilos = GeneratedColumn<double>(
+    'kilos',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        reporteAreaId,
+        categoria,
+        personas,
+        kilos,
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'reporte_area_desgloses';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReporteAreaDesglose> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('reporte_area_id')) {
+      context.handle(
+        _reporteAreaIdMeta,
+        reporteAreaId.isAcceptableOrUnknown(
+          data['reporte_area_id']!,
+          _reporteAreaIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_reporteAreaIdMeta);
+    }
+    if (data.containsKey('categoria')) {
+      context.handle(
+        _categoriaMeta,
+        categoria.isAcceptableOrUnknown(data['categoria']!, _categoriaMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoriaMeta);
+    }
+    if (data.containsKey('personas')) {
+      context.handle(
+        _personasMeta,
+        personas.isAcceptableOrUnknown(data['personas']!, _personasMeta),
+      );
+    }
+    if (data.containsKey('kilos')) {
+      context.handle(
+        _kilosMeta,
+        kilos.isAcceptableOrUnknown(data['kilos']!, _kilosMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ReporteAreaDesglose map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReporteAreaDesglose(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      reporteAreaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}reporte_area_id'],
+      )!,
+      categoria: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}categoria'],
+      )!,
+      personas: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}personas'],
+      )!,
+      kilos: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}kilos'],
+      )!,
+    );
+  }
+
+  @override
+  $ReporteAreaDesglosesTable createAlias(String alias) {
+    return $ReporteAreaDesglosesTable(attachedDatabase, alias);
+  }
+}
+
+class ReporteAreaDesglose extends DataClass
+    implements Insertable<ReporteAreaDesglose> {
+  final int id;
+  final int reporteAreaId;
+  final String categoria;
+  final int personas;
+  final double kilos;
+  const ReporteAreaDesglose({
+    required this.id,
+    required this.reporteAreaId,
+    required this.categoria,
+    required this.personas,
+    required this.kilos,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['reporte_area_id'] = Variable<int>(reporteAreaId);
+    map['categoria'] = Variable<String>(categoria);
+    map['personas'] = Variable<int>(personas);
+    map['kilos'] = Variable<double>(kilos);
+    return map;
+  }
+
+  ReporteAreaDesglosesCompanion toCompanion(bool nullToAbsent) {
+    return ReporteAreaDesglosesCompanion(
+      id: Value(id),
+      reporteAreaId: Value(reporteAreaId),
+      categoria: Value(categoria),
+      personas: Value(personas),
+      kilos: Value(kilos),
+    );
+  }
+
+  factory ReporteAreaDesglose.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReporteAreaDesglose(
+      id: serializer.fromJson<int>(json['id']),
+      reporteAreaId: serializer.fromJson<int>(json['reporteAreaId']),
+      categoria: serializer.fromJson<String>(json['categoria']),
+      personas: serializer.fromJson<int>(json['personas']),
+      kilos: serializer.fromJson<double>(json['kilos']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'reporteAreaId': serializer.toJson<int>(reporteAreaId),
+      'categoria': serializer.toJson<String>(categoria),
+      'personas': serializer.toJson<int>(personas),
+      'kilos': serializer.toJson<double>(kilos),
+    };
+  }
+
+  ReporteAreaDesglose copyWith({
+    int? id,
+    int? reporteAreaId,
+    String? categoria,
+    int? personas,
+    double? kilos,
+  }) => ReporteAreaDesglose(
+        id: id ?? this.id,
+        reporteAreaId: reporteAreaId ?? this.reporteAreaId,
+        categoria: categoria ?? this.categoria,
+        personas: personas ?? this.personas,
+        kilos: kilos ?? this.kilos,
+      );
+  ReporteAreaDesglose copyWithCompanion(ReporteAreaDesglosesCompanion data) {
+    return ReporteAreaDesglose(
+      id: data.id.present ? data.id.value : this.id,
+      reporteAreaId: data.reporteAreaId.present
+          ? data.reporteAreaId.value
+          : this.reporteAreaId,
+      categoria:
+          data.categoria.present ? data.categoria.value : this.categoria,
+      personas:
+          data.personas.present ? data.personas.value : this.personas,
+      kilos: data.kilos.present ? data.kilos.value : this.kilos,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReporteAreaDesglose(')
+          ..write('id: $id, ')
+          ..write('reporteAreaId: $reporteAreaId, ')
+          ..write('categoria: $categoria, ')
+          ..write('personas: $personas, ')
+          ..write('kilos: $kilos')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, reporteAreaId, categoria, personas, kilos);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReporteAreaDesglose &&
+          other.id == this.id &&
+          other.reporteAreaId == this.reporteAreaId &&
+          other.categoria == this.categoria &&
+          other.personas == this.personas &&
+          other.kilos == this.kilos);
+}
+
+class ReporteAreaDesglosesCompanion
+    extends UpdateCompanion<ReporteAreaDesglose> {
+  final Value<int> id;
+  final Value<int> reporteAreaId;
+  final Value<String> categoria;
+  final Value<int> personas;
+  final Value<double> kilos;
+  const ReporteAreaDesglosesCompanion({
+    this.id = const Value.absent(),
+    this.reporteAreaId = const Value.absent(),
+    this.categoria = const Value.absent(),
+    this.personas = const Value.absent(),
+    this.kilos = const Value.absent(),
+  });
+  ReporteAreaDesglosesCompanion.insert({
+    this.id = const Value.absent(),
+    required int reporteAreaId,
+    required String categoria,
+    this.personas = const Value.absent(),
+    this.kilos = const Value.absent(),
+  })  : reporteAreaId = Value(reporteAreaId),
+        categoria = Value(categoria);
+  static Insertable<ReporteAreaDesglose> custom({
+    Expression<int>? id,
+    Expression<int>? reporteAreaId,
+    Expression<String>? categoria,
+    Expression<int>? personas,
+    Expression<double>? kilos,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (reporteAreaId != null) 'reporte_area_id': reporteAreaId,
+      if (categoria != null) 'categoria': categoria,
+      if (personas != null) 'personas': personas,
+      if (kilos != null) 'kilos': kilos,
+    });
+  }
+
+  ReporteAreaDesglosesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? reporteAreaId,
+    Value<String>? categoria,
+    Value<int>? personas,
+    Value<double>? kilos,
+  }) {
+    return ReporteAreaDesglosesCompanion(
+      id: id ?? this.id,
+      reporteAreaId: reporteAreaId ?? this.reporteAreaId,
+      categoria: categoria ?? this.categoria,
+      personas: personas ?? this.personas,
+      kilos: kilos ?? this.kilos,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (reporteAreaId.present) {
+      map['reporte_area_id'] = Variable<int>(reporteAreaId.value);
+    }
+    if (categoria.present) {
+      map['categoria'] = Variable<String>(categoria.value);
+    }
+    if (personas.present) {
+      map['personas'] = Variable<int>(personas.value);
+    }
+    if (kilos.present) {
+      map['kilos'] = Variable<double>(kilos.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReporteAreaDesglosesCompanion(')
+          ..write('id: $id, ')
+          ..write('reporteAreaId: $reporteAreaId, ')
+          ..write('categoria: $categoria, ')
+          ..write('personas: $personas, ')
+          ..write('kilos: $kilos')
           ..write(')'))
         .toString();
   }
@@ -1010,6 +1476,364 @@ class CuadrillasCompanion extends UpdateCompanion<Cuadrilla> {
   }
 }
 
+class $CuadrillaDesglosesTable extends CuadrillaDesgloses
+    with TableInfo<$CuadrillaDesglosesTable, CuadrillaDesglose> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CuadrillaDesglosesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _cuadrillaIdMeta = const VerificationMeta(
+    'cuadrillaId',
+  );
+  @override
+  late final GeneratedColumn<int> cuadrillaId = GeneratedColumn<int>(
+    'cuadrilla_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES cuadrillas (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _categoriaMeta = const VerificationMeta(
+    'categoria',
+  );
+  @override
+  late final GeneratedColumn<String> categoria = GeneratedColumn<String>(
+    'categoria',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _personasMeta = const VerificationMeta(
+    'personas',
+  );
+  @override
+  late final GeneratedColumn<int> personas = GeneratedColumn<int>(
+    'personas',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _kilosMeta = const VerificationMeta('kilos');
+  @override
+  late final GeneratedColumn<double> kilos = GeneratedColumn<double>(
+    'kilos',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        cuadrillaId,
+        categoria,
+        personas,
+        kilos,
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cuadrilla_desgloses';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CuadrillaDesglose> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('cuadrilla_id')) {
+      context.handle(
+        _cuadrillaIdMeta,
+        cuadrillaId.isAcceptableOrUnknown(
+          data['cuadrilla_id']!,
+          _cuadrillaIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cuadrillaIdMeta);
+    }
+    if (data.containsKey('categoria')) {
+      context.handle(
+        _categoriaMeta,
+        categoria.isAcceptableOrUnknown(data['categoria']!, _categoriaMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoriaMeta);
+    }
+    if (data.containsKey('personas')) {
+      context.handle(
+        _personasMeta,
+        personas.isAcceptableOrUnknown(data['personas']!, _personasMeta),
+      );
+    }
+    if (data.containsKey('kilos')) {
+      context.handle(
+        _kilosMeta,
+        kilos.isAcceptableOrUnknown(data['kilos']!, _kilosMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CuadrillaDesglose map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CuadrillaDesglose(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      cuadrillaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cuadrilla_id'],
+      )!,
+      categoria: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}categoria'],
+      )!,
+      personas: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}personas'],
+      )!,
+      kilos: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}kilos'],
+      )!,
+    );
+  }
+
+  @override
+  $CuadrillaDesglosesTable createAlias(String alias) {
+    return $CuadrillaDesglosesTable(attachedDatabase, alias);
+  }
+}
+
+class CuadrillaDesglose extends DataClass
+    implements Insertable<CuadrillaDesglose> {
+  final int id;
+  final int cuadrillaId;
+  final String categoria;
+  final int personas;
+  final double kilos;
+  const CuadrillaDesglose({
+    required this.id,
+    required this.cuadrillaId,
+    required this.categoria,
+    required this.personas,
+    required this.kilos,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['cuadrilla_id'] = Variable<int>(cuadrillaId);
+    map['categoria'] = Variable<String>(categoria);
+    map['personas'] = Variable<int>(personas);
+    map['kilos'] = Variable<double>(kilos);
+    return map;
+  }
+
+  CuadrillaDesglosesCompanion toCompanion(bool nullToAbsent) {
+    return CuadrillaDesglosesCompanion(
+      id: Value(id),
+      cuadrillaId: Value(cuadrillaId),
+      categoria: Value(categoria),
+      personas: Value(personas),
+      kilos: Value(kilos),
+    );
+  }
+
+  factory CuadrillaDesglose.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CuadrillaDesglose(
+      id: serializer.fromJson<int>(json['id']),
+      cuadrillaId: serializer.fromJson<int>(json['cuadrillaId']),
+      categoria: serializer.fromJson<String>(json['categoria']),
+      personas: serializer.fromJson<int>(json['personas']),
+      kilos: serializer.fromJson<double>(json['kilos']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'cuadrillaId': serializer.toJson<int>(cuadrillaId),
+      'categoria': serializer.toJson<String>(categoria),
+      'personas': serializer.toJson<int>(personas),
+      'kilos': serializer.toJson<double>(kilos),
+    };
+  }
+
+  CuadrillaDesglose copyWith({
+    int? id,
+    int? cuadrillaId,
+    String? categoria,
+    int? personas,
+    double? kilos,
+  }) => CuadrillaDesglose(
+        id: id ?? this.id,
+        cuadrillaId: cuadrillaId ?? this.cuadrillaId,
+        categoria: categoria ?? this.categoria,
+        personas: personas ?? this.personas,
+        kilos: kilos ?? this.kilos,
+      );
+  CuadrillaDesglose copyWithCompanion(CuadrillaDesglosesCompanion data) {
+    return CuadrillaDesglose(
+      id: data.id.present ? data.id.value : this.id,
+      cuadrillaId: data.cuadrillaId.present
+          ? data.cuadrillaId.value
+          : this.cuadrillaId,
+      categoria:
+          data.categoria.present ? data.categoria.value : this.categoria,
+      personas: data.personas.present ? data.personas.value : this.personas,
+      kilos: data.kilos.present ? data.kilos.value : this.kilos,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CuadrillaDesglose(')
+          ..write('id: $id, ')
+          ..write('cuadrillaId: $cuadrillaId, ')
+          ..write('categoria: $categoria, ')
+          ..write('personas: $personas, ')
+          ..write('kilos: $kilos')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, cuadrillaId, categoria, personas, kilos);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CuadrillaDesglose &&
+          other.id == this.id &&
+          other.cuadrillaId == this.cuadrillaId &&
+          other.categoria == this.categoria &&
+          other.personas == this.personas &&
+          other.kilos == this.kilos);
+}
+
+class CuadrillaDesglosesCompanion
+    extends UpdateCompanion<CuadrillaDesglose> {
+  final Value<int> id;
+  final Value<int> cuadrillaId;
+  final Value<String> categoria;
+  final Value<int> personas;
+  final Value<double> kilos;
+  const CuadrillaDesglosesCompanion({
+    this.id = const Value.absent(),
+    this.cuadrillaId = const Value.absent(),
+    this.categoria = const Value.absent(),
+    this.personas = const Value.absent(),
+    this.kilos = const Value.absent(),
+  });
+  CuadrillaDesglosesCompanion.insert({
+    this.id = const Value.absent(),
+    required int cuadrillaId,
+    required String categoria,
+    this.personas = const Value.absent(),
+    this.kilos = const Value.absent(),
+  })  : cuadrillaId = Value(cuadrillaId),
+        categoria = Value(categoria);
+  static Insertable<CuadrillaDesglose> custom({
+    Expression<int>? id,
+    Expression<int>? cuadrillaId,
+    Expression<String>? categoria,
+    Expression<int>? personas,
+    Expression<double>? kilos,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (cuadrillaId != null) 'cuadrilla_id': cuadrillaId,
+      if (categoria != null) 'categoria': categoria,
+      if (personas != null) 'personas': personas,
+      if (kilos != null) 'kilos': kilos,
+    });
+  }
+
+  CuadrillaDesglosesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? cuadrillaId,
+    Value<String>? categoria,
+    Value<int>? personas,
+    Value<double>? kilos,
+  }) {
+    return CuadrillaDesglosesCompanion(
+      id: id ?? this.id,
+      cuadrillaId: cuadrillaId ?? this.cuadrillaId,
+      categoria: categoria ?? this.categoria,
+      personas: personas ?? this.personas,
+      kilos: kilos ?? this.kilos,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (cuadrillaId.present) {
+      map['cuadrilla_id'] = Variable<int>(cuadrillaId.value);
+    }
+    if (categoria.present) {
+      map['categoria'] = Variable<String>(categoria.value);
+    }
+    if (personas.present) {
+      map['personas'] = Variable<int>(personas.value);
+    }
+    if (kilos.present) {
+      map['kilos'] = Variable<double>(kilos.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CuadrillaDesglosesCompanion(')
+          ..write('id: $id, ')
+          ..write('cuadrillaId: $cuadrillaId, ')
+          ..write('categoria: $categoria, ')
+          ..write('personas: $personas, ')
+          ..write('kilos: $kilos')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $IntegrantesTable extends Integrantes
     with TableInfo<$IntegrantesTable, Integrante> {
   @override
@@ -1318,7 +2142,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ReportesTable reportes = $ReportesTable(this);
   late final $ReporteAreasTable reporteAreas = $ReporteAreasTable(this);
+  late final $ReporteAreaDesglosesTable reporteAreaDesgloses =
+      $ReporteAreaDesglosesTable(this);
   late final $CuadrillasTable cuadrillas = $CuadrillasTable(this);
+  late final $CuadrillaDesglosesTable cuadrillaDesgloses =
+      $CuadrillaDesglosesTable(this);
   late final $IntegrantesTable integrantes = $IntegrantesTable(this);
   late final ReportesDao reportesDao = ReportesDao(this as AppDatabase);
   @override
@@ -1328,7 +2156,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     reportes,
     reporteAreas,
+    reporteAreaDesgloses,
     cuadrillas,
+    cuadrillaDesgloses,
     integrantes,
   ];
 }
@@ -2741,6 +3571,10 @@ class $AppDatabaseManager {
 mixin _$ReportesDaoMixin on DatabaseAccessor<AppDatabase> {
   $ReportesTable get reportes => attachedDatabase.reportes;
   $ReporteAreasTable get reporteAreas => attachedDatabase.reporteAreas;
+  $ReporteAreaDesglosesTable get reporteAreaDesgloses =>
+      attachedDatabase.reporteAreaDesgloses;
   $CuadrillasTable get cuadrillas => attachedDatabase.cuadrillas;
+  $CuadrillaDesglosesTable get cuadrillaDesgloses =>
+      attachedDatabase.cuadrillaDesgloses;
   $IntegrantesTable get integrantes => attachedDatabase.integrantes;
 }

@@ -57,55 +57,164 @@ class ReportPdfService {
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 32),
-        build: (context) {
-          return [
-            _buildHeader(reporte, area, formattedDate, elaboradoPor),
-            pw.SizedBox(height: 16),
-            _buildAreaSummary(area),
-            pw.SizedBox(height: 24),
-            _buildCuadrillasSection(area),
-            pw.SizedBox(height: 32),
-            _buildSignaturesSection(elaboradoPor),
-          ];
-        },
+        margin: const pw.EdgeInsets.all(24),
+        build: (context) => [
+          _isFileterosArea(area)
+              ? _buildFileterosLayout(
+            reporte: reporte,
+            area: area,
+            formattedDate: formattedDate,
+          )
+              : _buildFramedLayout(
+            reporte: reporte,
+            area: area,
+            formattedDate: formattedDate,
+            elaboradoPor: elaboradoPor,
+          ),
+        ],
       ),
     );
 
     return doc.save();
   }
 
-  pw.Widget _buildHeader(
+  pw.Widget _buildFramedLayout({
+    required ReporteDetalle reporte,
+    required ReporteAreaDetalle area,
+    required String formattedDate,
+    required String elaboradoPor,
+  }) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 1.2),
+      ),
+      padding: const pw.EdgeInsets.all(12),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _buildTopHeader(reporte, area, formattedDate),
+          pw.SizedBox(height: 8),
+          _buildReceptionAndAprovechamiento(area),
+          pw.SizedBox(height: 10),
+          _buildFileteoSection(area),
+          pw.SizedBox(height: 12),
+          _buildFooterSignatures(elaboradoPor),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFileterosLayout({
+    required ReporteDetalle reporte,
+    required ReporteAreaDetalle area,
+    required String formattedDate,
+  }) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 1.2),
+      ),
+      padding: const pw.EdgeInsets.all(12),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _buildFileterosHeader(),
+          pw.SizedBox(height: 8),
+          _buildFileterosHoursRow(area, formattedDate, reporte.turno),
+          pw.SizedBox(height: 12),
+          pw.Text(
+            'II.- FILETEROS:',
+            style: pw.TextStyle(
+              fontSize: 11,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          _buildFileterosTable(area),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildTopHeader(
       ReporteDetalle reporte,
       ReporteAreaDetalle area,
       String formattedDate,
-      String elaboradoPor,
       ) {
-    return pw.Column(
+    return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(
-          'REPORTE DIARIO DE PRODUCCIÓN',
-          style: pw.TextStyle(
-            fontSize: 20,
-            fontWeight: pw.FontWeight.bold,
-          ),
-        ),
-        pw.SizedBox(height: 12),
         pw.Container(
+          width: 140,
+          padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 6),
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey700, width: 1),
-            borderRadius: pw.BorderRadius.circular(4),
+            border: pw.Border.all(color: PdfColors.black, width: 1),
           ),
-          padding: const pw.EdgeInsets.all(12),
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              _infoRow('Fecha', formattedDate),
-              _infoRow('Turno', reporte.turno),
-              _infoRow('Planillero', reporte.planillero),
-              _infoRow('Área', area.nombre),
-              _infoRow('Persona que elaboró el reporte', elaboradoPor),
+              _labelValueRow('HORA INICIO', area.horaInicio ?? ''),
+              pw.Divider(height: 6, thickness: 1),
+              _labelValueRow('HORA FINAL', area.horaFin ?? ''),
+            ],
+          ),
+        ),
+        pw.Expanded(
+          child: pw.Column(
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                    vertical: 4, horizontal: 6),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.black, width: 1),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'TRABUNDA SAC',
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      'FORMATO',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 8),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.black, width: 1),
+                ),
+                alignment: pw.Alignment.center,
+                child: pw.Text(
+                  area.nombre.toUpperCase(),
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        pw.Container(
+          width: 140,
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black, width: 1),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              _headerValueRow('FECHA', formattedDate),
+              _headerValueRow('TURNO', reporte.turno),
+              _headerValueRow('PÁGINA', '1 de 1'),
             ],
           ),
         ),
@@ -113,116 +222,551 @@ class ReportPdfService {
     );
   }
 
-  pw.Widget _buildAreaSummary(ReporteAreaDetalle area) {
-    return pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.8),
+  pw.Widget _buildFileterosHeader() {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        pw.TableRow(
-          decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-          children: [
-            _tableHeaderCell('Cantidad de personas'),
-            _tableHeaderCell('Total kilos'),
-            _tableHeaderCell('Total integrantes registrados'),
-          ],
+        pw.Container(
+          width: 140,
+          alignment: pw.Alignment.center,
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black, width: 1),
+          ),
+          child: pw.Text(
+            'TRABUNDA SAC',
+            style: pw.TextStyle(
+              fontSize: 16,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
         ),
-        pw.TableRow(
-          children: [
-            _tableCell('${area.cantidad}'),
-            _tableCell('${area.totalKilos.toStringAsFixed(3)} kg'),
-            _tableCell('${area.totalIntegrantes}'),
-          ],
+        pw.Expanded(
+          child: pw.Container(
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 1),
+            ),
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 4),
+                  child: pw.Text(
+                    'FORMATO',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                  child: pw.Text(
+                    'RECEPCION Y FILETEADO',
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        pw.Container(
+          width: 170,
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black, width: 1),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              _headerValueRow('Código', 'TRABUNDA SAC-GG-00-F-01'),
+              _headerValueRow('Versión', '02'),
+              _headerValueRow('Fecha de Emisión', 'Octubre 2020'),
+              _headerValueRow('Página', '1 de 1'),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  pw.Widget _buildCuadrillasSection(ReporteAreaDetalle area) {
-    if (area.cuadrillas.isEmpty) {
-      return pw.Container(
-        padding: const pw.EdgeInsets.all(16),
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: PdfColors.grey500),
-          borderRadius: pw.BorderRadius.circular(4),
-        ),
-        child: pw.Text(
-          'No hay cuadrillas registradas para esta área.',
-          style: const pw.TextStyle(fontSize: 12),
-        ),
-      );
-    }
+  pw.Widget _buildReceptionAndAprovechamiento(ReporteAreaDetalle area) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Expanded(child: _buildRecepcionTable(area)),
+        pw.SizedBox(width: 8),
+        pw.Expanded(child: _buildAprovechamientoTable(area)),
+      ],
+    );
+  }
 
+  pw.Widget _buildFileterosHoursRow(
+      ReporteAreaDetalle area, String formattedDate, String turno) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Expanded(
+          child: pw.Container(
+            padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 1),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                _labelValueRow('HORA INICIO', area.horaInicio ?? '____'),
+                pw.SizedBox(height: 8),
+                _labelValueRow('HORA FINAL', area.horaFin ?? '____'),
+              ],
+            ),
+          ),
+        ),
+        pw.SizedBox(width: 12),
+        pw.Container(
+          width: 170,
+          padding: const pw.EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black, width: 1),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              _labelValueRow('FECHA', formattedDate),
+              pw.SizedBox(height: 8),
+              _labelValueRow('TURNO', turno),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildRecepcionTable(ReporteAreaDetalle area) {
     final rows = <pw.TableRow>[
-      pw.TableRow(
-        decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-        children: [
-          _tableHeaderCell('Cuadrilla'),
-          _tableHeaderCell('Horario'),
-          _tableHeaderCell('Integrantes'),
-          _tableHeaderCell('Kilos'),
-        ],
-      ),
+      _tableRow(['HORA', 'LOTE N°', 'LBS'], isHeader: true),
     ];
 
     for (final cuadrilla in area.cuadrillas) {
       rows.add(
-        pw.TableRow(
-          children: [
-            _tableCell(cuadrilla.nombre),
-            _tableCell(_formatRange(cuadrilla.horaInicio, cuadrilla.horaFin)),
-            _tableCell(_formatIntegrantes(cuadrilla.integrantes)),
-            _tableCell('${cuadrilla.kilos.toStringAsFixed(3)} kg'),
-          ],
-        ),
+        _tableRow([
+          _formatRange(cuadrilla.horaInicio, cuadrilla.horaFin),
+          cuadrilla.nombre,
+          _formatLbs(_toLbs(cuadrilla.kilos)),
+        ]),
       );
     }
 
-    return pw.Column(
+    while (rows.length < 8) {
+      rows.add(_tableRow(['', '', '']));
+    }
+
+    rows.add(
+      _tableRow(
+        [
+          '',
+          'TOTAL LBS',
+          _formatLbs(_toLbs(area.totalKilos)),
+        ],
+        isHeader: true,
+      ),
+    );
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 1),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _sectionTitle('RECEPCIÓN'),
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1.2),
+              1: pw.FlexColumnWidth(1.2),
+              2: pw.FlexColumnWidth(1),
+            },
+            border: pw.TableBorder.all(color: PdfColors.black, width: 1),
+            children: rows,
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildAprovechamientoTable(ReporteAreaDetalle area) {
+    final rows = <pw.TableRow>[
+      _tableRow(['CÓDIGO', 'LBS'], isHeader: true),
+    ];
+
+    for (final desglose in area.desglose) {
+      rows.add(
+        _tableRow([
+          desglose.categoria,
+          _formatLbs(_toLbs(desglose.kilos)),
+        ]),
+      );
+    }
+
+    while (rows.length < 8) {
+      rows.add(_tableRow(['', '']));
+    }
+
+    final totalKilos =
+    area.desglose.fold<double>(0, (sum, d) => sum + d.kilos);
+
+    rows.add(
+      _tableRow(
+        [
+          'TOTAL LBS',
+          _formatLbs(_toLbs(totalKilos)),
+        ],
+        isHeader: true,
+      ),
+    );
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 1),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _sectionTitle('APROVECHAMIENTO'),
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1.3),
+              1: pw.FlexColumnWidth(1),
+            },
+            border: pw.TableBorder.all(color: PdfColors.black, width: 1),
+            children: rows,
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFileteoSection(ReporteAreaDetalle area) {
+    return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(
-          'Detalle de cuadrillas',
-          style: pw.TextStyle(
-            fontSize: 14,
-            fontWeight: pw.FontWeight.bold,
+        pw.Expanded(flex: 3, child: _buildFileteoTable(area)),
+        pw.SizedBox(width: 8),
+        pw.Expanded(
+          child: pw.Column(
+            children: [
+              _buildClasificadoTable(area),
+              pw.SizedBox(height: 8),
+              _buildCodificadoTable(area),
+            ],
           ),
-        ),
-        pw.SizedBox(height: 8),
-        pw.Table(
-          border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.8),
-          children: rows,
         ),
       ],
     );
   }
 
-  pw.Widget _buildSignaturesSection(String elaboradoPor) {
-    pw.Widget signatureBox(String label, {String? helper}) {
+  pw.Widget _buildFileterosTable(ReporteAreaDetalle area) {
+    final rows = <pw.TableRow>[
+      pw.TableRow(
+        children: [
+          _fileterosCellWidget('', isHeader: true),
+          _fileterosCellWidget('CODIGO', isHeader: true),
+          _fileterosCellWidget('FILETEADO', isHeader: true),
+          _fileterosCellWidget('DESUÑADO', isHeader: true),
+          _fileterosCellWidget('CORTALETA', isHeader: true),
+          _fileterosCellWidget('SECCIONADO', isHeader: true),
+          _fileterosCellWidget('REPRODUCTOR', isHeader: true),
+        ],
+      ),
+    ];
+
+    final maxRows = 25;
+    final totals = _calculateFileterosTotals(area);
+
+    for (var i = 0; i < maxRows; i++) {
+      if (i < area.cuadrillas.length) {
+        final cuadrilla = area.cuadrillas[i];
+        final desglose = cuadrilla.desglose;
+        rows.add(
+          pw.TableRow(
+            children: [
+              _fileterosCellWidget((i + 1).toString().padLeft(2, '0')),
+              _fileterosCellWidget(
+                  _formatIntegrantesCodes(cuadrilla.integrantes)),
+              _fileterosCellWidget(_formatLbs(
+                  _getDesgloseOrDefault(desglose, 'filete', cuadrilla.kilos))),
+              _fileterosCellWidget(
+                  _formatLbs(_getDesgloseOrDefault(desglose, 'desu', 0))),
+              _fileterosCellWidget(
+                  _formatLbs(_getDesgloseOrDefault(desglose, 'corta', 0))),
+              _fileterosCellWidget(
+                  _formatLbs(_getDesgloseOrDefault(desglose, 'secci', 0))),
+              _fileterosCellWidget(
+                  _formatLbs(_getDesgloseOrDefault(desglose, 'repro', 0))),
+            ],
+          ),
+        );
+      } else {
+        rows.add(
+          pw.TableRow(
+            children: List.generate(
+              7,
+                  (_) => _fileterosCellWidget(''),
+            ),
+          ),
+        );
+      }
+    }
+
+    rows.add(
+      pw.TableRow(
+        children: [
+          _fileterosCellWidget('TOTAL POT.', isHeader: true),
+          _fileterosCellWidget('', isHeader: true),
+          _fileterosCellWidget(
+              _formatLbs(totals['fileteado']!), isHeader: true),
+          _fileterosCellWidget(
+              _formatLbs(totals['desunado']!), isHeader: true),
+          _fileterosCellWidget(
+              _formatLbs(totals['cortaleta']!), isHeader: true),
+          _fileterosCellWidget(
+              _formatLbs(totals['seccionado']!), isHeader: true),
+          _fileterosCellWidget(
+              _formatLbs(totals['reproductor']!), isHeader: true),
+        ],
+      ),
+    );
+
+    return pw.Table(
+      columnWidths: const {
+        0: pw.FlexColumnWidth(0.6),
+        1: pw.FlexColumnWidth(1.4),
+        2: pw.FlexColumnWidth(1),
+        3: pw.FlexColumnWidth(1),
+        4: pw.FlexColumnWidth(1),
+        5: pw.FlexColumnWidth(1),
+        6: pw.FlexColumnWidth(1),
+      },
+      border: pw.TableBorder.all(color: PdfColors.black, width: 1),
+      children: rows,
+    );
+  }
+
+  pw.Widget _buildFileteoTable(ReporteAreaDetalle area) {
+    final rows = <pw.TableRow>[
+      _tableRow(
+        [
+          'CÓDIGO',
+          'FILETEADO',
+          'DESMUSADO',
+          'CONTROL MEC.',
+          'APROVECHAMIENTO',
+          'PRODUCTO',
+        ],
+        isHeader: true,
+      ),
+    ];
+
+    for (final cuadrilla in area.cuadrillas) {
+      final desglose = cuadrilla.desglose;
+      rows.add(
+        _tableRow([
+          _formatIntegrantesCodes(cuadrilla.integrantes),
+          _formatLbs(
+              _getDesgloseOrDefault(desglose, 'filete', cuadrilla.kilos)),
+          _formatLbs(_getDesgloseOrDefault(desglose, 'desm', 0)),
+          _formatLbs(_getDesgloseOrDefault(desglose, 'control', 0)),
+          _formatLbs(_getDesgloseOrDefault(desglose, 'aprove', 0)),
+          _formatLbs(_getDesgloseOrDefault(desglose, 'producto', 0)),
+        ]),
+      );
+    }
+
+    while (rows.length < 12) {
+      rows.add(
+        _tableRow(['', '', '', '', '', '']),
+      );
+    }
+
+    final totals = _calculateFileteoTotals(area);
+
+    rows.add(
+      _tableRow(
+        [
+          'TOTAL',
+          _formatLbs(totals['fileteado']!),
+          _formatLbs(totals['desmusado']!),
+          _formatLbs(totals['control']!),
+          _formatLbs(totals['aprove']!),
+          _formatLbs(totals['producto']!),
+        ],
+        isHeader: true,
+      ),
+    );
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 1),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _sectionTitle('FILETEO'),
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1.3),
+              1: pw.FlexColumnWidth(1),
+              2: pw.FlexColumnWidth(1),
+              3: pw.FlexColumnWidth(1),
+              4: pw.FlexColumnWidth(1),
+              5: pw.FlexColumnWidth(1),
+            },
+            border: pw.TableBorder.all(color: PdfColors.black, width: 1),
+            children: rows,
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildClasificadoTable(ReporteAreaDetalle area) {
+    final rows = <pw.TableRow>[
+      _tableRow(['CÓDIGO', 'LBS'], isHeader: true),
+    ];
+
+    final clasificados = area.desglose
+        .where((d) =>
+    d.categoria.toLowerCase().contains('clasi') ||
+        d.categoria.toLowerCase().contains('aleta'))
+        .toList();
+
+    for (final desglose in clasificados) {
+      rows.add(
+        _tableRow([
+          desglose.categoria,
+          _formatLbs(_toLbs(desglose.kilos)),
+        ]),
+      );
+    }
+
+    while (rows.length < 8) {
+      rows.add(_tableRow(['', '']));
+    }
+
+    final total = clasificados.fold<double>(0, (sum, d) => sum + d.kilos);
+
+    rows.add(
+      _tableRow(
+        [
+          'TOTAL',
+          _formatLbs(_toLbs(total)),
+        ],
+        isHeader: true,
+      ),
+    );
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 1),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _sectionTitle('CLASIFICADO / ALETA'),
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1.4),
+              1: pw.FlexColumnWidth(1),
+            },
+            border: pw.TableBorder.all(color: PdfColors.black, width: 1),
+            children: rows,
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildCodificadoTable(ReporteAreaDetalle area) {
+    final rows = <pw.TableRow>[
+      _tableRow(['CÓDIGO', 'MÁQUINA', 'LBS'], isHeader: true),
+    ];
+
+    final codificados = area.desglose
+        .where((d) => d.categoria.toLowerCase().contains('manual'))
+        .toList();
+
+    for (final desglose in codificados) {
+      rows.add(
+        _tableRow([
+          desglose.categoria,
+          'MANUAL',
+          _formatLbs(_toLbs(desglose.kilos)),
+        ]),
+      );
+    }
+
+    while (rows.length < 8) {
+      rows.add(_tableRow(['', '', '']));
+    }
+
+    final total = codificados.fold<double>(0, (sum, d) => sum + d.kilos);
+
+    rows.add(
+      _tableRow(
+        [
+          'TOTAL',
+          '',
+          _formatLbs(_toLbs(total)),
+        ],
+        isHeader: true,
+      ),
+    );
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 1),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          _sectionTitle('CODIFICADO MANUAL'),
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1.1),
+              1: pw.FlexColumnWidth(1.1),
+              2: pw.FlexColumnWidth(1),
+            },
+            border: pw.TableBorder.all(color: PdfColors.black, width: 1),
+            children: rows,
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFooterSignatures(String elaboradoPor) {
+    pw.Widget signatureBox(String label) {
       return pw.Expanded(
         child: pw.Container(
-          height: 100,
-          margin: const pw.EdgeInsets.symmetric(horizontal: 6),
-          padding: const pw.EdgeInsets.all(12),
+          height: 60,
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey700),
-            borderRadius: pw.BorderRadius.circular(4),
+            border: pw.Border.all(color: PdfColors.black, width: 1),
           ),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 6),
           child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            mainAxisAlignment: pw.MainAxisAlignment.end,
             children: [
-              pw.Expanded(
-                child: pw.Container(
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey500, width: 0.8)),
-                  ),
+              pw.Container(height: 1, color: PdfColors.black),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                label,
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
                 ),
+                textAlign: pw.TextAlign.center,
               ),
-              pw.SizedBox(height: 6),
-              pw.Text(label, style: const pw.TextStyle(fontSize: 10)),
-              if (helper != null)
-                pw.Text(
-                  helper,
-                  style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
-                ),
             ],
           ),
         ),
@@ -230,85 +774,219 @@ class ReportPdfService {
     }
 
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(
-          'Firmas',
-          style: pw.TextStyle(
-            fontSize: 14,
-            fontWeight: pw.FontWeight.bold,
+        pw.Container(
+          alignment: pw.Alignment.centerLeft,
+          padding: const pw.EdgeInsets.symmetric(vertical: 4),
+          child: pw.Text(
+            'PERSONA QUE ELABORÓ EL REPORTE: '
+                '${elaboradoPor.isEmpty ? '-' : elaboradoPor}',
+            style: pw.TextStyle(
+              fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
         ),
-        pw.SizedBox(height: 12),
         pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            signatureBox('Persona que elaboró el reporte', helper: elaboradoPor),
-            signatureBox('Supervisor'),
-            signatureBox('Jefe de planta'),
+            signatureBox('JEFE DE TURNO'),
+            signatureBox('PLANILLERO'),
+            signatureBox('SUPERVISOR DE ÁREA'),
           ],
         ),
       ],
     );
   }
 
-  pw.Widget _infoRow(String label, String value) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
+  pw.TableRow _tableRow(List<String> values, {bool isHeader = false}) {
+    return pw.TableRow(
+      children: [
+        for (final value in values)
           pw.Container(
-            width: 180,
+            padding:
+            const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            alignment: pw.Alignment.center,
+            constraints: const pw.BoxConstraints(minHeight: 18),
+            color: isHeader ? PdfColors.grey200 : null,
             child: pw.Text(
-              label,
+              value,
               style: pw.TextStyle(
-                fontSize: 11,
-                fontWeight: pw.FontWeight.bold,
+                fontSize: 9,
+                fontWeight:
+                isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
               ),
+              textAlign: pw.TextAlign.center,
             ),
           ),
-          pw.Expanded(
-            child: pw.Text(
-              value.isEmpty ? '-' : value,
-              style: const pw.TextStyle(fontSize: 11),
-            ),
-          ),
-        ],
+      ],
+    );
+  }
+
+  pw.Widget _fileterosCellWidget(String value, {bool isHeader = false}) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      alignment: pw.Alignment.center,
+      constraints: const pw.BoxConstraints(minHeight: 18),
+      color: isHeader ? PdfColors.grey200 : null,
+      child: pw.Text(
+        value,
+        style: pw.TextStyle(
+          fontSize: 9,
+          fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
+        textAlign: pw.TextAlign.center,
       ),
     );
   }
 
-  pw.Widget _tableHeaderCell(String text) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.all(8),
+  pw.Widget _sectionTitle(String text) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(vertical: 4),
+      alignment: pw.Alignment.center,
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 1),
+      ),
       child: pw.Text(
         text,
         style: pw.TextStyle(
           fontSize: 11,
           fontWeight: pw.FontWeight.bold,
         ),
-        textAlign: pw.TextAlign.center,
       ),
     );
   }
 
-  pw.Widget _tableCell(String text) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.all(8),
-      child: pw.Text(
-        text,
-        style: const pw.TextStyle(fontSize: 10),
-        textAlign: pw.TextAlign.center,
+  pw.Widget _labelValueRow(String label, String value) {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Text(
+          label,
+          style: pw.TextStyle(
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+        pw.Text(
+          value.isEmpty ? '-' : value,
+          style: const pw.TextStyle(fontSize: 9),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _headerValueRow(String label, String value) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+        ),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.Text(
+            value,
+            style: const pw.TextStyle(fontSize: 9),
+          ),
+        ],
       ),
     );
   }
 
-  String _formatIntegrantes(List<IntegranteDetalle> integrantes) {
-    if (integrantes.isEmpty) {
-      return 'Sin integrantes';
+  String _formatIntegrantesCodes(List<IntegranteDetalle> integrantes) {
+    if (integrantes.isEmpty) return '-';
+    return integrantes
+        .map((i) => (i.code ?? '').isNotEmpty ? i.code!.trim() : '--')
+        .join(', ');
+  }
+
+  double _getDesgloseOrDefault(
+      List<CategoriaDesglose> desglose,
+      String match,
+      double fallbackKilos,
+      ) {
+    final kilos = _extractDesgloseKilos(desglose, match);
+    return _toLbs(kilos > 0 ? kilos : fallbackKilos);
+  }
+
+  double _extractDesgloseKilos(List<CategoriaDesglose> desglose, String match) {
+    final lower = match.toLowerCase();
+    for (final item in desglose) {
+      if (item.categoria.toLowerCase().contains(lower)) {
+        return item.kilos;
+      }
     }
-    return integrantes.map((i) => i.nombre).join(', ');
+    return 0;
+  }
+
+  Map<String, double> _calculateFileteoTotals(ReporteAreaDetalle area) {
+    double sumFileteado = 0;
+    double sumDesmusado = 0;
+    double sumControl = 0;
+    double sumAprove = 0;
+    double sumProducto = 0;
+
+    for (final cuadrilla in area.cuadrillas) {
+      final desglose = cuadrilla.desglose;
+      sumFileteado +=
+          _getDesgloseOrDefault(desglose, 'filete', cuadrilla.kilos);
+      sumDesmusado += _getDesgloseOrDefault(desglose, 'desm', 0);
+      sumControl += _getDesgloseOrDefault(desglose, 'control', 0);
+      sumAprove += _getDesgloseOrDefault(desglose, 'aprove', 0);
+      sumProducto += _getDesgloseOrDefault(desglose, 'producto', 0);
+    }
+
+    return {
+      'fileteado': sumFileteado,
+      'desmusado': sumDesmusado,
+      'control': sumControl,
+      'aprove': sumAprove,
+      'producto': sumProducto,
+    };
+  }
+
+  Map<String, double> _calculateFileterosTotals(ReporteAreaDetalle area) {
+    double sumFileteado = 0;
+    double sumDesunado = 0;
+    double sumCortaleta = 0;
+    double sumSeccionado = 0;
+    double sumReproductor = 0;
+
+    for (final cuadrilla in area.cuadrillas) {
+      final desglose = cuadrilla.desglose;
+      sumFileteado +=
+          _getDesgloseOrDefault(desglose, 'filete', cuadrilla.kilos);
+      sumDesunado += _getDesgloseOrDefault(desglose, 'desu', 0);
+      sumCortaleta += _getDesgloseOrDefault(desglose, 'corta', 0);
+      sumSeccionado += _getDesgloseOrDefault(desglose, 'secci', 0);
+      sumReproductor += _getDesgloseOrDefault(desglose, 'repro', 0);
+    }
+
+    return {
+      'fileteado': sumFileteado,
+      'desunado': sumDesunado,
+      'cortaleta': sumCortaleta,
+      'seccionado': sumSeccionado,
+      'reproductor': sumReproductor,
+    };
+  }
+
+  String _formatLbs(double lbs) => lbs == 0 ? '' : lbs.toStringAsFixed(2);
+
+  double _toLbs(double kilos) => kilos * 2.20462;
+
+  bool _isFileterosArea(ReporteAreaDetalle area) {
+    final normalized = area.nombre.toLowerCase();
+    return normalized.contains('filetero') || normalized.contains('fileteo');
   }
 
   String _formatRange(String? start, String? end) {

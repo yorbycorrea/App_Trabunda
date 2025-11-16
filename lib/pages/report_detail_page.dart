@@ -376,7 +376,12 @@ class _AreaSectionState extends State<_AreaSection> {
               ),
             )
           else
-            ...area.cuadrillas.map((c) => _CuadrillaTile(cuadrilla: c)),
+            ...area.cuadrillas.map(
+                  (c) => _CuadrillaTile(
+                cuadrilla: c,
+                horario: _formatRange(area.horaInicio, area.horaFin),
+              ),
+            )
         ],
       ),
     );
@@ -384,9 +389,10 @@ class _AreaSectionState extends State<_AreaSection> {
 }
 
 class _CuadrillaTile extends StatelessWidget {
-  const _CuadrillaTile({required this.cuadrilla});
+  const _CuadrillaTile({required this.cuadrilla, required this.horario});
 
   final CuadrillaDetalle cuadrilla;
+  final String horario;
 
 
 
@@ -429,10 +435,7 @@ class _CuadrillaTile extends StatelessWidget {
             children: [
               const Icon(Icons.schedule_rounded, size: 16),
               const SizedBox(width: 6),
-              Text(
-                _formatRange(cuadrilla.horaInicio, cuadrilla.horaFin),
-                style: theme.textTheme.bodySmall,
-              ),
+              Text(horario, style: theme.textTheme.bodySmall),
             ],
           ),
           const SizedBox(height: 6),

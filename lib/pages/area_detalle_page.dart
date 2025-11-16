@@ -23,10 +23,7 @@ class AreaDetallePage extends StatefulWidget {
 }
 
 class _AreaDetallePageState extends State<AreaDetallePage> {
-  static const List<String> _categoriasDefault = [
-    'Recepción',
-    'Fileteado',
-  ];
+
   // Horas
   TimeOfDay? _inicio;
   TimeOfDay? _fin;
@@ -37,8 +34,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
   final _nombreCtrl = TextEditingController();
   final _kilosIndividualCtrl = TextEditingController();
 
-  final Map<String, TextEditingController> _personasPorCategoria = {};
-  final Map<String, TextEditingController> _kilosPorCategoria = {};
+
 
   // Cuadrillas (múltiples)
   final List<CuadrillaData> _cuadrillas = [];
@@ -49,26 +45,14 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
   // Flag anti-doble pop / transición
   bool _cerrando = false;
 
-  @override
-  void initState() {
-    super.initState();
-    for (final categoria in _categoriasDefault) {
-      _personasPorCategoria[categoria] = TextEditingController();
-      _kilosPorCategoria[categoria] = TextEditingController();
-    }
-  }
+
 
   @override
   void dispose() {
     _codigoCtrl.dispose();
     _nombreCtrl.dispose();
     _kilosIndividualCtrl.dispose();
-    for (final ctrl in _personasPorCategoria.values) {
-      ctrl.dispose();
-    }
-    for (final ctrl in _kilosPorCategoria.values) {
-      ctrl.dispose();
-    }
+
     super.dispose();
   }
 
@@ -141,8 +125,8 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
             id: null,
             reporteAreaId: widget.reporteAreaId!,
             nombre: res['nombre'] ?? '',
-            horaInicio: res['horaInicio'] as String?,
-            horaFin: res['horaFin'] as String?,
+            horaInicio: null,
+            horaFin: null,
             kilos: (res['kilos'] is num)
                 ? (res['kilos'] as num).toDouble()
                 : double.tryParse('${res['kilos'] ?? ''}'),
@@ -171,9 +155,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           initialNombre: c.nombre,
           initialIntegrantes: c.integrantes,
           initialKilos: c.kilos,
-          initialHoraInicio: c.horaInicio,
-          initialHoraFin: c.horaFin,
-          initialDesglose: c.desglose,
+
         ),
       ),
     );
@@ -198,35 +180,11 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     }
     return _cuadrillas.fold<double>(
       0.0,
-          (sum, c) {
-        final kilosDirecto = c.kilos;
-        final kilosDesglose = c.desglose.fold<double>(0.0, (acc, entry) {
-          final value = entry['kilos'];
-          if (value is num) return acc + value.toDouble();
-          final parsed = double.tryParse('$value');
-          return acc + (parsed ?? 0.0);
-        });
-        return sum + (kilosDirecto ?? (kilosDesglose == 0 ? 0.0 : kilosDesglose));
-      },
+          (sum, c) => sum + (c.kilos ?? 0.0),
     );
   }
 
-  List<Map<String, dynamic>> _desgloseCategorias() {
-    final List<Map<String, dynamic>> data = [];
-    for (final categoria in _categoriasDefault) {
-      final personas =
-          int.tryParse(_personasPorCategoria[categoria]!.text.trim()) ?? 0;
-      final kilos =
-          double.tryParse(_kilosPorCategoria[categoria]!.text.trim()) ?? 0.0;
-      if (personas == 0 && kilos == 0) continue;
-      data.add({
-        'categoria': categoria,
-        'personas': personas,
-        'kilos': kilos,
-      });
-    }
-    return data;
-  }
+
 
   Map<String, dynamic> _resultadoParaVolver() {
     final personas = _calcularPersonas();
@@ -237,7 +195,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     final horaFin = _fin == null
         ? null
         : '${_fin!.hour.toString().padLeft(2, '0')}:${_fin!.minute.toString().padLeft(2, '0')}';
-    final desglose = _desgloseCategorias();
+
 
     return {
       'area': widget.areaName,
@@ -262,7 +220,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           : null,
       'kilos_total': kilosTotal,
       'personas': personas,
-      'desglose': desglose,
+      'desglose': const <Map<String, dynamic>>[],
       'resumen': _modo == ModoTrabajo.cuadrilla
           ? {
         'titulo': 'Cuadrillas (${_cuadrillas.length})',
@@ -288,8 +246,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
       final personas = result['personas'] as int;
       final horaInicio = result['horaInicio'] as String?;
       final horaFin = result['horaFin'] as String?;
-      final desglose =
-      (result['desglose'] as List?)?.cast<Map<String, dynamic>>();
+
       Future.microtask(() async {
         try {
           await db.reportesDao.saveReporteAreaDatos(
@@ -297,7 +254,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
             cantidad: personas,
             horaInicio: horaInicio,
             horaFin: horaFin,
-            desglose: desglose,
+            desglose: const [],
           );
         } catch (_) {}
       });
@@ -422,36 +379,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
             ),
             const SizedBox(height: 12),
 
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Totales por categoría',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    for (final categoria in _categoriasDefault) ...[
-                      _CategoriaRow(
-                        categoria: categoria,
-                        personasCtrl: _personasPorCategoria[categoria]!,
-                        kilosCtrl: _kilosPorCategoria[categoria]!,
-                      ),
-                      if (categoria != _categoriasDefault.last)
-                        const Divider(height: 28),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
+
 
             // INDIVIDUAL
             if (!isCuadrilla) ...[
@@ -730,56 +658,4 @@ class CuadrillaData {
   );
 }
 
-class _CategoriaRow extends StatelessWidget {
-  const _CategoriaRow({
-    required this.categoria,
-    required this.personasCtrl,
-    required this.kilosCtrl,
-  });
 
-  final String categoria;
-  final TextEditingController personasCtrl;
-  final TextEditingController kilosCtrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          categoria,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: personasCtrl,
-                keyboardType: const TextInputType.numberWithOptions(),
-                decoration: const InputDecoration(
-                  labelText: 'Personas',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: kilosCtrl,
-                keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Kilos',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}

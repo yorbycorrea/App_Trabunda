@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -28,25 +28,26 @@ class ReportPdfService {
   Future<ReportPdfResult> generateAreaReport({
     required ReporteDetalle reporte,
     required ReporteAreaDetalle area,
-    required String elaboradoPor,
   }) async {
-    try {
-      final bytes = await _buildAreaDocument(
-        reporte: reporte,
-        area: area,
-        elaboradoPor: elaboradoPor,
+    // Solo permitimos área "Fileteros" exacto (como tienes en tu lógica).
+    if (!_isFileterosArea(area)) {
+      throw ArgumentError(
+        'Solo se permite generar PDF para el área de Fileteros.',
       );
-
-      final filename = _buildFilename(reporte, area);
-      final file = await _persist(bytes, filename);
-
-      return ReportPdfResult(bytes: bytes, file: file, filename: filename);
-    } catch (e, st) {
-      // Para ver el error real en consola
-      print('ERROR generando PDF: $e');
-      print(st);
-      rethrow;
     }
+
+    final elaboradoPor = reporte.planillero.trim();
+
+    final bytes = await _buildAreaDocument(
+      reporte: reporte,
+      area: area,
+      elaboradoPor: elaboradoPor,
+    );
+
+    final filename = _buildFilename(reporte, area);
+    final file = await _persist(bytes, filename);
+
+    return ReportPdfResult(bytes: bytes, file: file, filename: filename);
   }
 
   Future<void> share(ReportPdfResult result) async {
@@ -64,6 +65,7 @@ class ReportPdfService {
     // Si es área de fileteros, usamos layout especial.
     // Si algo falla, usamos el layout enmarcado normal.
     late final pw.Widget content;
+
     if (_isFileterosArea(area)) {
       try {
         content = _buildFileterosLayout(
@@ -73,6 +75,7 @@ class ReportPdfService {
           elaboradoPor: elaboradoPor,
         );
       } catch (e, st) {
+        // En caso de error, caemos al layout general.
         print('ERROR en _buildFileterosLayout: $e');
         print(st);
         content = _buildFramedLayout(
@@ -91,15 +94,232 @@ class ReportPdfService {
       );
     }
 
-    doc.addPage(
-      pw.MultiPage(
+    try {
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(24),
+          build: (context) => content,
+        ),
+      );
+
+      return await doc.save();
+    } on pw.TooManyPagesException catch (e, st) {
+      print('ERROR TooManyPagesException: $e');
+      print(st);
+      return _buildCompactFallback(
+        reporte: reporte,
+        area: area,
+        elaboradoPor: elaboradoPor,
+        formattedDate: formattedDate,
+      );
+    }
+  }
+
+  Future<Uint8List> _buildCompactFallback({
+    required ReporteDetalle reporte,
+    required ReporteAreaDetalle area,
+    required String elaboradoPor,
+    required String formattedDate,
+  }) async {
+    final fallbackDoc = pw.Document();
+
+    fallbackDoc.addPage(
+      pw.Page(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(24),
-        build: (context) => [content],
+        build: (context) => _buildCompactLayout(
+          reporte: reporte,
+          area: area,
+          elaboradoPor: elaboradoPor,
+          formattedDate: formattedDate,
+        ),
       ),
     );
 
-    return doc.save();
+    return fallbackDoc.save();
+  }
+
+  pw.Widget _buildCompactLayout({
+    required ReporteDetalle reporte,
+    required ReporteAreaDetalle area,
+    required String elaboradoPor,
+    required String formattedDate,
+  }) {
+    final compactTextStyle = const pw.TextStyle(fontSize: 9);
+    final totalRecepcionLbs = _formatLbs(_toLbs(area.totalKilos));
+    final aprovechamientoTotalKilos =
+    area.desglose.fold<double>(0, (sum, d) => sum + d.kilos);
+    final fileteoTotals = _calculateFileteoTotals(area);
+    final fileterosTotals = _calculateFileterosTotals(area);
+    final cuadrillasMuestra = area.cuadrillas.take(5).toList();
+
+    pw.Widget totalRow(String label, String value) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              label,
+              style: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.Text(value, style: compactTextStyle),
+          ],
+        ),
+      );
+    }
+
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black, width: 1),
+      ),
+      padding: const pw.EdgeInsets.all(12),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Text(
+            area.nombre.toUpperCase(),
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+            ),
+            textAlign: pw.TextAlign.center,
+          ),
+          pw.SizedBox(height: 6),
+          pw.Text(
+            'Versión compacta generada por exceso de contenido en la hoja.',
+            style: compactTextStyle,
+          ),
+          pw.SizedBox(height: 10),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 1),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Datos generales',
+                  style: pw.TextStyle(
+                    fontSize: 11,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 4),
+                totalRow('Fecha', formattedDate),
+                totalRow('Turno', reporte.turno),
+                totalRow('Elaborado por', elaboradoPor),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          if (cuadrillasMuestra.isNotEmpty)
+            pw.Container(
+              padding: const pw.EdgeInsets.all(8),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.black, width: 1),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'Recepción (primeros ${cuadrillasMuestra.length} registros)',
+                    style: pw.TextStyle(
+                      fontSize: 11,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  ...cuadrillasMuestra.map(
+                        (cuadrilla) => pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            cuadrilla.nombre,
+                            style: compactTextStyle,
+                          ),
+                          pw.Text(
+                            _formatRange(
+                              cuadrilla.horaInicio,
+                              cuadrilla.horaFin,
+                            ),
+                            style: compactTextStyle,
+                          ),
+                          pw.Text(
+                            _formatLbs(_toLbs(cuadrilla.kilos)),
+                            style: compactTextStyle,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          pw.SizedBox(height: 8),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 1),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Totales',
+                  style: pw.TextStyle(
+                    fontSize: 11,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 4),
+                totalRow('Total recepción', '$totalRecepcionLbs LBS'),
+                totalRow(
+                  'Aprovechamiento',
+                  '${_formatLbs(_toLbs(aprovechamientoTotalKilos))} LBS',
+                ),
+                totalRow(
+                  'Fileteado',
+                  _formatLbs(fileteoTotals['fileteado']!),
+                ),
+                totalRow(
+                  'Desmusado / Desuñado',
+                  _formatLbs(
+                    _isFileterosArea(area)
+                        ? fileterosTotals['desunado']!
+                        : fileteoTotals['desmusado']!,
+                  ),
+                ),
+                totalRow(
+                  'Aprovechamiento (fileteo)',
+                  _formatLbs(fileteoTotals['aprove']!),
+                ),
+                totalRow(
+                  'Producto / Seccionado',
+                  _formatLbs(
+                    _isFileterosArea(area)
+                        ? fileterosTotals['seccionado']!
+                        : fileteoTotals['producto']!,
+                  ),
+                ),
+                if (_isFileterosArea(area))
+                  totalRow(
+                    'Reproductor',
+                    _formatLbs(fileterosTotals['reproductor']!),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // =========================
@@ -155,7 +375,8 @@ class ReportPdfService {
             ],
           ),
         ),
-        pw.Expanded(
+        pw.SizedBox(
+          width: 240,
           child: pw.Column(
             children: [
               pw.Container(
@@ -223,9 +444,9 @@ class ReportPdfService {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Expanded(child: _buildRecepcionTable(area)),
+        pw.SizedBox(width: 260, child: _buildRecepcionTable(area)),
         pw.SizedBox(width: 8),
-        pw.Expanded(child: _buildAprovechamientoTable(area)),
+        pw.SizedBox(width: 260, child: _buildAprovechamientoTable(area)),
       ],
     );
   }
@@ -338,9 +559,10 @@ class ReportPdfService {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Expanded(flex: 3, child: _buildFileteoTable(area)),
+        pw.SizedBox(width: 320, child: _buildFileteoTable(area)),
         pw.SizedBox(width: 8),
-        pw.Expanded(
+        pw.SizedBox(
+          width: 190,
           child: pw.Column(
             children: [
               _buildClasificadoTable(area),
@@ -418,7 +640,8 @@ class ReportPdfService {
             ),
 
             // FORMATO + título
-            pw.Expanded(
+            pw.SizedBox(
+              width: 200,
               child: pw.Container(
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.black, width: 1),
@@ -631,28 +854,27 @@ class ReportPdfService {
 
   pw.Widget _buildFooterSignaturesFileteros(String elaboradoPor) {
     pw.Widget signatureBox(String label) {
-      return pw.Expanded(
-        child: pw.Container(
-          height: 60,
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.black, width: 1),
-          ),
-          padding: const pw.EdgeInsets.symmetric(horizontal: 6),
-          child: pw.Column(
+      return pw.Container(
+        width: 170,
+        height: 60,
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.black, width: 1),
+        ),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 6),
+        child: pw.Column(
             mainAxisAlignment: pw.MainAxisAlignment.end,
             children: [
-              pw.Container(height: 1, color: PdfColors.black),
-              pw.SizedBox(height: 4),
-              pw.Text(
-                label,
-                style: pw.TextStyle(
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-                textAlign: pw.TextAlign.center,
+            pw.Container(height: 1, color: PdfColors.black),
+        pw.SizedBox(height: 4),
+        pw.Text(
+          label,
+          style: pw.TextStyle(
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
               ),
+          textAlign: pw.TextAlign.center,
+        ),
             ],
-          ),
         ),
       );
     }
@@ -662,7 +884,8 @@ class ReportPdfService {
       children: [
         pw.Container(
           alignment: pw.Alignment.centerLeft,
-          padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          padding:
+          const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
           decoration: pw.BoxDecoration(
             border: pw.Border.all(color: PdfColors.black, width: 1),
           ),
@@ -675,12 +898,14 @@ class ReportPdfService {
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
-              pw.Expanded(
+              pw.SizedBox(
+                width: 220,
                 child: pw.Container(
                   margin: const pw.EdgeInsets.only(left: 4),
                   decoration: const pw.BoxDecoration(
                     border: pw.Border(
-                      bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                      bottom:
+                      pw.BorderSide(color: PdfColors.black, width: 1),
                     ),
                   ),
                   child: pw.Text(
@@ -923,8 +1148,10 @@ class ReportPdfService {
       children: [
         for (final value in values)
           pw.Container(
-            padding:
-            const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            padding: const pw.EdgeInsets.symmetric(
+              vertical: 6,
+              horizontal: 4,
+            ),
             alignment: pw.Alignment.center,
             constraints: const pw.BoxConstraints(minHeight: 18),
             color: isHeader ? PdfColors.grey200 : null,

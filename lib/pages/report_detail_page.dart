@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter/foundation.dart';
 import '../data/app_database.dart';
 import '../data/db.dart';
 import '../services/auth_service.dart';
 import '../services/report_pdf_service.dart';
+import 'package:flutter/foundation.dart';
 
 class ReportDetailPage extends StatefulWidget {
   const ReportDetailPage({
@@ -274,14 +275,12 @@ class _AreaSectionState extends State<_AreaSection> {
     final scaffold = ScaffoldMessenger.of(context);
 
     try {
-      final auth = AuthScope.read(context);
-      final elaboradoPor =
-          auth.currentUser?.name ?? widget.reporte.planillero;
+
 
       final result = await _pdfService.generateAreaReport(
         reporte: widget.reporte,
         area: widget.area,
-        elaboradoPor: elaboradoPor,
+
       );
 
       await _pdfService.share(result);
@@ -291,12 +290,34 @@ class _AreaSectionState extends State<_AreaSection> {
           content: Text('Reporte guardado en ${result.file.path}'),
         ),
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Failed to generate PDF for area ${widget.area.nombre}: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
       scaffold.showSnackBar(
         const SnackBar(
           content: Text('No se pudo generar el PDF. Intenta nuevamente.'),
         ),
       );
+      if (kDebugMode) {
+        scaffold.showSnackBar(
+          SnackBar(
+            content: Text('$error'),
+          ),
+        );
+      }
+
+      debugPrint('Error al generar PDF: $error');
+      debugPrint('$stackTrace');
+
+      if (kDebugMode) {
+        scaffold.showSnackBar(
+          SnackBar(
+            content: Text('Detalle: $error'),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

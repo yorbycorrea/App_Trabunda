@@ -62,7 +62,9 @@ dev_dependencies:
   flutter_launcher_icons: ^0.13.1
   drift_dev: ^2.15.0
   build_runner: ^2.4.7
-
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
+  mocktail: ^1.0.3
 
 
 # For information on the generic Dart part of this file, see the

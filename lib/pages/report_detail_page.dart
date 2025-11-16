@@ -263,7 +263,7 @@ class _AreaSectionState extends State<_AreaSection> {
 
   bool get _shouldShowDownload {
     final name = widget.area.nombre.toLowerCase();
-    return name == 'fileteros' || name == 'recepción' || name == 'recepcion';
+    return name.contains('filetero') || name.contains('fileteo');
   }
 
   Future<void> _downloadReport(BuildContext context) async {

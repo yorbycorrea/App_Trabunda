@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart'; // 👈 para los diálogos estilo iOS
+
 import 'area_detalle_page.dart';
 import '../data/db.dart';
 import '../services/auth_service.dart';
@@ -168,21 +170,24 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
     }
   }
 
-  // ======== Guardar / Confirmar ========
-  Future<void> _guardar() async {
+  // =====================================================
+  // Guardado real en BD (sin diálogos, solo lógica)
+  // Devuelve true si todo salió bien.
+  // =====================================================
+  Future<bool> _guardar() async {
     final plan = _planilleroCtrl.text.trim();
     if (plan.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ingresa el planillero')),
       );
-      return;
+      return false;
     }
 
     // Asegura que exista el borrador (crea si aún no hay _reporteId)
     if (_reporteId == null) {
       await _ensureDraft();
     }
-    if (_reporteId == null) return; // por seguridad
+    if (_reporteId == null) return false; // por seguridad
 
     // Actualiza cabecera del mismo reporte (no crea otro)
     await db.reportesDao.updateReporteHeader(
@@ -191,61 +196,97 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       turno: _turno,
       planillero: plan,
     );
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final reporteId = _reporteId;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: colorScheme.surface,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.check_circle, color: colorScheme.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Reporte guardado',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'El reporte se guardó correctamente.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        action: reporteId == null
-            ? null
-            : SnackBarAction(
-          label: 'Ver reporte',
-          textColor: colorScheme.primary,
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ReportDetailPage(reporteId: reporteId),
-              ),
-            );
-          },
-        ),
-      ),
-    );
+    // Si quisieras guardar algo extra de las áreas aquí, este es el lugar.
+
+    return true;
   }
 
+  // =====================================================
+  // Flujo de UI para el botón Guardar:
+  // 1) Pregunta "¿Estás seguro?"
+  // 2) Si SÍ → llama a _guardar()
+  // 3) Si se guarda ok → muestra "Archivo guardado" y vuelve al menú principal
+  // =====================================================
+  Future<void> _onGuardarPressed() async {
+    // 1) Diálogo de confirmación
+    final bool? shouldSave = await showCupertinoDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return CupertinoAlertDialog(
+          title: const Text(
+            'Confirmar',
+            textAlign: TextAlign.center,
+          ),
+          content: const Padding(
+            padding: EdgeInsets.only(top: 8.0),
+            child: Text(
+              '¿Estás seguro de guardar este reporte?\n'
+                  'Esta acción no se puede deshacer.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+          actions: [
+            // Botón NO
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              child: const Text('NO'),
+            ),
+            // Botón SÍ
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('SÍ'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldSave != true) return;
+
+    // 2) Ejecutar guardado real
+    final success = await _guardar();
+    if (!success) return;
+
+    // 3) Diálogo de éxito
+    await showCupertinoDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return CupertinoAlertDialog(
+          title: const Text(
+            'Archivo guardado',
+            textAlign: TextAlign.center,
+          ),
+          content: const Padding(
+            padding: EdgeInsets.only(top: 8.0),
+            child: Text(
+              'El reporte se guardó correctamente.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                Navigator.of(context).pop(); // cierra diálogo
+                // Vuelve al menú principal (primera ruta del stack)
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Future<void> _abrirDetallesArea(_AreaRow areaRow) async {
     if (_reporteId == null) {
@@ -284,8 +325,6 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       );
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -439,7 +478,6 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                     _AreaRowTile(
                       area: _areas[i],
                       onChanged: (_) => setState(() {}),
-
                       onRemove: () {
                         setState(() {
                           _areas[i].cantidadCtrl.dispose();
@@ -493,7 +531,7 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
             shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
-          onPressed: _guardar,
+          onPressed: _onGuardarPressed, // 👈 ahora usa el flujo con diálogos
           icon: const Icon(Icons.save_outlined),
           label: const Text('Guardar'),
         ),
@@ -586,10 +624,12 @@ class _AreaRowTile extends StatelessWidget {
               switch (v) {
                 case 'detalles':
                 // Espera al siguiente frame para que el popup se cierre
-                  WidgetsBinding.instance.addPostFrameCallback((_) => onDetalles());
+                  WidgetsBinding.instance
+                      .addPostFrameCallback((_) => onDetalles());
                   break;
                 case 'eliminar':
-                  WidgetsBinding.instance.addPostFrameCallback((_) => onRemove());
+                  WidgetsBinding.instance
+                      .addPostFrameCallback((_) => onRemove());
                   break;
               }
             },

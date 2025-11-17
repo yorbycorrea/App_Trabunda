@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+
 import '../data/app_database.dart';
 import '../data/db.dart';
 import '../services/auth_service.dart';
 import '../services/report_pdf_service.dart';
-import 'package:flutter/foundation.dart';
 
 class ReportDetailPage extends StatefulWidget {
   const ReportDetailPage({
@@ -120,10 +120,12 @@ class _HeaderCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Informe',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                )),
+            Text(
+              'Informe',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 12),
             _HeaderRow(
               icon: Icons.calendar_month_rounded,
@@ -149,7 +151,8 @@ class _HeaderCard extends StatelessWidget {
               children: [
                 _StatChip(
                   icon: Icons.groups_rounded,
-                  label: '$totalPersonas ${_plural(totalPersonas, 'persona', 'personas')}',
+                  label:
+                  '$totalPersonas ${_plural(totalPersonas, 'persona', 'personas')}',
                   color: secondary,
                 ),
                 _StatChip(
@@ -188,11 +191,13 @@ class _HeaderRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
-                    fontWeight: FontWeight.w600,
-                  )),
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 2),
               Text(
                 value,
@@ -263,8 +268,13 @@ class _AreaSectionState extends State<_AreaSection> {
   bool _isLoading = false;
 
   bool get _shouldShowDownload {
-    final name = widget.area.nombre.toLowerCase();
-    return name.contains('filetero') || name.contains('fileteo');
+    final name = widget.area.nombre.toLowerCase().trim();
+    // mostramos botón para Fileteros y Recepción
+    return name == 'fileteros' ||
+        name == 'filetero' ||
+        name.contains('fileteo') ||
+        name == 'recepción' ||
+        name == 'recepcion';
   }
 
   Future<void> _downloadReport(BuildContext context) async {
@@ -275,19 +285,39 @@ class _AreaSectionState extends State<_AreaSection> {
     final scaffold = ScaffoldMessenger.of(context);
 
     try {
+      final name = widget.area.nombre.toLowerCase().trim();
 
+      late ReportPdfResult result;
 
-      final result = await _pdfService.generateAreaReport(
-        reporte: widget.reporte,
-        area: widget.area,
-
-      );
+      if (name == 'fileteros' ||
+          name == 'filetero' ||
+          name.contains('fileteo')) {
+        // Formato especial FILETEROS (resumen + anexo)
+        result = await _pdfService.generateAreaReport(
+          reporte: widget.reporte,
+          area: widget.area,
+        );
+      } else if (name == 'recepción' || name == 'recepcion') {
+        // Formato especial RECEPCIÓN
+        result = await _pdfService.generateRecepcionReport(
+          reporte: widget.reporte,
+          area: widget.area,
+        );
+      } else {
+        // Por si se llama desde un área sin formato
+        scaffold.showSnackBar(
+          const SnackBar(
+            content: Text('Aún no hay formato PDF para esta área.'),
+          ),
+        );
+        return;
+      }
 
       await _pdfService.share(result);
 
       scaffold.showSnackBar(
         SnackBar(
-          content: Text('Reporte guardado en ${result.file.path}'),
+          content: Text('Reporte generado: ${result.filename}'),
         ),
       );
     } catch (error, stackTrace) {
@@ -295,21 +325,12 @@ class _AreaSectionState extends State<_AreaSection> {
         'Failed to generate PDF for area ${widget.area.nombre}: $error',
       );
       debugPrintStack(stackTrace: stackTrace);
+
       scaffold.showSnackBar(
         const SnackBar(
           content: Text('No se pudo generar el PDF. Intenta nuevamente.'),
         ),
       );
-      if (kDebugMode) {
-        scaffold.showSnackBar(
-          SnackBar(
-            content: Text('$error'),
-          ),
-        );
-      }
-
-      debugPrint('Error al generar PDF: $error');
-      debugPrint('$stackTrace');
 
       if (kDebugMode) {
         scaffold.showSnackBar(
@@ -382,7 +403,9 @@ class _AreaSectionState extends State<_AreaSection> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
                     : const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                label: Text(_isLoading ? 'Generando formato...' : 'Descargar formato'),
+                label: Text(
+                  _isLoading ? 'Generando formato...' : 'Descargar formato',
+                ),
                 onPressed: _isLoading ? null : () => _downloadReport(context),
               ),
             ),
@@ -414,8 +437,6 @@ class _CuadrillaTile extends StatelessWidget {
 
   final CuadrillaDetalle cuadrilla;
   final String horario;
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -572,6 +593,7 @@ class _EmptyState extends StatelessWidget {
 String _plural(int value, String singular, String plural) {
   return value == 1 ? singular : plural;
 }
+
 String _formatRange(String? start, String? end) {
   if ((start == null || start.isEmpty) && (end == null || end.isEmpty)) {
     return 'Horario no registrado';

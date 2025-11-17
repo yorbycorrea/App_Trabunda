@@ -27,7 +27,7 @@ class ReportPdfService {
   const ReportPdfService();
 
   // ============================================================
-  // GENERAR PDF DE AREA FILETEROS
+  // GENERAR PDF DE ÁREA FILETEROS
   // ============================================================
 
   Future<ReportPdfResult> generateAreaReport({
@@ -43,7 +43,13 @@ class ReportPdfService {
     final elaboradoPor = reporte.planillero.trim();
     final bytes = await _buildFileterosDocument(reporte, area, elaboradoPor);
 
-    final filename = _buildFilename(reporte, area);
+    // Nombre de archivo sin barras: reporte_fileteros_16-11-2025_fileteros.pdf
+    final filename = _buildFilename(
+      reporte,
+      area,
+      prefix: 'reporte_fileteros',
+    );
+
     final file = await _persist(bytes, filename);
 
     return ReportPdfResult(bytes: bytes, file: file, filename: filename);
@@ -93,7 +99,9 @@ class ReportPdfService {
                 pw.Text(
                   'I.- RECEPCIÓN:',
                   style: pw.TextStyle(
-                      fontSize: 12, fontWeight: pw.FontWeight.bold),
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
                 ),
                 pw.SizedBox(height: 6),
                 _buildRecepcionMainTable(area),
@@ -107,7 +115,14 @@ class ReportPdfService {
     );
 
     final bytes = await doc.save();
-    final filename = 'reporte_recepcion_${_formatDate(reporte.fecha)}.pdf';
+
+    // Usamos _buildFilename para evitar caracteres inválidos
+    final filename = _buildFilename(
+      reporte,
+      area,
+      prefix: 'reporte_recepcion',
+    );
+
     final file = await _persist(bytes, filename);
 
     return ReportPdfResult(bytes: bytes, file: file, filename: filename);
@@ -139,7 +154,7 @@ class ReportPdfService {
       ),
     );
 
-    // Página 2: Anexo de trabajadores
+    // Páginas siguientes: Anexo de trabajadores
     final workers = _buildFileterosWorkers(area);
 
     if (workers.isNotEmpty) {
@@ -151,7 +166,9 @@ class ReportPdfService {
             pw.Text(
               'ANEXO I - DETALLE DE FILETEROS',
               style: pw.TextStyle(
-                  fontSize: 14, fontWeight: pw.FontWeight.bold),
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+              ),
             ),
             pw.SizedBox(height: 8),
             _buildFileterosAnnexTable(workers),
@@ -193,7 +210,6 @@ class ReportPdfService {
     };
   }
 
-
   // ============================================================
   // LAYOUT FILETEROS RESUMEN
   // ============================================================
@@ -216,15 +232,17 @@ class ReportPdfService {
           pw.SizedBox(height: 8),
           pw.Text(
             'II.- FILETEROS (RESUMEN POR CUADRILLA):',
-            style:
-            pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
           pw.SizedBox(height: 6),
           _buildFileterosSummaryTable(area),
           pw.SizedBox(height: 12),
           pw.Text(
             'Nota: El detalle completo aparece en el ANEXO I.',
-            style: const pw.TextStyle(fontSize: 8),
+            style: pw.TextStyle(fontSize: 8),
           ),
           pw.SizedBox(height: 12),
           _buildFooterSignaturesFileteros(elaboradoPor),
@@ -248,54 +266,78 @@ class ReportPdfService {
               height: 100,
               alignment: pw.Alignment.center,
               decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.black)),
-              child: pw.Text('LOGO',
-                  style: pw.TextStyle(
-                      fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                border: pw.Border.all(color: PdfColors.black),
+              ),
+              child: pw.Text(
+                'LOGO',
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
             ),
             pw.SizedBox(width: 8),
             pw.Container(
               width: 200,
               decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.black)),
-              child: pw.Column(children: [
-                pw.Text('FORMATO',
+                border: pw.Border.all(color: PdfColors.black),
+              ),
+              child: pw.Column(
+                children: [
+                  pw.Text(
+                    'FORMATO',
                     style: pw.TextStyle(
-                        fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                pw.Text('RECEPCION Y FILETEADO',
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Text(
+                    'RECEPCION Y FILETEADO',
                     style: pw.TextStyle(
-                        fontSize: 13, fontWeight: pw.FontWeight.bold)),
-              ]),
+                      fontSize: 13,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
             pw.SizedBox(width: 8),
             pw.Container(
               width: 170,
               decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.black)),
-              child: pw.Column(children: [
-                _headerValueRow('Código', 'TRABUNDA SAC -GG-JO-F-01'),
-                _headerValueRow('Versión', '02'),
-                _headerValueRow('Fecha Emisión', 'Octubre 2020'),
-                _headerValueRow('Página', '1 de 1'),
-              ]),
+                border: pw.Border.all(color: PdfColors.black),
+              ),
+              child: pw.Column(
+                children: [
+                  _headerValueRow('Código', 'TRABUNDA SAC -GG-JO-F-01'),
+                  _headerValueRow('Versión', '02'),
+                  _headerValueRow('Fecha Emisión', 'Octubre 2020'),
+                  _headerValueRow('Página', '1 de 1'),
+                ],
+              ),
             ),
           ],
         ),
         pw.Container(
           padding: const pw.EdgeInsets.all(6),
           decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.black)),
+            border: pw.Border.all(color: PdfColors.black),
+          ),
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Column(children: [
-                _labelValueRow('HORA INICIO', '_____'),
-                _labelValueRow('HORA FINAL', '_____'),
-              ]),
-              pw.Column(children: [
-                _labelValueRow('FECHA', formattedDate),
-                _labelValueRow('TURNO', turno),
-              ]),
+              pw.Column(
+                children: [
+                  _labelValueRow('HORA INICIO', '_____'),
+                  _labelValueRow('HORA FINAL', '_____'),
+                ],
+              ),
+              pw.Column(
+                children: [
+                  _labelValueRow('FECHA', formattedDate),
+                  _labelValueRow('TURNO', turno),
+                ],
+              ),
             ],
           ),
         ),
@@ -309,7 +351,7 @@ class ReportPdfService {
 
   pw.Widget _buildRecepcionMainTable(ReporteAreaDetalle area) {
     final rows = <pw.TableRow>[
-      _tableRow(['N°', 'CÓDIGO', 'PRODUCTO', 'TOTAL'], isHeader: true)
+      _tableRow(['N°', 'CÓDIGO', 'PRODUCTO', 'TOTAL'], isHeader: true),
     ];
 
     double totalKilos = 0;
@@ -320,12 +362,16 @@ class ReportPdfService {
         final q = area.cuadrillas[i];
         totalKilos += q.kilos;
 
-        rows.add(_tableRow([
-          (i + 1).toString().padLeft(2, '0'),
-          _formatIntegrantesCodes(q.integrantes),
-          '',
-          _formatLbs(_toLbs(q.kilos)),
-        ]));
+        rows.add(
+          _tableRow(
+            [
+              (i + 1).toString().padLeft(2, '0'),
+              _formatIntegrantesCodes(q.integrantes),
+              '',
+              _formatLbs(_toLbs(q.kilos)),
+            ],
+          ),
+        );
       } else {
         rows.add(_tableRow(['', '', '', '']));
       }
@@ -386,16 +432,30 @@ class ReportPdfService {
               _fileterosCell((i + 1).toString().padLeft(2, '0')),
               _fileterosCell(c.nombre),
               _fileterosCell(c.integrantes.length.toString()),
-              _fileterosCell(_formatLbs(_getDesgloseOrDefault(d, 'filete', c.kilos))),
-              _fileterosCell(_formatLbs(_getDesgloseOrDefault(d, 'desu', 0))),
-              _fileterosCell(_formatLbs(_getDesgloseOrDefault(d, 'corta', 0))),
-              _fileterosCell(_formatLbs(_getDesgloseOrDefault(d, 'secci', 0))),
-              _fileterosCell(_formatLbs(_getDesgloseOrDefault(d, 'repro', 0))),
+              _fileterosCell(
+                _formatLbs(_getDesgloseOrDefault(d, 'filete', c.kilos)),
+              ),
+              _fileterosCell(
+                _formatLbs(_getDesgloseOrDefault(d, 'desu', 0)),
+              ),
+              _fileterosCell(
+                _formatLbs(_getDesgloseOrDefault(d, 'corta', 0)),
+              ),
+              _fileterosCell(
+                _formatLbs(_getDesgloseOrDefault(d, 'secci', 0)),
+              ),
+              _fileterosCell(
+                _formatLbs(_getDesgloseOrDefault(d, 'repro', 0)),
+              ),
             ],
           ),
         );
       } else {
-        rows.add(pw.TableRow(children: List.generate(8, (_) => _fileterosCell(''))));
+        rows.add(
+          pw.TableRow(
+            children: List.generate(8, (_) => _fileterosCell('')),
+          ),
+        );
       }
     }
 
@@ -454,60 +514,78 @@ class ReportPdfService {
       return pw.Container(
         width: 170,
         height: 60,
-        decoration:
-        pw.BoxDecoration(border: pw.Border.all(color: PdfColors.black)),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.black),
+        ),
         child: pw.Column(
           mainAxisAlignment: pw.MainAxisAlignment.end,
           children: [
             pw.Container(height: 1, color: PdfColors.black),
             pw.SizedBox(height: 4),
-            pw.Text(label,
-                style: pw.TextStyle(
-                    fontSize: 9, fontWeight: pw.FontWeight.bold)),
+            pw.Text(
+              label,
+              style: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
           ],
         ),
       );
     }
 
-    return pw.Column(children: [
-      pw.Container(
-        padding: const pw.EdgeInsets.all(4),
-        decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.black)),
-        child: pw.Row(children: [
-          pw.Text(
-            'PERSONA QUE ELABORÓ EL REPORTE: ',
-            style: pw.TextStyle(
-                fontSize: 10, fontWeight: pw.FontWeight.bold),
+    return pw.Column(
+      children: [
+        pw.Container(
+          padding: const pw.EdgeInsets.all(4),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black),
           ),
-          pw.Expanded(
-            child: pw.Container(
-              height: 20,
-              decoration: pw.BoxDecoration(
-                border: pw.Border(
-                  bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+          child: pw.Row(
+            children: [
+              pw.Text(
+                'PERSONA QUE ELABORÓ EL REPORTE: ',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
                 ),
               ),
-              child: pw.Text(elaboradoPor),
-            ),
+              pw.Expanded(
+                child: pw.Container(
+                  height: 20,
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(
+                        color: PdfColors.black,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: pw.Text(elaboradoPor),
+                ),
+              ),
+            ],
           ),
-        ]),
-      ),
-      pw.Row(children: [
-        box('JEFE DE TURNO'),
-        box('PLANILLERO'),
-        box('SUPERVISOR DE ÁREA'),
-      ]),
-      pw.Container(
-        padding: const pw.EdgeInsets.all(4),
-        decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.black)),
-        child: pw.Text(
-          'Documento controlado. Prohibida su reproducción sin autorización.',
-          style: const pw.TextStyle(fontSize: 7),
         ),
-      ),
-    ]);
+        pw.Row(
+          children: [
+            box('JEFE DE TURNO'),
+            box('PLANILLERO'),
+            box('SUPERVISOR DE ÁREA'),
+          ],
+        ),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(4),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black),
+          ),
+          child: pw.Text(
+            'Documento controlado. Prohibida su reproducción sin autorización.',
+            style: pw.TextStyle(fontSize: 7),
+          ),
+        ),
+      ],
+    );
   }
 
   // ============================================================
@@ -515,7 +593,8 @@ class ReportPdfService {
   // ============================================================
 
   List<Map<String, String>> _buildFileterosWorkers(
-      ReporteAreaDetalle area) {
+      ReporteAreaDetalle area,
+      ) {
     final result = <Map<String, String>>[];
 
     for (final c in area.cuadrillas) {
@@ -543,12 +622,13 @@ class ReportPdfService {
           w['cuadrilla'] ?? '',
         ];
       }),
-      headerStyle:
-      pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-      cellStyle: const pw.TextStyle(fontSize: 9),
+      headerStyle: pw.TextStyle(
+        fontSize: 9,
+        fontWeight: pw.FontWeight.bold,
+      ),
+      cellStyle: pw.TextStyle(fontSize: 9),
       border: pw.TableBorder.all(color: PdfColors.black),
-      headerDecoration:
-      const pw.BoxDecoration(color: PdfColors.grey200),
+      headerDecoration: pw.BoxDecoration(color: PdfColors.grey200),
     );
   }
 
@@ -559,7 +639,7 @@ class ReportPdfService {
   pw.TableRow _tableRow(List<String> cells, {bool isHeader = false}) {
     return pw.TableRow(
       decoration:
-      isHeader ? const pw.BoxDecoration(color: PdfColors.grey200) : null,
+      isHeader ? pw.BoxDecoration(color: PdfColors.grey200) : null,
       children: cells
           .map(
             (c) => pw.Container(
@@ -569,9 +649,8 @@ class ReportPdfService {
             c,
             style: pw.TextStyle(
               fontSize: 9,
-              fontWeight: isHeader
-                  ? pw.FontWeight.bold
-                  : pw.FontWeight.normal,
+              fontWeight:
+              isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
             ),
           ),
         ),
@@ -589,7 +668,10 @@ class ReportPdfService {
   }
 
   double _getDesgloseOrDefault(
-      List<CategoriaDesglose> desglose, String match, double fallback) {
+      List<CategoriaDesglose> desglose,
+      String match,
+      double fallback,
+      ) {
     final kg = desglose.firstWhere(
           (e) => e.categoria.toLowerCase().contains(match.toLowerCase()),
       orElse: () => CategoriaDesglose(categoria: '', kilos: 0),
@@ -614,7 +696,7 @@ class ReportPdfService {
   pw.Widget _headerValueRow(String label, String value) {
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(vertical: 3, horizontal: 4),
-      decoration: const pw.BoxDecoration(
+      decoration: pw.BoxDecoration(
         border: pw.Border(
           bottom: pw.BorderSide(color: PdfColors.black, width: 1),
         ),
@@ -622,10 +704,17 @@ class ReportPdfService {
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(label,
-              style: pw.TextStyle(
-                  fontSize: 9, fontWeight: pw.FontWeight.bold)),
-          pw.Text(value, style: const pw.TextStyle(fontSize: 9)),
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.Text(
+            value,
+            style: pw.TextStyle(fontSize: 9),
+          ),
         ],
       ),
     );
@@ -635,10 +724,17 @@ class ReportPdfService {
     return pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
-        pw.Text(label,
-            style:
-            pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-        pw.Text(value, style: const pw.TextStyle(fontSize: 9)),
+        pw.Text(
+          label,
+          style: pw.TextStyle(
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+        pw.Text(
+          value,
+          style: pw.TextStyle(fontSize: 9),
+        ),
       ],
     );
   }
@@ -648,10 +744,26 @@ class ReportPdfService {
           '${date.month.toString().padLeft(2, '0')}/'
           '${date.year}';
 
-  String _buildFilename(ReporteDetalle r, ReporteAreaDetalle a) {
-    final date = _formatDate(r.fecha).replaceAll('/', '-');
-    final area = a.nombre.toLowerCase().replaceAll(' ', '_');
-    return 'reporte_${date}_$area.pdf';
+  String _buildFilename(
+      ReporteDetalle reporte,
+      ReporteAreaDetalle area, {
+        String prefix = 'reporte',
+      }) {
+    final day = reporte.fecha.day.toString().padLeft(2, '0');
+    final month = reporte.fecha.month.toString().padLeft(2, '0');
+    final year = reporte.fecha.year.toString().padLeft(4, '0');
+    final datePart = '$day-$month-$year';
+
+    final areaSlug = area.nombre
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'[^a-z0-9]+', caseSensitive: false), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+
+    final safeArea = areaSlug.isEmpty ? 'area' : areaSlug;
+
+    return '${prefix}_${datePart}_$safeArea.pdf';
   }
 
   Future<File> _persist(Uint8List bytes, String filename) async {

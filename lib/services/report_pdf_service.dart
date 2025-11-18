@@ -129,6 +129,67 @@ class ReportPdfService {
   }
 
   // ============================================================
+  // GENERAR PDF DE SANEAMIENTO
+  // ============================================================
+
+  Future<ReportPdfResult> generateSaneamientoReport({
+    required ReporteDetalle reporte,
+    required ReporteAreaDetalle area,
+  }) async {
+    // El usuario logeado (planillero) es el que elabora el informe
+    final elaboradoPor = reporte.planillero.trim();
+    final formattedDate = _formatDate(reporte.fecha);
+    final workers = _buildSaneamientoWorkers(area);
+
+    final doc = pw.Document();
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        build: (context) {
+          return pw.Container(
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 1.2),
+            ),
+            padding: const pw.EdgeInsets.all(12),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                _buildSaneamientoHeader(
+                  area: area,
+                  formattedDate: formattedDate,
+                  turno: reporte.turno,
+                  supervisor: elaboradoPor,
+                  pageText: '1 de 1',
+                ),
+                pw.SizedBox(height: 12),
+                _buildSaneamientoTable(workers),
+                pw.SizedBox(height: 16),
+                _buildFooterSignaturesSaneamiento(elaboradoPor),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    final bytes = await doc.save();
+
+    final filename = _buildFilename(
+      reporte,
+      area,
+      prefix: 'reporte_saneamiento',
+    );
+
+    final file = await _persist(bytes, filename);
+
+    return ReportPdfResult(bytes: bytes, file: file, filename: filename);
+  }
+
+
+
+  // ============================================================
   // DOCUMENTO FILETEROS (RESUMEN + ANEXO)
   // ============================================================
 
@@ -588,6 +649,361 @@ class ReportPdfService {
     );
   }
 
+  pw.Widget _buildFooterSignaturesSaneamiento(String elaboradoPor) {
+    pw.Widget box(String label) {
+      return pw.Container(
+        width: 180,
+        height: 60,
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.black),
+        ),
+        child: pw.Column(
+          mainAxisAlignment: pw.MainAxisAlignment.end,
+          children: [
+            pw.Container(height: 1, color: PdfColors.black),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              label,
+              style: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return pw.Column(
+      children: [
+        // Persona que elaboró el informe
+        pw.Container(
+          padding: const pw.EdgeInsets.all(4),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.black),
+          ),
+          child: pw.Row(
+            children: [
+              pw.Text(
+                'PERSONA QUE ELABORÓ EL INFORME: ',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Container(
+                  height: 20,
+                  decoration: pw.BoxDecoration(
+                    border: const pw.Border(
+                      bottom: pw.BorderSide(
+                        color: PdfColors.black,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  alignment: pw.Alignment.centerLeft,
+                  child: pw.Text(
+                    elaboradoPor,
+                    style: const pw.TextStyle(fontSize: 9),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 16),
+        // Firmas
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+          children: [
+            box('SUPERVISOR'),
+            box('PRODUCCIÓN'),
+          ],
+        ),
+      ],
+    );
+  }
+
+
+  // ============================================================
+  // LAYOUT SANEAMIENTO
+  // ============================================================
+
+  // ============================================================
+  // LAYOUT SANEAMIENTO
+  // ============================================================
+
+  pw.Widget _buildSaneamientoHeader({
+    required ReporteAreaDetalle area,
+    required String formattedDate,
+    required String turno,
+    required String supervisor,
+    required String pageText,
+  }) {
+    const String codigoFormato = 'COD-SAN-001'; // cámbialo al código real
+
+    pw.Widget smallInfo(String label, String value) {
+      return pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: 8,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(width: 4),
+          pw.Expanded(
+            child: pw.Text(
+              value,
+              style: const pw.TextStyle(fontSize: 8),
+              textAlign: pw.TextAlign.right,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        // Primera franja: empresa + cuadro de información del formato
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'TRABUNDA SAC',
+                    style: pw.TextStyle(
+                      fontSize: 14,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'FORMATO : SANEAMIENTO',
+                    style: pw.TextStyle(
+                      fontSize: 11,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.Container(
+              width: 190,
+              padding: const pw.EdgeInsets.all(4),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.black),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  smallInfo('Código del formato:', codigoFormato),
+                  smallInfo('Versión:', '2'),
+                  smallInfo('Fecha emisión:', formattedDate),
+                  smallInfo('Página:', pageText),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Divider(height: 16, thickness: 1.1),
+        // Datos del reporte
+        _labelValueRow('Área:', area.nombre),
+        pw.SizedBox(height: 4),
+        _labelValueRow('Supervisor:', supervisor),
+        pw.SizedBox(height: 4),
+        _labelValueRow('Turno:', turno),
+        pw.SizedBox(height: 4),
+        _labelValueRow('Fecha:', formattedDate),
+      ],
+    );
+  }
+
+// tabla saneamiento
+  pw.Widget _buildSaneamientoTable(List<_SaneamientoWorkerRow> workers) {
+    final headers = [
+      'ITEM',
+      'CÓDIGO',
+      'APELLIDOS Y NOMBRES',
+      'HORA INICIAL',
+      'HORA FINAL',
+      'TOTAL HORAS',
+      'LABORES REALIZADAS',
+    ];
+
+    final rows = <List<String>>[];
+
+    for (var i = 0; i < workers.length; i++) {
+      final w = workers[i];
+      rows.add([
+        '${i + 1}',
+        w.codigo,
+        w.nombre,
+        w.horaInicio,
+        w.horaFin,
+        w.totalHoras,
+        w.labores,
+      ]);
+    }
+
+    return pw.Table.fromTextArray(
+      headers: headers,
+      data: rows,
+      headerStyle: pw.TextStyle(
+        fontSize: 9,
+        fontWeight: pw.FontWeight.bold,
+      ),
+      cellStyle: const pw.TextStyle(fontSize: 9),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+      cellAlignment: pw.Alignment.centerLeft,
+      columnWidths: {
+        0: const pw.FlexColumnWidth(0.7),
+        1: const pw.FlexColumnWidth(1.0),
+        2: const pw.FlexColumnWidth(2.4),
+        3: const pw.FlexColumnWidth(1.1),
+        4: const pw.FlexColumnWidth(1.1),
+        5: const pw.FlexColumnWidth(1.1),
+        6: const pw.FlexColumnWidth(2.6),
+      },
+      cellHeight: 24,
+      border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
+    );
+  }
+
+
+  List<_SaneamientoWorkerRow> _buildSaneamientoWorkers(
+      ReporteAreaDetalle area,
+      ) {
+    final rows = <_SaneamientoWorkerRow>[];
+
+    final horaAreaInicio = (area.horaInicio ?? '').trim();
+    final horaAreaFin = (area.horaFin ?? '').trim();
+
+    final actividadesArea = area.desglose.isNotEmpty
+        ? area.desglose.map((d) => d.categoria).join(', ')
+        : '';
+
+    for (final cuadrilla in area.cuadrillas) {
+      final horaCuadInicio = (cuadrilla.horaInicio ?? '').trim();
+      final horaCuadFin = (cuadrilla.horaFin ?? '').trim();
+
+      final horaInicio = horaCuadInicio.isNotEmpty ? horaCuadInicio : horaAreaInicio;
+      final horaFin = horaCuadFin.isNotEmpty ? horaCuadFin : horaAreaFin;
+      final totalHoras = _calculateTotalHoras(horaInicio, horaFin);
+
+      final actividadesCuadrilla = cuadrilla.desglose.isNotEmpty
+          ? cuadrilla.desglose.map((d) => d.categoria).join(', ')
+          : actividadesArea;
+
+      final actividadTexto = actividadesCuadrilla.isNotEmpty
+          ? actividadesCuadrilla
+          : cuadrilla.nombre;
+
+      if (cuadrilla.integrantes.isEmpty) {
+        rows.add(
+          _SaneamientoWorkerRow(
+            codigo: '',
+            nombre: cuadrilla.nombre,
+            horaInicio: horaInicio,
+            horaFin: horaFin,
+            totalHoras: totalHoras,
+            labores: actividadTexto,
+          ),
+        );
+      } else {
+        for (final integrante in cuadrilla.integrantes) {
+          rows.add(
+            _SaneamientoWorkerRow(
+              codigo: integrante.code ?? '',
+              nombre: integrante.nombre,
+              horaInicio: horaInicio,
+              horaFin: horaFin,
+              totalHoras: totalHoras,
+              labores: actividadTexto,
+            ),
+          );
+        }
+      }
+    }
+
+    // Si no hay cuadrillas pero sí cantidad, se generan filas genéricas
+    if (rows.isEmpty && area.cantidad > 0) {
+      final actividadFallback =
+      actividadesArea.isNotEmpty ? actividadesArea : area.nombre;
+
+      final totalHorasArea = _calculateTotalHoras(horaAreaInicio, horaAreaFin);
+
+      for (var i = 0; i < area.cantidad; i++) {
+        rows.add(
+          _SaneamientoWorkerRow(
+            codigo: '',
+            nombre: 'Trabajador ${i + 1}',
+            horaInicio: horaAreaInicio,
+            horaFin: horaAreaFin,
+            totalHoras: totalHorasArea,
+            labores: actividadFallback,
+          ),
+        );
+      }
+    }
+
+    return rows;
+  }
+
+
+  String _formatHoraRange(String? inicio, String? fin) {
+    final start = (inicio ?? '').trim();
+    final end = (fin ?? '').trim();
+
+    if (start.isEmpty && end.isEmpty) return '';
+    if (start.isEmpty) return 'Fin: $end';
+    if (end.isEmpty) return 'Inicio: $start';
+    return '$start - $end';
+  }
+
+  String _calculateTotalHoras(String horaInicio, String horaFin) {
+    final start = horaInicio.trim();
+    final end = horaFin.trim();
+
+    if (start.isEmpty || end.isEmpty) return '';
+
+    try {
+      final sParts = start.split(':');
+      final eParts = end.split(':');
+      if (sParts.length < 2 || eParts.length < 2) return '';
+
+      final s = Duration(
+        hours: int.parse(sParts[0]),
+        minutes: int.parse(sParts[1]),
+      );
+      final e = Duration(
+        hours: int.parse(eParts[0]),
+        minutes: int.parse(eParts[1]),
+      );
+
+      final diff = e - s;
+      if (diff.isNegative) return '';
+
+      final h = diff.inHours;
+      final m = diff.inMinutes % 60;
+      final hh = h.toString().padLeft(2, '0');
+      final mm = m.toString().padLeft(2, '0');
+      return '$hh:$mm';
+    } catch (_) {
+      return '';
+    }
+  }
+
+
+
   // ============================================================
   // ANEXO TABLA DE TRABAJADORES
   // ============================================================
@@ -773,3 +1189,22 @@ class ReportPdfService {
     return file;
   }
 }
+
+class _SaneamientoWorkerRow {
+  final String codigo;
+  final String nombre;
+  final String horaInicio;
+  final String horaFin;
+  final String totalHoras;
+  final String labores;
+
+  const _SaneamientoWorkerRow({
+    required this.codigo,
+    required this.nombre,
+    required this.horaInicio,
+    required this.horaFin,
+    required this.totalHoras,
+    required this.labores,
+  });
+}
+

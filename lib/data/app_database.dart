@@ -317,6 +317,59 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
+  /// Guarda los trabajadores de SANEAMIENTO como integrantes de una cuadrilla.
+  Future<void> saveSaneamientoTrabajadores({
+    required int reporteAreaId,
+    required List<Map<String, dynamic>> trabajadores,
+  }) async {
+    await transaction(() async {
+      // Buscamos (o creamos) UNA única cuadrilla para este área
+      final existing = await (select(cuadrillas)
+        ..where((c) => c.reporteAreaId.equals(reporteAreaId)))
+          .get();
+
+      int cuadrillaId;
+
+      if (existing.isEmpty) {
+        // No hay cuadrillas aún: creamos una genérica "Saneamiento"
+        cuadrillaId = await into(cuadrillas).insert(
+          CuadrillasCompanion.insert(
+            reporteAreaId: reporteAreaId,
+            nombre: const Value('Saneamiento'),
+            horaInicio: const Value(null),
+            horaFin: const Value(null),
+            kilos: const Value(0.0),
+          ),
+        );
+      } else {
+        // Reutilizamos la primera cuadrilla existente
+        cuadrillaId = existing.first.id;
+      }
+
+      // Limpiamos los integrantes anteriores de esa cuadrilla
+      await (delete(integrantes)
+        ..where((t) => t.cuadrillaId.equals(cuadrillaId)))
+          .go();
+
+      // Insertamos los trabajadores nuevos
+      for (final t in trabajadores) {
+        final code = (t['code'] ?? '').toString();
+        final name = (t['name'] ?? '').toString();
+
+        if (code.isEmpty && name.isEmpty) continue;
+
+        await into(integrantes).insert(
+          IntegrantesCompanion.insert(
+            cuadrillaId: cuadrillaId,
+            code: Value(code),
+            nombre: name,
+          ),
+        );
+      }
+    });
+  }
+
+
   Future<void> replaceIntegrantes({
     required int cuadrillaId,
     required List<Map<String, String>> integrantesList,

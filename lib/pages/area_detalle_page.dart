@@ -366,6 +366,13 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
       final horaInicio = result['horaInicio'] as String?;
       final horaFin = result['horaFin'] as String?;
 
+      final saneamientoList =
+          (result['trabajadoresSaneamiento'] as List?)
+              ?.cast<Map<String, dynamic>>() ??
+              const <Map<String, dynamic>>[];
+
+
+
       Future.microtask(() async {
         try {
           await db.reportesDao.saveReporteAreaDatos(
@@ -375,6 +382,14 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
             horaFin: horaFin,
             desglose: const [],
           );
+          if (_isSaneamiento &&
+              _modo == ModoTrabajo.individual &&
+              saneamientoList.isNotEmpty) {
+            await db.reportesDao.saveSaneamientoTrabajadores(
+              reporteAreaId: widget.reporteAreaId!,
+              trabajadores: saneamientoList,
+            );
+          }
         } catch (_) {}
       });
     }

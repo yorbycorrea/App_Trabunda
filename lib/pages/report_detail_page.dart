@@ -266,6 +266,7 @@ class _AreaSection extends StatefulWidget {
 class _AreaSectionState extends State<_AreaSection> {
   final ReportPdfService _pdfService = const ReportPdfService();
   bool _isLoading = false;
+  bool _isSaneamientoLoading = false;
 
   bool get _shouldShowDownload {
     final name = widget.area.nombre.toLowerCase().trim();
@@ -348,14 +349,47 @@ class _AreaSectionState extends State<_AreaSection> {
 
   Future<void> _downloadSaneamientoReport(BuildContext context) async {
     // Aquí luego puedes conectar con un formato PDF específico de Saneamiento.
+    if (_isSaneamientoLoading) return;
+
+    setState(() => _isSaneamientoLoading = true);
     final scaffold = ScaffoldMessenger.of(context);
-    scaffold.showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Descarga de informe de Saneamiento aún no está implementada.',
+    try {
+      final result = await _pdfService.generateSaneamientoReport(
+        reporte: widget.reporte,
+        area: widget.area,
+      );
+
+      await _pdfService.share(result);
+
+      scaffold.showSnackBar(
+        SnackBar(
+          content: Text('Reporte generado: ${result.filename}'),
         ),
-      ),
-    );
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Failed to generate Saneamiento PDF for area ${widget.area.nombre}: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+
+      scaffold.showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo generar el PDF. Intenta nuevamente.'),
+        ),
+      );
+
+      if (kDebugMode) {
+        scaffold.showSnackBar(
+          SnackBar(
+            content: Text('Detalle: $error'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaneamientoLoading = false);
+      }
+    }
   }
 
   @override
@@ -447,10 +481,21 @@ class _AreaSectionState extends State<_AreaSection> {
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
-                onPressed: () => _downloadSaneamientoReport(context),
-                icon:
-                const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                label: const Text('Descargar informe'),
+                onPressed: _isSaneamientoLoading
+                    ? null
+                    : () => _downloadSaneamientoReport(context),
+                icon: _isSaneamientoLoading
+                    ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+                    : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: Text(
+                  _isSaneamientoLoading
+                      ? 'Generando formato...'
+                      : 'Descargar informe',
+                ),
               ),
             ),
           ] else if (area.cuadrillas.isEmpty) ...[

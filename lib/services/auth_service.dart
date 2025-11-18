@@ -56,17 +56,17 @@ class AuthService extends ChangeNotifier {
     ),
     AppUser(
       id: 'planillero3',
-      name: 'Planillero Tres',
-      email: 'planillero3@trabunda.com',
-      password: 'planillero3',
-      role: 'planillero',
+      name: 'Curay Floriano Luis Martin',
+      email: 'curay@trabunda.com',
+      password: 'curay123456',
+      role: 'Supervisor de Saneamiento',
     ),
     AppUser(
       id: 'planillero4',
       name: 'Planillero Cuatro',
       email: 'planillero4@trabunda.com',
       password: 'planillero4',
-      role: 'planillero',
+      role: 'Supervisor de Saneamiento',
     ),
   ];
 

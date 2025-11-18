@@ -59,6 +59,10 @@ class Integrantes extends Table {
   IntColumn get cuadrillaId => integer().references(Cuadrillas, #id)();
   TextColumn get code => text().nullable()(); // QR opcional
   TextColumn get nombre => text()();
+  TextColumn get horaInicio => text().nullable()();
+  TextColumn get horaFin => text().nullable()();
+  RealColumn get horas => real().nullable()(); // ej: 7.5 horas
+  TextColumn get labores => text().nullable()();
 }
 
 /// =======================
@@ -88,7 +92,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -98,6 +102,15 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(reporteAreas, reporteAreas.horaFin);
         await m.createTable(reporteAreaDesgloses);
         await m.createTable(cuadrillaDesgloses);
+      }
+
+      if (from < 3) {
+        await m.addColumn(integrantes, integrantes.horaInicio);
+        await m.addColumn(integrantes, integrantes.horaFin);
+        await m.addColumn(integrantes, integrantes.horas);
+      }
+      if (from < 4) {
+        await m.addColumn(integrantes, integrantes.labores);
       }
     },
   );
@@ -355,6 +368,10 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
       for (final t in trabajadores) {
         final code = (t['code'] ?? '').toString();
         final name = (t['name'] ?? '').toString();
+        final hi = (t['horaInicio'] ?? '') as String?;
+        final hf = (t['horaFin'] ?? '') as String?;
+        final hs = t['horas'];
+        final labores = (t['labores'] ?? '').toString();
 
         if (code.isEmpty && name.isEmpty) continue;
 
@@ -363,8 +380,14 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
             cuadrillaId: cuadrillaId,
             code: Value(code),
             nombre: name,
+            horaInicio: Value(hi),
+            horaFin: Value(hf),
+            horas: Value(
+              hs is num ? hs.toDouble() : null),
+            labores: Value(labores.isEmpty ? null : labores),
           ),
         );
+
       }
     });
   }
@@ -518,6 +541,10 @@ LEFT JOIN cuadrillas c ON c.reporte_area_id = a.id
             id: it.id,
             nombre: it.nombre,
             code: it.code,
+            horaInicio: it.horaInicio,
+            horaFin: it.horaFin,
+            horas: it.horas,
+            labores: it.labores,
           ),
         )
             .toList();
@@ -693,12 +720,22 @@ class CuadrillaDetalle {
 class IntegranteDetalle {
   final int id;
   final String nombre;
+
   final String? code;
+  final String? horaInicio;
+  final String? horaFin;
+  final double? horas;
+  final String? labores;
 
   const IntegranteDetalle({
     required this.id,
+
+    required this.code,
     required this.nombre,
-    this.code,
+    this.horaInicio,
+    this.horaFin,
+    this.horas,
+    this.labores,
   });
 }
 

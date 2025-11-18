@@ -1877,8 +1877,59 @@ class $IntegrantesTable extends Integrantes
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _horaInicioMeta = const VerificationMeta(
+    'horaInicio',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, cuadrillaId, code, nombre];
+  late final GeneratedColumn<String> horaInicio = GeneratedColumn<String>(
+    'hora_inicio',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _horaFinMeta = const VerificationMeta(
+    'horaFin',
+  );
+  @override
+  late final GeneratedColumn<String> horaFin = GeneratedColumn<String>(
+    'hora_fin',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _horasMeta = const VerificationMeta('horas');
+  @override
+  late final GeneratedColumn<double> horas = GeneratedColumn<double>(
+    'horas',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _laboresMeta = const VerificationMeta(
+    'labores',
+  );
+  @override
+  late final GeneratedColumn<String> labores = GeneratedColumn<String>(
+    'labores',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    cuadrillaId,
+    code,
+    nombre,
+    horaInicio,
+    horaFin,
+    horas,
+    labores,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1919,6 +1970,30 @@ class $IntegrantesTable extends Integrantes
     } else if (isInserting) {
       context.missing(_nombreMeta);
     }
+    if (data.containsKey('hora_inicio')) {
+      context.handle(
+        _horaInicioMeta,
+        horaInicio.isAcceptableOrUnknown(data['hora_inicio']!, _horaInicioMeta),
+      );
+    }
+    if (data.containsKey('hora_fin')) {
+      context.handle(
+        _horaFinMeta,
+        horaFin.isAcceptableOrUnknown(data['hora_fin']!, _horaFinMeta),
+      );
+    }
+    if (data.containsKey('horas')) {
+      context.handle(
+        _horasMeta,
+        horas.isAcceptableOrUnknown(data['horas']!, _horasMeta),
+      );
+    }
+    if (data.containsKey('labores')) {
+      context.handle(
+        _laboresMeta,
+        labores.isAcceptableOrUnknown(data['labores']!, _laboresMeta),
+      );
+    }
     return context;
   }
 
@@ -1944,6 +2019,22 @@ class $IntegrantesTable extends Integrantes
         DriftSqlType.string,
         data['${effectivePrefix}nombre'],
       )!,
+      horaInicio: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hora_inicio'],
+      ),
+      horaFin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hora_fin'],
+      ),
+      horas: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}horas'],
+      ),
+      labores: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}labores'],
+      ),
     );
   }
 
@@ -1958,11 +2049,19 @@ class Integrante extends DataClass implements Insertable<Integrante> {
   final int cuadrillaId;
   final String? code;
   final String nombre;
+  final String? horaInicio;
+  final String? horaFin;
+  final double? horas;
+  final String? labores;
   const Integrante({
     required this.id,
     required this.cuadrillaId,
     this.code,
     required this.nombre,
+    this.horaInicio,
+    this.horaFin,
+    this.horas,
+    this.labores,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1973,6 +2072,18 @@ class Integrante extends DataClass implements Insertable<Integrante> {
       map['code'] = Variable<String>(code);
     }
     map['nombre'] = Variable<String>(nombre);
+    if (!nullToAbsent || horaInicio != null) {
+      map['hora_inicio'] = Variable<String>(horaInicio);
+    }
+    if (!nullToAbsent || horaFin != null) {
+      map['hora_fin'] = Variable<String>(horaFin);
+    }
+    if (!nullToAbsent || horas != null) {
+      map['horas'] = Variable<double>(horas);
+    }
+    if (!nullToAbsent || labores != null) {
+      map['labores'] = Variable<String>(labores);
+    }
     return map;
   }
 
@@ -1982,6 +2093,18 @@ class Integrante extends DataClass implements Insertable<Integrante> {
       cuadrillaId: Value(cuadrillaId),
       code: code == null && nullToAbsent ? const Value.absent() : Value(code),
       nombre: Value(nombre),
+      horaInicio: horaInicio == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horaInicio),
+      horaFin: horaFin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horaFin),
+      horas: horas == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horas),
+      labores: labores == null && nullToAbsent
+          ? const Value.absent()
+          : Value(labores),
     );
   }
 
@@ -1995,6 +2118,10 @@ class Integrante extends DataClass implements Insertable<Integrante> {
       cuadrillaId: serializer.fromJson<int>(json['cuadrillaId']),
       code: serializer.fromJson<String?>(json['code']),
       nombre: serializer.fromJson<String>(json['nombre']),
+      horaInicio: serializer.fromJson<String?>(json['horaInicio']),
+      horaFin: serializer.fromJson<String?>(json['horaFin']),
+      horas: serializer.fromJson<double?>(json['horas']),
+      labores: serializer.fromJson<String?>(json['labores']),
     );
   }
   @override
@@ -2005,6 +2132,10 @@ class Integrante extends DataClass implements Insertable<Integrante> {
       'cuadrillaId': serializer.toJson<int>(cuadrillaId),
       'code': serializer.toJson<String?>(code),
       'nombre': serializer.toJson<String>(nombre),
+      'horaInicio': serializer.toJson<String?>(horaInicio),
+      'horaFin': serializer.toJson<String?>(horaFin),
+      'horas': serializer.toJson<double?>(horas),
+      'labores': serializer.toJson<String?>(labores),
     };
   }
 
@@ -2013,11 +2144,19 @@ class Integrante extends DataClass implements Insertable<Integrante> {
     int? cuadrillaId,
     Value<String?> code = const Value.absent(),
     String? nombre,
+    Value<String?> horaInicio = const Value.absent(),
+    Value<String?> horaFin = const Value.absent(),
+    Value<double?> horas = const Value.absent(),
+    Value<String?> labores = const Value.absent(),
   }) => Integrante(
     id: id ?? this.id,
     cuadrillaId: cuadrillaId ?? this.cuadrillaId,
     code: code.present ? code.value : this.code,
     nombre: nombre ?? this.nombre,
+    horaInicio: horaInicio.present ? horaInicio.value : this.horaInicio,
+    horaFin: horaFin.present ? horaFin.value : this.horaFin,
+    horas: horas.present ? horas.value : this.horas,
+    labores: labores.present ? labores.value : this.labores,
   );
   Integrante copyWithCompanion(IntegrantesCompanion data) {
     return Integrante(
@@ -2027,6 +2166,12 @@ class Integrante extends DataClass implements Insertable<Integrante> {
           : this.cuadrillaId,
       code: data.code.present ? data.code.value : this.code,
       nombre: data.nombre.present ? data.nombre.value : this.nombre,
+      horaInicio: data.horaInicio.present
+          ? data.horaInicio.value
+          : this.horaInicio,
+      horaFin: data.horaFin.present ? data.horaFin.value : this.horaFin,
+      horas: data.horas.present ? data.horas.value : this.horas,
+      labores: data.labores.present ? data.labores.value : this.labores,
     );
   }
 
@@ -2036,13 +2181,26 @@ class Integrante extends DataClass implements Insertable<Integrante> {
           ..write('id: $id, ')
           ..write('cuadrillaId: $cuadrillaId, ')
           ..write('code: $code, ')
-          ..write('nombre: $nombre')
+          ..write('nombre: $nombre, ')
+          ..write('horaInicio: $horaInicio, ')
+          ..write('horaFin: $horaFin, ')
+          ..write('horas: $horas, ')
+          ..write('labores: $labores')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, cuadrillaId, code, nombre);
+  int get hashCode => Object.hash(
+    id,
+    cuadrillaId,
+    code,
+    nombre,
+    horaInicio,
+    horaFin,
+    horas,
+    labores,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2050,7 +2208,11 @@ class Integrante extends DataClass implements Insertable<Integrante> {
           other.id == this.id &&
           other.cuadrillaId == this.cuadrillaId &&
           other.code == this.code &&
-          other.nombre == this.nombre);
+          other.nombre == this.nombre &&
+          other.horaInicio == this.horaInicio &&
+          other.horaFin == this.horaFin &&
+          other.horas == this.horas &&
+          other.labores == this.labores);
 }
 
 class IntegrantesCompanion extends UpdateCompanion<Integrante> {
@@ -2058,17 +2220,29 @@ class IntegrantesCompanion extends UpdateCompanion<Integrante> {
   final Value<int> cuadrillaId;
   final Value<String?> code;
   final Value<String> nombre;
+  final Value<String?> horaInicio;
+  final Value<String?> horaFin;
+  final Value<double?> horas;
+  final Value<String?> labores;
   const IntegrantesCompanion({
     this.id = const Value.absent(),
     this.cuadrillaId = const Value.absent(),
     this.code = const Value.absent(),
     this.nombre = const Value.absent(),
+    this.horaInicio = const Value.absent(),
+    this.horaFin = const Value.absent(),
+    this.horas = const Value.absent(),
+    this.labores = const Value.absent(),
   });
   IntegrantesCompanion.insert({
     this.id = const Value.absent(),
     required int cuadrillaId,
     this.code = const Value.absent(),
     required String nombre,
+    this.horaInicio = const Value.absent(),
+    this.horaFin = const Value.absent(),
+    this.horas = const Value.absent(),
+    this.labores = const Value.absent(),
   }) : cuadrillaId = Value(cuadrillaId),
        nombre = Value(nombre);
   static Insertable<Integrante> custom({
@@ -2076,12 +2250,20 @@ class IntegrantesCompanion extends UpdateCompanion<Integrante> {
     Expression<int>? cuadrillaId,
     Expression<String>? code,
     Expression<String>? nombre,
+    Expression<String>? horaInicio,
+    Expression<String>? horaFin,
+    Expression<double>? horas,
+    Expression<String>? labores,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (cuadrillaId != null) 'cuadrilla_id': cuadrillaId,
       if (code != null) 'code': code,
       if (nombre != null) 'nombre': nombre,
+      if (horaInicio != null) 'hora_inicio': horaInicio,
+      if (horaFin != null) 'hora_fin': horaFin,
+      if (horas != null) 'horas': horas,
+      if (labores != null) 'labores': labores,
     });
   }
 
@@ -2090,12 +2272,20 @@ class IntegrantesCompanion extends UpdateCompanion<Integrante> {
     Value<int>? cuadrillaId,
     Value<String?>? code,
     Value<String>? nombre,
+    Value<String?>? horaInicio,
+    Value<String?>? horaFin,
+    Value<double?>? horas,
+    Value<String?>? labores,
   }) {
     return IntegrantesCompanion(
       id: id ?? this.id,
       cuadrillaId: cuadrillaId ?? this.cuadrillaId,
       code: code ?? this.code,
       nombre: nombre ?? this.nombre,
+      horaInicio: horaInicio ?? this.horaInicio,
+      horaFin: horaFin ?? this.horaFin,
+      horas: horas ?? this.horas,
+      labores: labores ?? this.labores,
     );
   }
 
@@ -2114,6 +2304,18 @@ class IntegrantesCompanion extends UpdateCompanion<Integrante> {
     if (nombre.present) {
       map['nombre'] = Variable<String>(nombre.value);
     }
+    if (horaInicio.present) {
+      map['hora_inicio'] = Variable<String>(horaInicio.value);
+    }
+    if (horaFin.present) {
+      map['hora_fin'] = Variable<String>(horaFin.value);
+    }
+    if (horas.present) {
+      map['horas'] = Variable<double>(horas.value);
+    }
+    if (labores.present) {
+      map['labores'] = Variable<String>(labores.value);
+    }
     return map;
   }
 
@@ -2123,7 +2325,11 @@ class IntegrantesCompanion extends UpdateCompanion<Integrante> {
           ..write('id: $id, ')
           ..write('cuadrillaId: $cuadrillaId, ')
           ..write('code: $code, ')
-          ..write('nombre: $nombre')
+          ..write('nombre: $nombre, ')
+          ..write('horaInicio: $horaInicio, ')
+          ..write('horaFin: $horaFin, ')
+          ..write('horas: $horas, ')
+          ..write('labores: $labores')
           ..write(')'))
         .toString();
   }
@@ -4209,6 +4415,10 @@ typedef $$IntegrantesTableCreateCompanionBuilder =
       required int cuadrillaId,
       Value<String?> code,
       required String nombre,
+      Value<String?> horaInicio,
+      Value<String?> horaFin,
+      Value<double?> horas,
+      Value<String?> labores,
     });
 typedef $$IntegrantesTableUpdateCompanionBuilder =
     IntegrantesCompanion Function({
@@ -4216,6 +4426,10 @@ typedef $$IntegrantesTableUpdateCompanionBuilder =
       Value<int> cuadrillaId,
       Value<String?> code,
       Value<String> nombre,
+      Value<String?> horaInicio,
+      Value<String?> horaFin,
+      Value<double?> horas,
+      Value<String?> labores,
     });
 
 final class $$IntegrantesTableReferences
@@ -4263,6 +4477,26 @@ class $$IntegrantesTableFilterComposer
 
   ColumnFilters<String> get nombre => $composableBuilder(
     column: $table.nombre,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get horaInicio => $composableBuilder(
+    column: $table.horaInicio,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get horaFin => $composableBuilder(
+    column: $table.horaFin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get horas => $composableBuilder(
+    column: $table.horas,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get labores => $composableBuilder(
+    column: $table.labores,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4314,6 +4548,26 @@ class $$IntegrantesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get horaInicio => $composableBuilder(
+    column: $table.horaInicio,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get horaFin => $composableBuilder(
+    column: $table.horaFin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get horas => $composableBuilder(
+    column: $table.horas,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get labores => $composableBuilder(
+    column: $table.labores,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$CuadrillasTableOrderingComposer get cuadrillaId {
     final $$CuadrillasTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -4355,6 +4609,20 @@ class $$IntegrantesTableAnnotationComposer
 
   GeneratedColumn<String> get nombre =>
       $composableBuilder(column: $table.nombre, builder: (column) => column);
+
+  GeneratedColumn<String> get horaInicio => $composableBuilder(
+    column: $table.horaInicio,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get horaFin =>
+      $composableBuilder(column: $table.horaFin, builder: (column) => column);
+
+  GeneratedColumn<double> get horas =>
+      $composableBuilder(column: $table.horas, builder: (column) => column);
+
+  GeneratedColumn<String> get labores =>
+      $composableBuilder(column: $table.labores, builder: (column) => column);
 
   $$CuadrillasTableAnnotationComposer get cuadrillaId {
     final $$CuadrillasTableAnnotationComposer composer = $composerBuilder(
@@ -4412,11 +4680,19 @@ class $$IntegrantesTableTableManager
                 Value<int> cuadrillaId = const Value.absent(),
                 Value<String?> code = const Value.absent(),
                 Value<String> nombre = const Value.absent(),
+                Value<String?> horaInicio = const Value.absent(),
+                Value<String?> horaFin = const Value.absent(),
+                Value<double?> horas = const Value.absent(),
+                Value<String?> labores = const Value.absent(),
               }) => IntegrantesCompanion(
                 id: id,
                 cuadrillaId: cuadrillaId,
                 code: code,
                 nombre: nombre,
+                horaInicio: horaInicio,
+                horaFin: horaFin,
+                horas: horas,
+                labores: labores,
               ),
           createCompanionCallback:
               ({
@@ -4424,11 +4700,19 @@ class $$IntegrantesTableTableManager
                 required int cuadrillaId,
                 Value<String?> code = const Value.absent(),
                 required String nombre,
+                Value<String?> horaInicio = const Value.absent(),
+                Value<String?> horaFin = const Value.absent(),
+                Value<double?> horas = const Value.absent(),
+                Value<String?> labores = const Value.absent(),
               }) => IntegrantesCompanion.insert(
                 id: id,
                 cuadrillaId: cuadrillaId,
                 code: code,
                 nombre: nombre,
+                horaInicio: horaInicio,
+                horaFin: horaFin,
+                horas: horas,
+                labores: labores,
               ),
           withReferenceMapper: (p0) => p0
               .map(

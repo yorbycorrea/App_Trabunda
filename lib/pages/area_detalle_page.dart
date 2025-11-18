@@ -302,6 +302,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
             ? null
             : '${t.fin!.hour.toString().padLeft(2, '0')}:${t.fin!.minute.toString().padLeft(2, '0')}',
         'horas': t.horas,
+        'labores': t.laboresCtrl.text.trim(),
       },
     )
         .toList()
@@ -363,16 +364,51 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
 
     if (usaBD && widget.reporteAreaId != null) {
       final personas = result['personas'] as int;
-      final horaInicio = result['horaInicio'] as String?;
-      final horaFin = result['horaFin'] as String?;
 
+      // Las horas generales que venían del área
+      String? horaInicio = result['horaInicio'] as String?;
+      String? horaFin = result['horaFin'] as String?;
+
+      // Lista de trabajadores de saneamiento con sus horas
       final saneamientoList =
           (result['trabajadoresSaneamiento'] as List?)
               ?.cast<Map<String, dynamic>>() ??
               const <Map<String, dynamic>>[];
 
+      // =====================================================
+      // SANEAMIENTO:
+      // si no hay hora general, la calculamos desde los
+      // trabajadores (primera horaInicio y última horaFin)
+      // =====================================================
+      if (_isSaneamiento &&
+          _modo == ModoTrabajo.individual &&
+          saneamientoList.isNotEmpty &&
+          ((horaInicio == null || horaInicio.isEmpty) ||
+              (horaFin == null || horaFin.isEmpty))) {
+        String? firstInicio;
+        String? lastFin;
 
+        for (final t in saneamientoList) {
+          final hi = (t['horaInicio'] as String?)?.trim();
+          final hf = (t['horaFin'] as String?)?.trim();
 
+          if (hi != null && hi.isNotEmpty && firstInicio == null) {
+            firstInicio = hi; // primer inicio no vacío
+          }
+          if (hf != null && hf.isNotEmpty) {
+            lastFin = hf; // último fin no vacío
+          }
+        }
+
+        if (horaInicio == null || horaInicio.isEmpty) {
+          horaInicio = firstInicio;
+        }
+        if (horaFin == null || horaFin.isEmpty) {
+          horaFin = lastFin;
+        }
+      }
+
+      // Guardamos en BD
       Future.microtask(() async {
         try {
           await db.reportesDao.saveReporteAreaDatos(
@@ -382,6 +418,8 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
             horaFin: horaFin,
             desglose: const [],
           );
+
+          // Guardar trabajadores de saneamiento como integrantes
           if (_isSaneamiento &&
               _modo == ModoTrabajo.individual &&
               saneamientoList.isNotEmpty) {
@@ -408,6 +446,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
       WidgetsBinding.instance.addPostFrameCallback((_) => cerrar());
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -851,6 +890,7 @@ class _SaneamientoTrabajadorRow {
   TimeOfDay? fin;
   final TextEditingController codigoCtrl = TextEditingController();
   final TextEditingController nombreCtrl = TextEditingController();
+  final TextEditingController laboresCtrl = TextEditingController();
 
   double get horas {
     if (inicio == null || fin == null) return 0.0;
@@ -866,6 +906,7 @@ class _SaneamientoTrabajadorRow {
   void dispose() {
     codigoCtrl.dispose();
     nombreCtrl.dispose();
+    laboresCtrl.dispose();
   }
 }
 
@@ -954,6 +995,17 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
             prefixIcon: Icon(Icons.person_outline),
             border: OutlineInputBorder(),
           ),
+        ),
+        const SizedBox(height: 12),
+
+        TextField(
+          controller: row.laboresCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Labores realizadas',
+            prefixIcon: Icon(Icons.work_outline),
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 2,
         ),
         const SizedBox(height: 12),
         Align(

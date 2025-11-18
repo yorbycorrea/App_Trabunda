@@ -830,12 +830,12 @@ class ReportPdfService {
 // tabla saneamiento
   pw.Widget _buildSaneamientoTable(List<_SaneamientoWorkerRow> workers) {
     final headers = [
-      'ITEM',
+      'Nº',
       'CÓDIGO',
       'APELLIDOS Y NOMBRES',
-      'HORA INICIAL',
-      'HORA FINAL',
-      'TOTAL HORAS',
+      'H.Ini',
+      'H.Fin',
+      'Tot. Hrs',
       'LABORES REALIZADAS',
     ];
 
@@ -865,12 +865,12 @@ class ReportPdfService {
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
       cellAlignment: pw.Alignment.centerLeft,
       columnWidths: {
-        0: const pw.FlexColumnWidth(0.7),
-        1: const pw.FlexColumnWidth(1.0),
-        2: const pw.FlexColumnWidth(2.4),
-        3: const pw.FlexColumnWidth(1.1),
-        4: const pw.FlexColumnWidth(1.1),
-        5: const pw.FlexColumnWidth(1.1),
+        0: const pw.FlexColumnWidth(0.4),
+        1: const pw.FlexColumnWidth(0.8),
+        2: const pw.FlexColumnWidth(3.2),
+        3: const pw.FlexColumnWidth(0.6),
+        4: const pw.FlexColumnWidth(0.6),
+        5: const pw.FlexColumnWidth(0.7),
         6: const pw.FlexColumnWidth(2.6),
       },
       cellHeight: 24,
@@ -884,72 +884,41 @@ class ReportPdfService {
       ) {
     final rows = <_SaneamientoWorkerRow>[];
 
-    final horaAreaInicio = (area.horaInicio ?? '').trim();
-    final horaAreaFin = (area.horaFin ?? '').trim();
-
-    final actividadesArea = area.desglose.isNotEmpty
-        ? area.desglose.map((d) => d.categoria).join(', ')
-        : '';
-
     for (final cuadrilla in area.cuadrillas) {
-      final horaCuadInicio = (cuadrilla.horaInicio ?? '').trim();
-      final horaCuadFin = (cuadrilla.horaFin ?? '').trim();
+      // Para Saneamiento usamos siempre los integrantes
+      if (cuadrilla.integrantes.isEmpty) continue;
 
-      final horaInicio = horaCuadInicio.isNotEmpty ? horaCuadInicio : horaAreaInicio;
-      final horaFin = horaCuadFin.isNotEmpty ? horaCuadFin : horaAreaFin;
-      final totalHoras = _calculateTotalHoras(horaInicio, horaFin);
+      for (final integrante in cuadrilla.integrantes) {
+        // 👇 estos campos vienen de la tabla Integrantes
+        final hi = (integrante.horaInicio ?? '').trim();
+        final hf = (integrante.horaFin ?? '').trim();
 
-      final actividadesCuadrilla = cuadrilla.desglose.isNotEmpty
-          ? cuadrilla.desglose.map((d) => d.categoria).join(', ')
-          : actividadesArea;
-
-      final actividadTexto = actividadesCuadrilla.isNotEmpty
-          ? actividadesCuadrilla
-          : cuadrilla.nombre;
-
-      if (cuadrilla.integrantes.isEmpty) {
-        rows.add(
-          _SaneamientoWorkerRow(
-            codigo: '',
-            nombre: cuadrilla.nombre,
-            horaInicio: horaInicio,
-            horaFin: horaFin,
-            totalHoras: totalHoras,
-            labores: actividadTexto,
-          ),
-        );
-      } else {
-        for (final integrante in cuadrilla.integrantes) {
-          rows.add(
-            _SaneamientoWorkerRow(
-              codigo: integrante.code ?? '',
-              nombre: integrante.nombre,
-              horaInicio: horaInicio,
-              horaFin: horaFin,
-              totalHoras: totalHoras,
-              labores: actividadTexto,
-            ),
+        String totalHoras;
+        if (integrante.horas != null) {
+          // si guardamos las horas como número (ej: 7.5) las convertimos a HH:mm
+          final d = Duration(
+            minutes: (integrante.horas! * 60).round(),
           );
+          final h = d.inHours;
+          final m = d.inMinutes % 60;
+          totalHoras =
+          '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+        } else {
+          // si no, calculamos a partir de hi/hf
+          totalHoras = _calculateTotalHoras(hi, hf);
         }
-      }
-    }
 
-    // Si no hay cuadrillas pero sí cantidad, se generan filas genéricas
-    if (rows.isEmpty && area.cantidad > 0) {
-      final actividadFallback =
-      actividadesArea.isNotEmpty ? actividadesArea : area.nombre;
-
-      final totalHorasArea = _calculateTotalHoras(horaAreaInicio, horaAreaFin);
-
-      for (var i = 0; i < area.cantidad; i++) {
         rows.add(
           _SaneamientoWorkerRow(
-            codigo: '',
-            nombre: 'Trabajador ${i + 1}',
-            horaInicio: horaAreaInicio,
-            horaFin: horaAreaFin,
-            totalHoras: totalHorasArea,
-            labores: actividadFallback,
+            codigo: integrante.code ?? '',
+            nombre: integrante.nombre,
+            horaInicio: hi,
+            horaFin: hf,
+            totalHoras: totalHoras,
+            labores: (integrante.labores == null ||
+                integrante.labores!.trim().isEmpty)
+                ? 'Saneamiento'
+                : integrante.labores!.trim(),
           ),
         );
       }
@@ -957,6 +926,7 @@ class ReportPdfService {
 
     return rows;
   }
+
 
 
   String _formatHoraRange(String? inicio, String? fin) {

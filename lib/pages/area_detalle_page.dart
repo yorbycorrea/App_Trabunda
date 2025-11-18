@@ -23,18 +23,22 @@ class AreaDetallePage extends StatefulWidget {
 }
 
 class _AreaDetallePageState extends State<AreaDetallePage> {
-
-  // Horas
+  // Horas generales (para áreas normales)
   TimeOfDay? _inicio;
   TimeOfDay? _fin;
   bool get usaBD => widget.reporteAreaId != null;
 
-  // Individual
+  // Área especial: Saneamiento
+  bool get _isSaneamiento =>
+      widget.areaName.toLowerCase().contains('saneamiento');
+
+  // Individual (áreas normales)
   final _codigoCtrl = TextEditingController();
   final _nombreCtrl = TextEditingController();
   final _kilosIndividualCtrl = TextEditingController();
 
-
+  // Saneamiento: lista de trabajadores
+  final List<_SaneamientoTrabajadorRow> _saneamientoTrabajadores = [];
 
   // Cuadrillas (múltiples)
   final List<CuadrillaData> _cuadrillas = [];
@@ -45,13 +49,27 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
   // Flag anti-doble pop / transición
   bool _cerrando = false;
 
+  @override
+  void initState() {
+    super.initState();
 
+    // Si es Saneamiento, solo modo individual y al menos un trabajador
+    if (_isSaneamiento) {
+      _modo = ModoTrabajo.individual;
+      _saneamientoTrabajadores.add(_SaneamientoTrabajadorRow());
+    }
+  }
 
   @override
   void dispose() {
     _codigoCtrl.dispose();
     _nombreCtrl.dispose();
     _kilosIndividualCtrl.dispose();
+
+    // Liberar controladores de Saneamiento
+    for (final t in _saneamientoTrabajadores) {
+      t.dispose();
+    }
 
     super.dispose();
   }
@@ -71,6 +89,38 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
         }
       });
     }
+  }
+
+  // ----- SANEAMIENTO: hora por trabajador -----
+  Future<void> _pickHoraTrabajador(int index, {required bool inicio}) async {
+    final row = _saneamientoTrabajadores[index];
+    final base = inicio ? row.inicio : row.fin;
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: base ?? TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() {
+        if (inicio) {
+          row.inicio = picked;
+        } else {
+          row.fin = picked;
+        }
+      });
+    }
+  }
+
+  void _agregarTrabajadorSaneamiento() {
+    setState(() {
+      _saneamientoTrabajadores.add(_SaneamientoTrabajadorRow());
+    });
+  }
+
+  void _eliminarTrabajadorSaneamiento(int index) {
+    setState(() {
+      _saneamientoTrabajadores.removeAt(index);
+    });
   }
 
   String _fmt(TimeOfDay? t) {
@@ -106,6 +156,37 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     }
   }
 
+  // ----- SANEAMIENTO: escanear QR por trabajador -----
+  Future<void> _scanQRSaneamiento(int index) async {
+    final result = await Navigator.pushNamed(
+      context,
+      '/scanner',
+      arguments: const {'pickOnly': true},
+    );
+    if (!mounted) return;
+
+    final row = _saneamientoTrabajadores[index];
+
+    if (result is Map) {
+      final code = (result['code'] ?? '').toString();
+      final data = result['data'];
+      String name = (result['name'] ?? '').toString();
+      if (name.isEmpty && data is Map) {
+        final alt = data['name'] ?? data['nombre'];
+        if (alt != null) name = alt.toString();
+      }
+      setState(() {
+        row.codigoCtrl.text = code;
+        if (name.isNotEmpty) row.nombreCtrl.text = name;
+      });
+    } else if (result is String) {
+      setState(() {
+        row.codigoCtrl.text = result;
+      });
+    }
+  }
+
+
   // ----- CUADRILLA: agregar/editar -----
   Future<void> _crearCuadrilla() async {
     final res = await Navigator.push<Map<String, dynamic>>(
@@ -135,10 +216,11 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                 .toList(),
           );
 
-          // 👇 usa el nombre de parámetro "integrantes" para tu DAO
+          // usa el nombre de parámetro "integrantes" para tu DAO
           await db.reportesDao.replaceIntegrantes(
             cuadrillaId: cuadId,
-            integrantesList: List<Map<String, String>>.from(res['integrantes'] ?? []),
+            integrantesList:
+            List<Map<String, String>>.from(res['integrantes'] ?? []),
           );
         });
       }
@@ -155,7 +237,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           initialNombre: c.nombre,
           initialIntegrantes: c.integrantes,
           initialKilos: c.kilos,
-
         ),
       ),
     );
@@ -170,12 +251,25 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
 
   // ===== Cálculos y resultado para volver =====
   int _calcularPersonas() {
-    if (_modo == ModoTrabajo.individual) return 1;
+    if (_modo == ModoTrabajo.individual) {
+      if (_isSaneamiento) {
+        // En Saneamiento, una persona por trabajador
+        return _saneamientoTrabajadores.length;
+      }
+      return 1;
+    }
     return _cuadrillas.fold<int>(0, (sum, c) => sum + c.integrantes.length);
   }
 
   double _calcularKilosTotales() {
     if (_modo == ModoTrabajo.individual) {
+      if (_isSaneamiento) {
+        // En Saneamiento, usamos kilos_total como total de horas
+        return _saneamientoTrabajadores.fold<double>(
+          0.0,
+              (sum, t) => sum + t.horas,
+        );
+      }
       return double.tryParse(_kilosIndividualCtrl.text.trim()) ?? 0.0;
     }
     return _cuadrillas.fold<double>(
@@ -183,8 +277,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           (sum, c) => sum + (c.kilos ?? 0.0),
     );
   }
-
-
 
   Map<String, dynamic> _resultadoParaVolver() {
     final personas = _calcularPersonas();
@@ -196,6 +288,24 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
         ? null
         : '${_fin!.hour.toString().padLeft(2, '0')}:${_fin!.minute.toString().padLeft(2, '0')}';
 
+    final saneamientoTrabajadores =
+    _isSaneamiento && _modo == ModoTrabajo.individual
+        ? _saneamientoTrabajadores
+        .map(
+          (t) => {
+        'code': t.codigoCtrl.text.trim(),
+        'name': t.nombreCtrl.text.trim(),
+        'horaInicio': t.inicio == null
+            ? null
+            : '${t.inicio!.hour.toString().padLeft(2, '0')}:${t.inicio!.minute.toString().padLeft(2, '0')}',
+        'horaFin': t.fin == null
+            ? null
+            : '${t.fin!.hour.toString().padLeft(2, '0')}:${t.fin!.minute.toString().padLeft(2, '0')}',
+        'horas': t.horas,
+      },
+    )
+        .toList()
+        : null;
 
     return {
       'area': widget.areaName,
@@ -208,13 +318,14 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           : {'h': _fin!.hour, 'm': _fin!.minute},
       'horaInicio': horaInicio,
       'horaFin': horaFin,
-      'trabajador': _modo == ModoTrabajo.individual
+      'trabajador': _modo == ModoTrabajo.individual && !_isSaneamiento
           ? {
         'code': _codigoCtrl.text.trim(),
         'name': _nombreCtrl.text.trim(),
         'kilos': kilosTotal,
       }
           : null,
+      'trabajadoresSaneamiento': saneamientoTrabajadores,
       'cuadrillas': _modo == ModoTrabajo.cuadrilla
           ? _cuadrillas.map((c) => c.toMap()).toList()
           : null,
@@ -224,11 +335,19 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
       'resumen': _modo == ModoTrabajo.cuadrilla
           ? {
         'titulo': 'Cuadrillas (${_cuadrillas.length})',
-        'subtitulo': 'Kilos: ${kilosTotal.toStringAsFixed(2)} • Pers.: $personas',
+        'subtitulo':
+        'Kilos: ${kilosTotal.toStringAsFixed(2)} • Pers.: $personas',
+      }
+          : _isSaneamiento
+          ? {
+        'titulo': 'Individual (Saneamiento)',
+        'subtitulo':
+        'Horas: ${kilosTotal.toStringAsFixed(2)} • Pers.: $personas',
       }
           : {
         'titulo': 'Individual',
-        'subtitulo': 'Kilos: ${kilosTotal.toStringAsFixed(2)} • Pers.: $personas',
+        'subtitulo':
+        'Kilos: ${kilosTotal.toStringAsFixed(2)} • Pers.: $personas',
       },
     };
   }
@@ -267,8 +386,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
       Navigator.of(context).maybePop(result);
     }
 
-    // Ejecuta el pop fuera del frame actual para evitar `_debugLocked` cuando
-    // proviene de `onWillPop`.
+    // Ejecuta el pop fuera del frame actual para evitar `_debugLocked`
     if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
       cerrar();
     } else {
@@ -278,7 +396,9 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isCuadrilla = _modo == ModoTrabajo.cuadrilla;
+    // En Saneamiento nunca será cuadrilla
+    final isCuadrilla =
+        !_isSaneamiento && _modo == ModoTrabajo.cuadrilla;
 
     return WillPopScope(
       // Captura back nativo (gesto/flecha Android) y usa nuestro cierre seguro
@@ -305,7 +425,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
             ),
           ],
         ),
-        floatingActionButton: isCuadrilla
+        floatingActionButton: (!_isSaneamiento && isCuadrilla)
             ? FloatingActionButton.extended(
           onPressed: _crearCuadrilla,
           icon: const Icon(Icons.groups_2_rounded),
@@ -316,144 +436,217 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           padding: const EdgeInsets.all(16),
           children: [
             // Selector Individual / Cuadrilla
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: SegmentedButton<ModoTrabajo>(
-                  segments: const [
-                    ButtonSegment(
-                      value: ModoTrabajo.individual,
-                      label: Text('Individual'),
-                      icon: Icon(Icons.person_outline),
-                    ),
-                    ButtonSegment(
-                      value: ModoTrabajo.cuadrilla,
-                      label: Text('Cuadrilla'),
-                      icon: Icon(Icons.groups_2_outlined),
-                    ),
-                  ],
-                  selected: <ModoTrabajo>{_modo},
-                  onSelectionChanged: (selection) {
-                    setState(() => _modo = selection.first);
-                  },
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Horas
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _HoraTile(
-                            label: 'Hora inicio',
-                            value: _fmt(_inicio),
-                            onTap: () => _pickHora(inicio: true),
-                            icon: Icons.access_time,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _HoraTile(
-                            label: 'Hora fin',
-                            value: _fmt(_fin),
-                            onTap: () => _pickHora(inicio: false),
-                            icon: Icons.timelapse_rounded,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-
-
-            // INDIVIDUAL
-            if (!isCuadrilla) ...[
+            if (!_isSaneamiento)
               Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
+                  padding: const EdgeInsets.all(12),
+                  child: SegmentedButton<ModoTrabajo>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ModoTrabajo.individual,
+                        label: Text('Individual'),
+                        icon: Icon(Icons.person_outline),
+                      ),
+                      ButtonSegment(
+                        value: ModoTrabajo.cuadrilla,
+                        label: Text('Cuadrilla'),
+                        icon: Icon(Icons.groups_2_outlined),
+                      ),
+                    ],
+                    selected: <ModoTrabajo>{_modo},
+                    onSelectionChanged: (selection) {
+                      setState(() => _modo = selection.first);
+                    },
+                  ),
+                ),
+              )
+            else
+            // En Saneamiento, solo texto informativo
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                child: const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(
                     children: [
-                      TextField(
-                        controller: _codigoCtrl,
-                        decoration: InputDecoration(
-                          labelText: 'Código del trabajador',
-                          prefixIcon: const Icon(Icons.badge_outlined),
-                          border: const OutlineInputBorder(),
-                          suffixIcon: IconButton(
-                            tooltip: 'Escanear QR',
-                            onPressed: _scanQRIndividual,
-                            icon: const Icon(Icons.qr_code_scanner),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _nombreCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre (opcional)',
-                          prefixIcon: Icon(Icons.person_outline),
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _kilosIndividualCtrl,
-                        keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Kilos',
-                          hintText: '0.0',
-                          prefixIcon: Icon(Icons.scale_outlined),
-                          border: OutlineInputBorder(),
-                        ),
+                      Icon(Icons.person_outline),
+                      SizedBox(width: 8),
+                      Text(
+                        'Modo: Individual (Saneamiento)',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
                 ),
               ),
+
+            const SizedBox(height: 12),
+
+            // Horas generales (no se usan en Saneamiento)
+            if (!_isSaneamiento)
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _HoraTile(
+                              label: 'Hora inicio',
+                              value: _fmt(_inicio),
+                              onTap: () => _pickHora(inicio: true),
+                              icon: Icons.access_time,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _HoraTile(
+                              label: 'Hora fin',
+                              value: _fmt(_fin),
+                              onTap: () => _pickHora(inicio: false),
+                              icon: Icons.timelapse_rounded,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+
+            // INDIVIDUAL
+            if (!isCuadrilla) ...[
+              if (_isSaneamiento)
+              // Layout especial para Saneamiento
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (int i = 0;
+                    i < _saneamientoTrabajadores.length;
+                    i++)
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: _SaneamientoTrabajadorForm(
+                            index: i,
+                            row: _saneamientoTrabajadores[i],
+                            onPickHoraInicio: () =>
+                                _pickHoraTrabajador(i, inicio: true),
+                            onPickHoraFin: () =>
+                                _pickHoraTrabajador(i, inicio: false),
+                            onRemove:
+                            _saneamientoTrabajadores.length > 1
+                                ? () =>
+                                _eliminarTrabajadorSaneamiento(
+                                    i)
+                                : null,
+                            onScanQR: () => _scanQRSaneamiento(i),
+                          ),
+                        ),
+                      ),
+                    TextButton.icon(
+                      onPressed: _agregarTrabajadorSaneamiento,
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: const Text('Agregar trabajador'),
+                    ),
+                  ],
+                )
+              else
+              // Layout normal (código + nombre + kilos)
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _codigoCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'Código del trabajador',
+                            prefixIcon: const Icon(Icons.badge_outlined),
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              tooltip: 'Escanear QR',
+                              onPressed: _scanQRIndividual,
+                              icon: const Icon(Icons.qr_code_scanner),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _nombreCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre (opcional)',
+                            prefixIcon: Icon(Icons.person_outline),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _kilosIndividualCtrl,
+                          keyboardType:
+                          const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Kilos',
+                            hintText: '0.0',
+                            prefixIcon: Icon(Icons.scale_outlined),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
 
             // CUADRILLAS (lista + total)
             if (isCuadrilla) ...[
               Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
                 child: Column(
                   children: [
                     Container(
-                      padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8F2FA),
-                        borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(14)),
-                        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(14)),
+                        border: Border(
+                          bottom:
+                          BorderSide(color: Colors.grey.shade200),
+                        ),
                       ),
                       child: Row(
                         children: const [
-                          Expanded(flex: 6, child: Text('Cuadrilla')),
+                          Expanded(
+                              flex: 6, child: Text('Cuadrilla')),
                           Expanded(
                               flex: 3,
-                              child: Text('Integrantes', textAlign: TextAlign.center)),
+                              child: Text('Integrantes',
+                                  textAlign: TextAlign.center)),
                           Expanded(
-                              flex: 3, child: Text('Kilos', textAlign: TextAlign.center)),
+                              flex: 3,
+                              child: Text('Kilos',
+                                  textAlign: TextAlign.center)),
                           SizedBox(width: 44), // editar
                           SizedBox(width: 44), // borrar
                         ],
@@ -462,8 +655,8 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                     if (_cuadrillas.isEmpty)
                       const Padding(
                         padding: EdgeInsets.all(16),
-                        child:
-                        Text('No hay cuadrillas aún. Usa "Agregar cuadrilla".'),
+                        child: Text(
+                            'No hay cuadrillas aún. Usa "Agregar cuadrilla".'),
                       )
                     else
                       for (int i = 0; i < _cuadrillas.length; i++)
@@ -473,18 +666,22 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                           child: Row(
                             children: [
                               Expanded(
-                                  flex: 6,
-                                  child: Text(_cuadrillas[i].nombre ?? '—')),
-                              Expanded(
-                                flex: 3,
+                                flex: 6,
                                 child: Text(
-                                    '${_cuadrillas[i].integrantes.length}',
-                                    textAlign: TextAlign.center),
+                                    _cuadrillas[i].nombre ?? '—'),
                               ),
                               Expanded(
                                 flex: 3,
                                 child: Text(
-                                  (_cuadrillas[i].kilos ?? 0.0).toStringAsFixed(2),
+                                  '${_cuadrillas[i].integrantes.length}',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  (_cuadrillas[i].kilos ?? 0.0)
+                                      .toStringAsFixed(2),
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -492,7 +689,8 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                                 width: 44,
                                 child: IconButton(
                                   tooltip: 'Editar',
-                                  onPressed: () => _editarCuadrilla(i),
+                                  onPressed: () =>
+                                      _editarCuadrilla(i),
                                   icon: const Icon(Icons.edit_outlined),
                                 ),
                               ),
@@ -500,7 +698,8 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                                 width: 44,
                                 child: IconButton(
                                   tooltip: 'Quitar',
-                                  onPressed: () => _eliminarCuadrilla(i),
+                                  onPressed: () =>
+                                      _eliminarCuadrilla(i),
                                   icon: const Icon(
                                     Icons.remove_circle_outline,
                                     color: Colors.redAccent,
@@ -512,23 +711,27 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                         ),
                     const Divider(height: 1),
                     Padding(
-                      padding:
-                      const EdgeInsets.fromLTRB(12, 12, 12, 16),
+                      padding: const EdgeInsets.fromLTRB(
+                          12, 12, 12, 16),
                       child: Row(
                         children: [
                           const Expanded(
                             flex: 6,
                             child: Text('Kilos totales',
-                                style: TextStyle(fontWeight: FontWeight.w700)),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w700)),
                           ),
                           const Expanded(flex: 3, child: SizedBox()),
                           Expanded(
                             flex: 3,
                             child: Text(
-                              _calcularKilosTotales().toStringAsFixed(2),
+                              _calcularKilosTotales()
+                                  .toStringAsFixed(2),
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -587,23 +790,36 @@ class _HoraTile extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
           boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2))
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            )
           ],
           border: Border.all(color: Colors.black12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.black54,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const SizedBox(height: 6),
             Row(
               children: [
                 Expanded(
-                  child: Text(value,
-                      style:
-                      const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
                 Icon(icon, size: 18, color: Colors.black45),
               ],
@@ -612,6 +828,136 @@ class _HoraTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _SaneamientoTrabajadorRow {
+  TimeOfDay? inicio;
+  TimeOfDay? fin;
+  final TextEditingController codigoCtrl = TextEditingController();
+  final TextEditingController nombreCtrl = TextEditingController();
+
+  double get horas {
+    if (inicio == null || fin == null) return 0.0;
+
+    final startMinutes = inicio!.hour * 60 + inicio!.minute;
+    final endMinutes = fin!.hour * 60 + fin!.minute;
+    final diff = endMinutes - startMinutes;
+    if (diff <= 0) return 0.0;
+
+    return diff / 60.0;
+  }
+
+  void dispose() {
+    codigoCtrl.dispose();
+    nombreCtrl.dispose();
+  }
+}
+
+class _SaneamientoTrabajadorForm extends StatelessWidget {
+  const _SaneamientoTrabajadorForm({
+    super.key,
+    required this.index,
+    required this.row,
+    required this.onPickHoraInicio,
+    required this.onPickHoraFin,
+    this.onRemove,
+    required this.onScanQR,
+  });
+
+  final int index;
+  final _SaneamientoTrabajadorRow row;
+  final VoidCallback onPickHoraInicio;
+  final VoidCallback onPickHoraFin;
+  final VoidCallback? onRemove;
+  final VoidCallback onScanQR;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Trabajador ${index + 1}',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const Spacer(),
+            if (onRemove != null)
+              IconButton(
+                tooltip: 'Eliminar trabajador',
+                onPressed: onRemove,
+                icon: const Icon(Icons.delete_outline),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _HoraTile(
+                label: 'Hora inicio',
+                value: _fmtLocal(row.inicio),
+                onTap: onPickHoraInicio,
+                icon: Icons.access_time,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _HoraTile(
+                label: 'Hora fin',
+                value: _fmtLocal(row.fin),
+                onTap: onPickHoraFin,
+                icon: Icons.access_time_filled,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: row.codigoCtrl,
+          decoration: InputDecoration(
+            labelText: 'Código del trabajador',
+            prefixIcon: const Icon(Icons.badge_outlined),
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              tooltip: 'Escanear QR',
+              onPressed: onScanQR,
+              icon: const Icon(Icons.qr_code_scanner),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+        TextField(
+          controller: row.nombreCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Nombre del trabajador',
+            prefixIcon: Icon(Icons.person_outline),
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            'Total horas: ${row.horas.toStringAsFixed(2)}',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _fmtLocal(TimeOfDay? t) {
+    if (t == null) return '--:--';
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 }
 
@@ -657,5 +1003,3 @@ class CuadrillaData {
         const [],
   );
 }
-
-

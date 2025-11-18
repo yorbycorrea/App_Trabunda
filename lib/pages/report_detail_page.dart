@@ -346,12 +346,31 @@ class _AreaSectionState extends State<_AreaSection> {
     }
   }
 
+  Future<void> _downloadSaneamientoReport(BuildContext context) async {
+    // Aquí luego puedes conectar con un formato PDF específico de Saneamiento.
+    final scaffold = ScaffoldMessenger.of(context);
+    scaffold.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Descarga de informe de Saneamiento aún no está implementada.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final area = widget.area;
     final theme = Theme.of(context);
-    final subtitle =
-        '${area.cantidad} ${_plural(area.cantidad, 'persona', 'personas')} • '
+
+    final esSaneamiento = area.nombre.toLowerCase().contains('saneamiento');
+
+    final subtitle = esSaneamiento
+        ? '${area.cantidad} '
+        '${_plural(area.cantidad, 'trabajador', 'trabajadores')} • '
+        '${area.totalKilos.toStringAsFixed(2)} h'
+        : '${area.cantidad} '
+        '${_plural(area.cantidad, 'persona', 'personas')} • '
         '${area.totalKilos.toStringAsFixed(3)} kg';
 
     return Card(
@@ -411,21 +430,45 @@ class _AreaSectionState extends State<_AreaSection> {
             ),
             const SizedBox(height: 12),
           ],
-          if (area.cuadrillas.isEmpty)
+
+          // --- sección final según tipo de área ---
+          if (esSaneamiento) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${area.cantidad} '
+                      '${_plural(area.cantidad, 'trabajador', 'trabajadores')} registrados.',
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _downloadSaneamientoReport(context),
+                icon:
+                const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: const Text('Descargar informe'),
+              ),
+            ),
+          ] else if (area.cuadrillas.isEmpty) ...[
             const Padding(
               padding: EdgeInsets.only(top: 12),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text('Sin cuadrillas registradas.'),
               ),
-            )
-          else
+            ),
+          ] else ...[
             ...area.cuadrillas.map(
                   (c) => _CuadrillaTile(
                 cuadrilla: c,
                 horario: _formatRange(area.horaInicio, area.horaFin),
               ),
-            )
+            ),
+          ],
         ],
       ),
     );
@@ -466,7 +509,8 @@ class _CuadrillaTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  '${cuadrilla.totalIntegrantes} ${_plural(cuadrilla.totalIntegrantes, 'persona', 'personas')}',
+                  '${cuadrilla.totalIntegrantes} '
+                      '${_plural(cuadrilla.totalIntegrantes, 'persona', 'personas')}',
                   style: theme.textTheme.labelMedium,
                 ),
               ),
@@ -511,7 +555,8 @@ class _CuadrillaTile extends StatelessWidget {
                   .map(
                     (it) => Chip(
                   label: Text(it.nombre),
-                  avatar: it.code == null || it.code!.isEmpty
+                  avatar:
+                  it.code == null || it.code!.isEmpty
                       ? null
                       : const Icon(Icons.qr_code_2, size: 16),
                 ),

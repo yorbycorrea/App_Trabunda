@@ -91,9 +91,10 @@ class HomeMenuPage extends StatelessWidget {
                         alignment: Alignment.centerLeft,
                         child: Chip(
                           label: Text(
-                            user.isAdmin ? 'Administrador' : 'Planillero',
+                            user.role, // 👈 ahora muestra el rol verdadero
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
+
                           avatar: const Icon(Icons.badge_outlined),
                         ),
                       ),

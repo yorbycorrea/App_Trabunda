@@ -42,24 +42,14 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
   String _turno = 'Día'; // Día | Noche
   final TextEditingController _planilleroCtrl = TextEditingController();
 
-  // Áreas visibles en la lista
-  final List<_AreaRow> _areas = [
-    _AreaRow('Fileteros'),
-    _AreaRow('Recepción'),
-    _AreaRow('Empaque'),
-    _AreaRow('Congelamiento de iqf'),
-  ];
+  // Áreas visibles en la lista (se inicializan según el rol)
+  late List<_AreaRow> _areas;
 
-  // Catálogo disponible para “Agregar área”
-  final List<String> _catalogoAreas = const [
-    'Fileteros',
-    'Recepción',
-    'Empaque',
-    'Congelamiento de iqf',
-    'Saneamiento',
-    'Máquinas orugas',
-    'IQF',
-  ];
+  // Catálogo disponible para “Agregar área” (también depende del rol)
+  late List<String> _catalogoAreas;
+
+  // Para asegurar que solo se inicialicen una vez
+  bool _areasInicializadasPorRol = false;
 
   // ======== DRAFT / BORRADOR ========
   Future<void> _ensureDraft() async {
@@ -75,6 +65,47 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
     );
     if (!mounted) return;
     setState(() => _reporteId = id);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_areasInicializadasPorRol) return;
+
+    final auth = AuthScope.read(context);
+    final user = auth.currentUser;
+    final esSupervisorSaneamiento = user?.isSupervisorSaneamiento ?? false;
+
+    if (esSupervisorSaneamiento) {
+      // 👇 SOLO SANEAMIENTO para supervisores de saneamiento
+      _areas = [
+        _AreaRow('Saneamiento'),
+      ];
+
+      _catalogoAreas = const [
+        'Saneamiento',
+      ];
+    } else {
+      _areas = [
+        _AreaRow('Fileteros'),
+        _AreaRow('Recepción'),
+        _AreaRow('Empaque'),
+        _AreaRow('Congelamiento de iqf'),
+      ];
+
+      _catalogoAreas = const [
+        'Fileteros',
+        'Recepción',
+        'Empaque',
+        'Congelamiento de iqf',
+        'Saneamiento',
+        'Máquinas orugas',
+        'IQF',
+      ];
+    }
+
+    _areasInicializadasPorRol = true;
   }
 
   @override
@@ -100,8 +131,7 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
     }
   }
 
-  int get _totalPersonal =>
-      _areas.fold<int>(0, (acc, a) => acc + a.cantidad);
+  int get _totalPersonal => _areas.fold<int>(0, (acc, a) => acc + a.cantidad);
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -178,7 +208,7 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
     final plan = _planilleroCtrl.text.trim();
     if (plan.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ingresa el planillero')),
+        const SnackBar(content: Text('Ingresa el responsable del reporte')),
       );
       return false;
     }
@@ -296,8 +326,8 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       return;
     }
 
-    final reporteAreaId =
-    await db.reportesDao.getOrCreateReporteAreaId(_reporteId!, areaRow.nombre);
+    final reporteAreaId = await db.reportesDao
+        .getOrCreateReporteAreaId(_reporteId!, areaRow.nombre);
 
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -376,14 +406,17 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                           child: DropdownButtonFormField<String>(
                             value: _turno,
                             items: const [
-                              DropdownMenuItem(value: 'Día', child: Text('Día')),
-                              DropdownMenuItem(value: 'Noche', child: Text('Noche')),
+                              DropdownMenuItem(
+                                  value: 'Día', child: Text('Día')),
+                              DropdownMenuItem(
+                                  value: 'Noche', child: Text('Noche')),
                             ],
                             decoration: const InputDecoration(
                               labelText: 'Turno',
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (v) => setState(() => _turno = v ?? 'Día'),
+                            onChanged: (v) =>
+                                setState(() => _turno = v ?? 'Día'),
                           ),
                         ),
                       ],
@@ -394,15 +427,18 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                       controller: _planilleroCtrl,
                       readOnly: !isAdmin,
                       enabled: isAdmin || _planilleroCtrl.text.isNotEmpty,
-                      decoration: const InputDecoration(
-                        labelText: 'Planillero',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.badge_outlined),
+                      decoration: InputDecoration(
+                        // 👇 aquí usamos el rol real del usuario
+                        labelText: user?.role ?? 'Responsable',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.badge_outlined),
                       ).copyWith(
-                        suffixIcon:
-                        isAdmin ? null : const Icon(Icons.lock_outline, size: 18),
-                        helperText:
-                        isAdmin ? null : 'Asignado automáticamente por tu sesión',
+                        suffixIcon: isAdmin
+                            ? null
+                            : const Icon(Icons.lock_outline, size: 18),
+                        helperText: isAdmin
+                            ? null
+                            : 'Asignado automáticamente por tu sesión',
                       ),
                       onChanged: isAdmin ? (_) => _ensureDraft() : null,
                     ),
@@ -441,17 +477,25 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                 borderRadius: BorderRadius.circular(14),
                 side: BorderSide(color: cs.outlineVariant),
               ),
+            ),
+
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: cs.outlineVariant),
+              ),
               child: Column(
                 children: [
                   // Cabecera
                   Container(
                     decoration: BoxDecoration(
                       color: cs.surfaceVariant.withOpacity(.6),
-                      borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(14)),
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(14)),
                     ),
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                     child: Row(
                       children: const [
                         Expanded(
@@ -494,8 +538,11 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                         horizontal: 12, vertical: 12),
                     decoration: BoxDecoration(
                       border: Border(
-                          top: BorderSide(
-                              color: cs.outlineVariant, width: .8)),
+                        top: BorderSide(
+                          color: cs.outlineVariant,
+                          width: .8,
+                        ),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -507,8 +554,8 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                         ),
                         Text(
                           '$_totalPersonal',
-                          style:
-                          const TextStyle(fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -528,8 +575,8 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
         height: 48,
         child: FilledButton.icon(
           style: FilledButton.styleFrom(
-            shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
           ),
           onPressed: _onGuardarPressed, // 👈 ahora usa el flujo con diálogos
           icon: const Icon(Icons.save_outlined),
@@ -550,13 +597,15 @@ class _FechaTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final txt = fecha.toLocal().toString().split(' ').first;
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -611,7 +660,8 @@ class _AreaRowTile extends StatelessWidget {
                   signed: false, decimal: false),
               decoration: const InputDecoration(
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                contentPadding:
+                EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                 border: OutlineInputBorder(),
               ),
               onChanged: onChanged,

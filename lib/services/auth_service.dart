@@ -19,6 +19,8 @@ class AppUser {
 
   bool get isAdmin => role == 'admin';
   bool get isPlanillero => role == 'planillero';
+  bool get isSupervisorSaneamiento =>
+      role == 'Supervisor de Saneamiento';
 }
 
 /// In-memory authentication service with a fixed catalogue of users.

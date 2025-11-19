@@ -53,6 +53,7 @@ dependencies:
   path: ^1.9.0
   pdf: ^3.10.8
   printing: ^5.13.5
+  supabase_flutter: ^2.5.0
 
 dev_dependencies:
   flutter_test:

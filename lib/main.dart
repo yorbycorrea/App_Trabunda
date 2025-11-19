@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'pages/home_menu_page.dart';
 import 'pages/reports_list_page.dart';
 import 'pages/report_create_page.dart';
@@ -6,7 +8,18 @@ import 'pages/login_page.dart';
 import 'services/auth_service.dart';
 import 'qr_scanner.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // =====================================================
+  // 🔥 INICIALIZACIÓN DE SUPABASE
+  // =====================================================
+  await Supabase.initialize(
+    url: 'https://jufkbwrspbzgmaadeckm.supabase.co',
+    anonKey: 'sb_publishable_SgAf13M6G3motP2gRTpuQA_sTUjzxcB',
+  );
+  // =====================================================
+
   runApp(TrabundaApp(authService: AuthService()));
 }
 
@@ -37,12 +50,15 @@ class TrabundaApp extends StatelessWidget {
               switch (settings.name) {
                 case '/login':
                   return MaterialPageRoute(builder: (_) => const LoginPage());
+
                 case '/home':
                   return MaterialPageRoute(builder: (_) => const HomeMenuPage());
+
                 case '/reports/list':
                   return MaterialPageRoute(
                     builder: (_) => const ReportsListPage(),
                   );
+
                 case '/reports/create':
                   return MaterialPageRoute(
                     builder: (_) => ReportCreatePage(
@@ -64,6 +80,7 @@ class TrabundaApp extends StatelessWidget {
                     builder: (_) => QrScanner(pickOnly: pickOnly),
                     settings: settings,
                   );
+
                 default:
                   return MaterialPageRoute(builder: (_) => const LoginPage());
               }

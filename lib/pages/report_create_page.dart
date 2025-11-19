@@ -5,6 +5,7 @@ import 'area_detalle_page.dart';
 import '../data/db.dart';
 import '../services/auth_service.dart';
 import 'report_detail_page.dart';
+import '../services/reportes_supabase_service.dart';
 
 // ===========================================================
 //  Crear Reporte
@@ -213,13 +214,16 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       return false;
     }
 
+    // ¿Es un reporte nuevo? (sirve para decidir si lo mandamos a Supabase)
+    final bool esNuevoReporte = _reporteId == null;
+
     // Asegura que exista el borrador (crea si aún no hay _reporteId)
     if (_reporteId == null) {
       await _ensureDraft();
     }
     if (_reporteId == null) return false; // por seguridad
 
-    // Actualiza cabecera del mismo reporte (no crea otro)
+    // 1) Actualiza cabecera del mismo reporte (no crea otro) en BD local
     await db.reportesDao.updateReporteHeader(
       _reporteId!,
       fecha: _fecha,
@@ -227,7 +231,25 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       planillero: plan,
     );
 
-    // Si quisieras guardar algo extra de las áreas aquí, este es el lugar.
+    // 2) Si es un reporte nuevo, lo intentamos enviar también a Supabase (nube)
+    if (esNuevoReporte) {
+      final auth = AuthScope.read(context);
+      final currentUser = auth.currentUser;
+
+      // Solo enviamos si realmente hay usuario logueado
+      if (currentUser != null) {
+        await ReportesSupabaseService.instance.insertarReporte(
+          fecha: _fecha,
+          turno: _turno,
+          planillero: plan,
+          userId: currentUser.id, // <- String no nulo
+        );
+      } else {
+        debugPrint(
+          '[ReportCreatePage] No se pudo enviar a Supabase: currentUser es null',
+        );
+      }
+    }
 
     return true;
   }
@@ -326,8 +348,8 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       return;
     }
 
-    final reporteAreaId = await db.reportesDao
-        .getOrCreateReporteAreaId(_reporteId!, areaRow.nombre);
+    final reporteAreaId =
+    await db.reportesDao.getOrCreateReporteAreaId(_reporteId!, areaRow.nombre);
 
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -392,11 +414,7 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                               suffixIcon: Icon(Icons.calendar_today),
                             ),
                             controller: TextEditingController(
-                              text: _fecha
-                                  .toLocal()
-                                  .toString()
-                                  .split(' ')
-                                  .first,
+                              text: _fecha.toLocal().toString().split(' ').first,
                             ),
                           ),
                         ),
@@ -406,10 +424,8 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                           child: DropdownButtonFormField<String>(
                             value: _turno,
                             items: const [
-                              DropdownMenuItem(
-                                  value: 'Día', child: Text('Día')),
-                              DropdownMenuItem(
-                                  value: 'Noche', child: Text('Noche')),
+                              DropdownMenuItem(value: 'Día', child: Text('Día')),
+                              DropdownMenuItem(value: 'Noche', child: Text('Noche')),
                             ],
                             decoration: const InputDecoration(
                               labelText: 'Turno',
@@ -491,8 +507,8 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                   Container(
                     decoration: BoxDecoration(
                       color: cs.surfaceVariant.withOpacity(.6),
-                      borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(14)),
+                      borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(14)),
                     ),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 10),
@@ -554,8 +570,8 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                         ),
                         Text(
                           '$_totalPersonal',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700),
+                          style:
+                          const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -604,8 +620,8 @@ class _FechaTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant),
+          border:
+          Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(

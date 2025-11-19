@@ -1,134 +1,228 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Simple user model to keep track of application roles and credentials.
+/// Modelo de usuario para la app
 class AppUser {
   final String id;
-  final String name;
   final String email;
-  final String password;
-  final String role; // 'admin' | 'planillero'
+  final String name;
+  final String role; // admin, planillero, saneamiento, operador, etc.
 
   const AppUser({
     required this.id,
-    required this.name,
     required this.email,
-    required this.password,
+    required this.name,
     required this.role,
   });
 
   bool get isAdmin => role == 'admin';
   bool get isPlanillero => role == 'planillero';
-  bool get isSupervisorSaneamiento =>
-      role == 'Supervisor de Saneamiento';
+  bool get isSupervisorSaneamiento => role == 'saneamiento';
+
+  @override
+  String toString() =>
+      'AppUser(id: $id, email: $email, name: $name, role: $role)';
 }
 
-/// In-memory authentication service with a fixed catalogue of users.
 class AuthService extends ChangeNotifier {
-  AuthService();
+  final SupabaseClient _client = Supabase.instance.client;
 
-  final List<AppUser> _users = const [
-    AppUser(
-      id: 'programador',
-      name: 'Programador',
-      email: 'programador@trabunda.com',
-      password: 'programador123',
-      role: 'admin',
-    ),
-    AppUser(
-      id: 'gerente',
-      name: 'Gerente Rony',
-      email: 'gerente@trabunda.com',
-      password: 'gerente123',
-      role: 'admin',
-    ),
-    AppUser(
-      id: 'planillero1',
-      name: 'Vera Gennell Ivan',
-      email: 'ivan@trabunda.com',
-      password: 'ivan123456',
-      role: 'planillero',
-    ),
-    AppUser(
-      id: 'planillero2',
-      name: 'Macalupu Timana Raquel',
-      email: 'raquel@trabunda.com',
-      password: 'raquel123456',
-      role: 'planillero',
-    ),
-    AppUser(
-      id: 'planillero3',
-      name: 'Curay Floriano Luis Martin',
-      email: 'curay@trabunda.com',
-      password: 'curay123456',
-      role: 'Supervisor de Saneamiento',
-    ),
-    AppUser(
-      id: 'planillero4',
-      name: 'Planillero Cuatro',
-      email: 'planillero4@trabunda.com',
-      password: 'planillero4',
-      role: 'Supervisor de Saneamiento',
-    ),
-  ];
+  AppUser? currentUser;
 
-  AppUser? _currentUser;
+  AuthService() {
+    _init();
+  }
 
-  AppUser? get currentUser => _currentUser;
-  List<AppUser> get users => List.unmodifiable(_users);
+  Future<void> _init() async {
+    final user = _client.auth.currentUser;
+    if (user != null) {
+      currentUser = await _buildUserWithProfile(user);
+      notifyListeners();
+    }
 
-  Future<bool> login(String email, String password) async {
-    final trimmedEmail = email.trim().toLowerCase();
-    final trimmedPassword = password.trim();
+    _client.auth.onAuthStateChange.listen((data) async {
+      final session = data.session;
+      final user = session?.user;
+      if (user != null) {
+        currentUser = await _buildUserWithProfile(user);
+      } else {
+        currentUser = null;
+      }
+      notifyListeners();
+    });
+  }
 
-    AppUser? matched;
-    for (final user in _users) {
-      if (user.email.toLowerCase() == trimmedEmail &&
-          user.password == trimmedPassword) {
-        matched = user;
-        break;
+  /// Construye AppUser intentando leer `profiles`.
+  /// Si no puede, usa un fallback por email.
+  Future<AppUser> _buildUserWithProfile(User user) async {
+    String? displayNameFromProfile;
+    String role = 'planillero';
+
+    try {
+      final data = await _client
+          .from('profiles')
+          .select('id, display_name, role')
+          .eq('id', user.id);
+
+      debugPrint('profiles data for ${user.id}: $data');
+
+      if (data is List && data.isNotEmpty) {
+        final row = data.first;
+        if (row is Map) {
+          if (row['display_name'] is String) {
+            displayNameFromProfile =
+                (row['display_name'] as String).trim();
+          }
+          if (row['role'] is String) {
+            role = (row['role'] as String).trim();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error cargando profile: $e');
+    }
+
+    // ========= Fallback por email =========
+    // Si no pudo leer role/display_name desde la tabla,
+    // definimos manualmente algunos usuarios clave.
+    if ((displayNameFromProfile == null || displayNameFromProfile.isEmpty) &&
+        (role == 'planillero' || role.isEmpty)) {
+      switch (user.email) {
+        case 'admin@trabunda.com':
+          displayNameFromProfile = 'Admin';
+          role = 'admin';
+          break;
+        case 'curay@trabunda.com':
+          displayNameFromProfile = 'Curay Floriano Luis Martin';
+          role = 'saneamiento';
+          break;
+      // aquí puedes ir agregando más usuarios:
+      // case 'ivan@trabunda.com':
+      //   displayNameFromProfile = 'Iván';
+      //   role = 'planillero';
+      //   break;
+        default:
+        // se queda con planillero y nombre por correo
+          break;
       }
     }
 
-    if (matched == null) {
-      return false;
+    final name = _extractName(user, displayNameFromProfile);
+
+    debugPrint(
+      'AuthService -> usuario logueado: email=${user.email}, name=$name, role=$role',
+    );
+
+    return AppUser(
+      id: user.id,
+      email: user.email ?? '',
+      name: name,
+      role: role,
+    );
+  }
+
+  /// 1) display_name de profiles o fallback
+  /// 2) metadata["name"]
+  /// 3) parte antes de @ en el email
+  /// 4) "Usuario"
+  String _extractName(User user, String? displayName) {
+    if (displayName != null && displayName.trim().isNotEmpty) {
+      return displayName.trim();
     }
 
-    _currentUser = matched;
-    notifyListeners();
-    return true;
+    final meta = user.userMetadata ?? {};
+    final metaName = meta['name'];
+    if (metaName is String && metaName.trim().isNotEmpty) {
+      return metaName.trim();
+    }
+
+    if (user.email != null && user.email!.isNotEmpty) {
+      return user.email!.split('@').first;
+    }
+
+    return 'Usuario';
   }
 
-  void logout() {
-    if (_currentUser == null) return;
-    _currentUser = null;
+  // --------- Métodos de auth ----------
+
+  Future<void> signIn({
+    required String email,
+    required String password,
+  }) async {
+    final res = await _client.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+    final user = res.user;
+    if (user != null) {
+      currentUser = await _buildUserWithProfile(user);
+      notifyListeners();
+    }
+  }
+
+  Future<void> signOut() async {
+    await _client.auth.signOut();
+    currentUser = null;
     notifyListeners();
   }
+
+  Future<void> signUp({
+    required String email,
+    required String password,
+    String? name,
+  }) async {
+    final res = await _client.auth.signUp(
+      email: email,
+      password: password,
+      data: name != null ? {'name': name} : null,
+    );
+    final user = res.user;
+    if (user != null) {
+      currentUser = await _buildUserWithProfile(user);
+      notifyListeners();
+    }
+  }
+
+  // --------- Alias para tu código viejo ----------
+
+  Future<bool> login(String email, String password) async {
+    await signIn(email: email, password: password);
+    return currentUser != null;
+  }
+
+  Future<void> logout() => signOut();
 }
 
-/// Lightweight inherited notifier to expose [AuthService] without packages.
-class AuthScope extends InheritedNotifier<AuthService> {
+/// InheritedWidget para acceder al AuthService
+class AuthScope extends InheritedWidget {
+  final AuthService service;
+
   const AuthScope({
     super.key,
-    required AuthService service,
+    required this.service,
     required super.child,
-  }) : super(notifier: service);
+  });
 
   static AuthService watch(BuildContext context) {
-    final scope = context.dependOnInheritedWidgetOfExactType<AuthScope>();
-    assert(scope != null, 'No AuthScope found in context');
-    return scope!.notifier!;
+    final scope =
+    context.dependOnInheritedWidgetOfExactType<AuthScope>();
+    assert(scope != null, 'No se encontró AuthScope en el árbol de widgets');
+    return scope!.service;
   }
 
   static AuthService read(BuildContext context) {
     final element =
-        context.getElementForInheritedWidgetOfExactType<AuthScope>()?.widget;
-    assert(element is AuthScope, 'No AuthScope found in context');
-    return (element as AuthScope).notifier!;
+    context.getElementForInheritedWidgetOfExactType<AuthScope>();
+    assert(element != null, 'No se encontró AuthScope en el árbol de widgets');
+    final scope = element!.widget as AuthScope;
+    return scope.service;
   }
 
+  static AuthService of(BuildContext context) => watch(context);
+
   @override
-  bool updateShouldNotify(covariant AuthScope oldWidget) {
-    return notifier != oldWidget.notifier;
+  bool updateShouldNotify(AuthScope oldWidget) {
+    return oldWidget.service != service;
   }
 }

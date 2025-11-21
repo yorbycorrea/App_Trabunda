@@ -3,6 +3,7 @@ import 'dart:collection';
 import '../data/db.dart';
 import '../services/auth_service.dart';
 import 'report_detail_page.dart';
+import '../services/reportes_supabase_service.dart';
 
 /// 🔹 Lista referencia de áreas (puedes unificarla con la que ya usas)
 const List<String> kAreasOrdenadas = [
@@ -88,7 +89,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
   }
 
   @override
-  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_syncedPlanillero) return;
@@ -114,7 +114,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
     _syncedPlanillero = true;
   }
 
-
   String _fmtDate(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -130,7 +129,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
       setState(() => _fecha = DateTime(picked.year, picked.month, picked.day));
     }
   }
-
 
   void _openAreasSheet() {
     showModalBottomSheet(
@@ -159,7 +157,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
       _areas.clear();
       _turno = 'Todos';
 
-
       final auth = AuthScope.read(context);
       final user = auth.currentUser;
 
@@ -174,13 +171,18 @@ class _ReportsListPageState extends State<ReportsListPage> {
     });
   }
 
-
-  Future<void> _fetchReports() async {
+  Future<void> _fetchReports({bool forceRemoteSync = false}) async {
     final auth = AuthScope.read(context);
     final user = auth.currentUser;
     final bool isPlanillero = user?.isPlanillero ?? false;
-    final String planilleroFilter =
-    isPlanillero ? user!.name : _planilleroCtrl.text.trim();
+    final String planilleroFilter = isPlanillero
+        ? user!.name
+        : _planilleroCtrl.text.trim();
+
+    if (isPlanillero && user != null) {
+      _planilleroCtrl.text = user.name;
+    }
+
 
     setState(() => _loading = true);
 
@@ -200,6 +202,21 @@ class _ReportsListPageState extends State<ReportsListPage> {
         );
       }
 
+      var shouldSyncRemotely = forceRemoteSync;
+      shouldSyncRemotely =
+          shouldSyncRemotely || !(await db.reportesDao.hasReportes());
+
+      if (shouldSyncRemotely && user != null) {
+        final remotos = await ReportesSupabaseService.instance.listarReportes(
+          userId: user.id,
+          fecha: _fecha,
+          turno: _turno == 'Todos' ? null : _turno,
+        );
+
+        if (remotos.isNotEmpty) {
+          await db.reportesDao.upsertReportesRemotos(remotos);
+        }
+      }
 
       final resultados = await db.reportesDao.fetchReportesFiltrados(
         fechaInicio: inicio,
@@ -214,7 +231,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
       final filtered = isPlanillero
           ? resultados
           .where(
-            (r) => r.planillero.toLowerCase() ==
+            (r) =>
+        r.planillero.toLowerCase() ==
             planilleroFilter.toLowerCase(),
       )
           .toList()
@@ -276,18 +294,35 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final user = auth.currentUser;
     final bool isPlanillero = user?.isPlanillero ?? false;
     final bool isAdmin = user?.isAdmin ?? false;
+    final bool isSupervisorSaneamiento =
+        user?.isSupervisorSaneamiento ?? false;
 
     final totalAreas = _items.fold<int>(0, (acc, e) => acc + e.totalAreas);
     final totalPersonal =
     _items.fold<int>(0, (acc, e) => acc + e.totalPersonal);
     final totalKilos = _items.fold<double>(0, (acc, e) => acc + e.kilos);
     final totalHoras = _items.fold<double>(0, (acc, e) => acc + e.totalHoras);
-    final double horasPromedioGlobal =
-    totalPersonal == 0 ? 0 : totalHoras / totalPersonal;
+
     final bool soloSaneamientoEnResultados = _items.isNotEmpty &&
         _items.every((e) =>
         e.areaNames.length == 1 && e.areaNames.first == 'Saneamiento');
 
+    // 👇 Texto y valor dinámico para la ficha marcada en tu captura
+    final String planilleroLabel =
+    isSupervisorSaneamiento ? 'Área' : 'Planillero';
+    final String planilleroValue = isSupervisorSaneamiento
+        ? 'Saneamiento'
+        : (_planilleroCtrl.text.trim().isEmpty
+        ? 'Buscar planillero'
+        : _planilleroCtrl.text.trim());
+    final IconData planilleroIcon =
+    isSupervisorSaneamiento ? Icons.apartment_rounded : Icons.badge_outlined;
+    final Color? planilleroBackground = isSupervisorSaneamiento
+        ? primaryColor
+        : (_planilleroCtrl.text.trim().isEmpty ? null : primaryColor);
+    final Color? planilleroForeground = isSupervisorSaneamiento
+        ? Colors.white
+        : (_planilleroCtrl.text.trim().isEmpty ? null : Colors.white);
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -299,7 +334,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
         centerTitle: false,
       ),
       body: RefreshIndicator(
-        onRefresh: _fetchReports,
+        onRefresh: () => _fetchReports(forceRemoteSync: true),
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           children: [
@@ -345,16 +380,13 @@ class _ReportsListPageState extends State<ReportsListPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  // 🔹 AQUÍ ES DONDE CAMBIA EL TEXTO SEGÚN EL ROL
                   _FilterTile(
-                    label: 'Planillero',
-                    value: _planilleroCtrl.text.trim().isEmpty
-                        ? 'Buscar planillero'
-                        : _planilleroCtrl.text.trim(),
-                    icon: Icons.badge_outlined,
-                    background:
-                    _planilleroCtrl.text.trim().isEmpty ? null : primaryColor,
-                    foreground:
-                    _planilleroCtrl.text.trim().isEmpty ? null : Colors.white,
+                    label: planilleroLabel,
+                    value: planilleroValue,
+                    icon: planilleroIcon,
+                    background: planilleroBackground,
+                    foreground: planilleroForeground,
                     onTap: isAdmin
                         ? () async {
                       await showDialog<void>(
@@ -397,7 +429,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
                       onTap: _openAreasSheet,
                     ),
                   ],
-
                   if (_areas.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Wrap(
@@ -479,7 +510,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
             ] else
               const SizedBox(height: 16),
 
-
             // Resultados
             if (_loading)
               const Padding(
@@ -501,7 +531,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
                           reporteId: r.reporteId,
                         ),
                       ),
-                    ); // ← cierre correcto con );
+                    );
                   },
                 ),
               ),
@@ -535,6 +565,7 @@ class ReportSummary {
     required this.planillero,
     required this.areaNames,
   });
+
   String get formattedId => 'RPT-${reporteId.toString().padLeft(4, '0')}';
 
   int get totalAreas => areaNames.length;
@@ -542,6 +573,7 @@ class ReportSummary {
   double get horasPromedio =>
       totalPersonal == 0 ? 0 : totalHoras / totalPersonal;
 }
+
 class _AggregatedReport {
   _AggregatedReport({
     required this.reporteId,
@@ -559,6 +591,7 @@ class _AggregatedReport {
   double totalHoras = 0;
   final LinkedHashSet<String> areaNames = LinkedHashSet();
 }
+
 class _ReportCard extends StatelessWidget {
   final ReportSummary data;
   final Color primaryColor;
@@ -571,7 +604,6 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     final bool isSoloSaneamiento =
         data.areaNames.length == 1 && data.areaNames.first == 'Saneamiento';
 
@@ -596,7 +628,6 @@ class _ReportCard extends StatelessWidget {
       }
       areaSummaryText = buffer.toString();
     }
-
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -648,13 +679,11 @@ class _ReportCard extends StatelessWidget {
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
               _InfoRow(
                 icon: Icons.person_outline,
-                text: data.planillero.isEmpty
-                    ? 'Sin planillero'
-                    : data.planillero,
+                text:
+                data.planillero.isEmpty ? 'Sin planillero' : data.planillero,
               ),
               const SizedBox(height: 8),
               _InfoRow(
@@ -683,14 +712,14 @@ class _ReportCard extends StatelessWidget {
               if (isSoloSaneamiento)
                 _InfoRow(
                   icon: Icons.schedule_rounded,
-                  text: '${data.horasPromedio.toStringAsFixed(2)} h promedio',
+                  // 🔹 AHORA MUESTRA LA SUMA TOTAL DE HORAS, NO EL PROMEDIO
+                  text: '${data.totalHoras.toStringAsFixed(2)} h',
                 )
               else
                 _InfoRow(
                   icon: Icons.scale_rounded,
                   text: '${data.kilos.toStringAsFixed(3)} kg',
                 ),
-
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
@@ -698,8 +727,7 @@ class _ReportCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: primaryColor,
                     side: BorderSide(color: primaryColor),
-                    padding:
-                    const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   onPressed: onTap,
                   child: const Text('Ver detalle'),

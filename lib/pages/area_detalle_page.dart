@@ -137,6 +137,42 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     return '$h:$m';
   }
 
+  // ---------- VALIDACIÓN: PERSONA YA REGISTRADA (SANEAMIENTO) ----------
+
+  bool _codigoYaRegistradoSaneamiento(String codigo, int indexActual) {
+    final cod = codigo.trim();
+    if (cod.isEmpty) return false;
+
+    for (int i = 0; i < _saneamientoTrabajadores.length; i++) {
+      if (i == indexActual) continue; // ignorar la fila actual
+      if (_saneamientoTrabajadores[i].codigoCtrl.text.trim() == cod) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _onCodigoSaneamientoIngresado(int index, String codigo) {
+    final cod = codigo.trim();
+    if (cod.isEmpty) return;
+
+    if (_codigoYaRegistradoSaneamiento(cod, index)) {
+      // Mostrar mensaje y limpiar la fila nueva
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PERSONA YA REGISTRADA')),
+      );
+
+      setState(() {
+        final row = _saneamientoTrabajadores[index];
+        row.codigoCtrl.clear();
+        row.nombreCtrl.clear();
+        row.laboresCtrl.clear();
+        row.inicio = null;
+        row.fin = null;
+      });
+    }
+  }
+
   // ----- INDIVIDUAL: escanear -----
   Future<void> _scanQRIndividual() async {
     final result = await Navigator.pushNamed(
@@ -186,10 +222,12 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
         row.codigoCtrl.text = code;
         if (name.isNotEmpty) row.nombreCtrl.text = name;
       });
+      _onCodigoSaneamientoIngresado(index, row.codigoCtrl.text);
     } else if (result is String) {
       setState(() {
         row.codigoCtrl.text = result;
       });
+      _onCodigoSaneamientoIngresado(index, row.codigoCtrl.text);
     }
   }
 
@@ -259,9 +297,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     if (_modo == ModoTrabajo.individual) {
       if (_isSaneamiento) {
         // Solo contamos trabajadores que tengan información
-        return _saneamientoTrabajadores
-            .where((t) => t.hasData)
-            .length;
+        return _saneamientoTrabajadores.where((t) => t.hasData).length;
       }
 
       // Para áreas normales: cuenta 1 solo si hay algo escrito
@@ -276,7 +312,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     // Modo cuadrilla
     return _cuadrillas.fold<int>(0, (sum, c) => sum + c.integrantes.length);
   }
-
 
   double _calcularKilosTotales() {
     if (_modo == ModoTrabajo.individual) {
@@ -609,10 +644,11 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                                 _pickHoraTrabajador(i, inicio: false),
                             onRemove:
                             _saneamientoTrabajadores.length > 1
-                                ? () =>
-                                _eliminarTrabajadorSaneamiento(i)
+                                ? () => _eliminarTrabajadorSaneamiento(i)
                                 : null,
                             onScanQR: () => _scanQRSaneamiento(i),
+                            onCodigoCompleted: (value) =>
+                                _onCodigoSaneamientoIngresado(i, value),
                           ),
                         ),
                       ),
@@ -942,7 +978,6 @@ class _SaneamientoTrabajadorRow {
   }
 }
 
-
 class _SaneamientoTrabajadorForm extends StatelessWidget {
   const _SaneamientoTrabajadorForm({
     super.key,
@@ -952,6 +987,7 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
     required this.onPickHoraFin,
     this.onRemove,
     required this.onScanQR,
+    required this.onCodigoCompleted,
   });
 
   final int index;
@@ -960,6 +996,7 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
   final VoidCallback onPickHoraFin;
   final VoidCallback? onRemove;
   final VoidCallback onScanQR;
+  final ValueChanged<String> onCodigoCompleted;
 
   @override
   Widget build(BuildContext context) {
@@ -1019,6 +1056,8 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
               icon: const Icon(Icons.qr_code_scanner),
             ),
           ),
+          onSubmitted: onCodigoCompleted,
+          onEditingComplete: () => onCodigoCompleted(row.codigoCtrl.text),
         ),
         const SizedBox(height: 12),
         TextField(

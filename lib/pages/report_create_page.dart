@@ -65,8 +65,12 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       turno: _turno,
       planillero: plan,
     );
+    final supabaseId = await db.reportesDao.getReporteSupabaseId(id);
     if (!mounted) return;
-    setState(() => _reporteId = id);
+    setState(() {
+      _reporteId = id;
+      _enviadoASupabase = supabaseId != null;
+    });
   }
 
   @override
@@ -241,11 +245,15 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       // Solo enviamos si realmente hay usuario logueado
       if (currentUser != null) {
         try {
-          await ReportesSupabaseService.instance.insertarReporte(
+          final supabaseId = await ReportesSupabaseService.instance.insertarReporte(
             fecha: _fecha,
             turno: _turno,
             planillero: plan,
             userId: currentUser.id, // <- String no nulo
+          );
+          await db.reportesDao.saveReporteSupabaseId(
+            _reporteId!,
+            supabaseId,
           );
           setState(() => _enviadoASupabase = true);
         } catch (e) {

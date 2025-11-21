@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-
+import '../models/reporte_remoto.dart';
 part 'app_database.g.dart';
 
 /// =======================
@@ -16,6 +16,7 @@ class Reportes extends Table {
   DateTimeColumn get fecha => dateTime()();
   TextColumn get turno => text()(); // 'Día' | 'Mañana' | ...
   TextColumn get planillero => text()();
+  IntColumn get supabaseId => integer().nullable()();
 }
 
 class ReporteAreas extends Table {
@@ -92,7 +93,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -111,6 +112,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 4) {
         await m.addColumn(integrantes, integrantes.labores);
+      }
+      if (from < 5) {
+        await m.addColumn(reportes, reportes.supabaseId);
       }
     },
   );
@@ -132,6 +136,19 @@ class AppDatabase extends _$AppDatabase {
 class ReportesDao extends DatabaseAccessor<AppDatabase>
     with _$ReportesDaoMixin {
   ReportesDao(AppDatabase db) : super(db);
+
+  Future<bool> hasReportes() async {
+    final row = await customSelect(
+      'SELECT COUNT(*) AS total FROM reportes',
+      readsFrom: {reportes},
+    ).getSingle();
+
+    final total = row.data['total'];
+    if (total is int) return total > 0;
+    if (total is BigInt) return total > BigInt.zero;
+    return false;
+  }
+
 
   /// Obtiene o crea un reporte (borrador) por fecha+turno+planillero.
   Future<int> getOrCreateReporte({
@@ -173,6 +190,21 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
       ),
     );
   }
+
+  Future<void> saveReporteSupabaseId(int id, int supabaseId) async {
+    await (update(reportes)..where((t) => t.id.equals(id))).write(
+      ReportesCompanion(
+        supabaseId: Value(supabaseId),
+      ),
+    );
+  }
+
+  Future<int?> getReporteSupabaseId(int id) async {
+    final row = await (select(reportes)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    return row?.supabaseId;
+  }
+
 
   /// Crea un reporte y sus áreas (solo cabecera y cantidades).
   Future<int> createReporte({
@@ -620,7 +652,78 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
       turno: reporteRow.turno,
       planillero: reporteRow.planillero,
       areas: areas,
+      supabaseId: reporteRow.supabaseId,
     );
+  }
+
+  Future<void> upsertReportesRemotos(List<ReporteRemoto> reportesRemotos) async {
+    if (reportesRemotos.isEmpty) return;
+
+    await transaction(() async {
+      for (final remoto in reportesRemotos) {
+        await into(reportes).insert(
+          ReportesCompanion(
+            id: Value(remoto.id),
+            fecha: remoto.fecha,
+            turno: remoto.turno,
+            planillero: remoto.planillero,
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+
+        for (final area in remoto.areas) {
+          final reporteAreaId = await into(reporteAreas).insert(
+            ReporteAreasCompanion(
+              id: area.id != null ? Value(area.id!) : const Value.absent(),
+              reporteId: Value(area.reporteId ?? remoto.id),
+              areaNombre: area.areaNombre,
+              cantidad: Value(area.cantidad),
+              horaInicio: Value(area.horaInicio),
+              horaFin: Value(area.horaFin),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
+
+          final resolvedAreaId = area.id ?? reporteAreaId;
+
+          for (final cuadrilla in area.cuadrillas) {
+            final cuadrillaId = await into(cuadrillas).insert(
+              CuadrillasCompanion(
+                id: cuadrilla.id != null
+                    ? Value(cuadrilla.id!)
+                    : const Value.absent(),
+                reporteAreaId: Value(cuadrilla.reporteAreaId ?? resolvedAreaId),
+                nombre: Value(cuadrilla.nombre ?? 'Cuadrilla'),
+                horaInicio: Value(cuadrilla.horaInicio),
+                horaFin: Value(cuadrilla.horaFin),
+                kilos: Value(cuadrilla.kilos),
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
+
+            final resolvedCuadrillaId = cuadrilla.id ?? cuadrillaId;
+
+            for (final integrante in cuadrilla.integrantes) {
+              await into(integrantes).insert(
+                IntegrantesCompanion(
+                  id: integrante.id != null
+                      ? Value(integrante.id!)
+                      : const Value.absent(),
+                  cuadrillaId: Value(integrante.cuadrillaId ?? resolvedCuadrillaId),
+                  code: Value(integrante.code ?? ''),
+                  nombre: integrante.nombre ?? '',
+                  horaInicio: Value(integrante.horaInicio),
+                  horaFin: Value(integrante.horaFin),
+                  horas: Value(integrante.horas),
+                  labores: Value(integrante.labores),
+                ),
+                mode: InsertMode.insertOrReplace,
+              );
+            }
+          }
+        }
+      }
+    });
   }
 }
 
@@ -659,6 +762,7 @@ class ReporteDetalle {
   final String turno;
   final String planillero;
   final List<ReporteAreaDetalle> areas;
+  final int? supabaseId;
 
   const ReporteDetalle({
     required this.id,
@@ -666,6 +770,7 @@ class ReporteDetalle {
     required this.turno,
     required this.planillero,
     required this.areas,
+    this.supabaseId,
   });
 
   int get totalPersonas =>

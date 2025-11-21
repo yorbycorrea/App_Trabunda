@@ -42,6 +42,8 @@ class $ReportesTable extends Reportes with TableInfo<$ReportesTable, Reporte> {
   static const VerificationMeta _planilleroMeta = const VerificationMeta(
     'planillero',
   );
+  static const VerificationMeta _supabaseIdMeta =
+  const VerificationMeta('supabaseId');
   @override
   late final GeneratedColumn<String> planillero = GeneratedColumn<String>(
     'planillero',
@@ -51,7 +53,21 @@ class $ReportesTable extends Reportes with TableInfo<$ReportesTable, Reporte> {
     requiredDuringInsert: true,
   );
   @override
-  List<GeneratedColumn> get $columns => [id, fecha, turno, planillero];
+  late final GeneratedColumn<int> supabaseId = GeneratedColumn<int>(
+    'supabase_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    fecha,
+    turno,
+    planillero,
+    supabaseId,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -91,6 +107,16 @@ class $ReportesTable extends Reportes with TableInfo<$ReportesTable, Reporte> {
     } else if (isInserting) {
       context.missing(_planilleroMeta);
     }
+    if (data.containsKey('supabase_id')) {
+      context.handle(
+        _supabaseIdMeta,
+        supabaseId.isAcceptableOrUnknown(
+          data['supabase_id']!,
+          _supabaseIdMeta,
+        ),
+      );
+    }
+
     return context;
   }
 
@@ -116,6 +142,10 @@ class $ReportesTable extends Reportes with TableInfo<$ReportesTable, Reporte> {
         DriftSqlType.string,
         data['${effectivePrefix}planillero'],
       )!,
+      supabaseId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}supabase_id'],
+      ),
     );
   }
 
@@ -130,11 +160,13 @@ class Reporte extends DataClass implements Insertable<Reporte> {
   final DateTime fecha;
   final String turno;
   final String planillero;
+  final int? supabaseId;
   const Reporte({
     required this.id,
     required this.fecha,
     required this.turno,
     required this.planillero,
+    this.supabaseId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -143,6 +175,9 @@ class Reporte extends DataClass implements Insertable<Reporte> {
     map['fecha'] = Variable<DateTime>(fecha);
     map['turno'] = Variable<String>(turno);
     map['planillero'] = Variable<String>(planillero);
+    if (!nullToAbsent || supabaseId != null) {
+      map['supabase_id'] = Variable<int>(supabaseId);
+    }
     return map;
   }
 
@@ -152,6 +187,9 @@ class Reporte extends DataClass implements Insertable<Reporte> {
       fecha: Value(fecha),
       turno: Value(turno),
       planillero: Value(planillero),
+      supabaseId: supabaseId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supabaseId),
     );
   }
 
@@ -165,6 +203,7 @@ class Reporte extends DataClass implements Insertable<Reporte> {
       fecha: serializer.fromJson<DateTime>(json['fecha']),
       turno: serializer.fromJson<String>(json['turno']),
       planillero: serializer.fromJson<String>(json['planillero']),
+      supabaseId: serializer.fromJson<int?>(json['supabaseId']),
     );
   }
   @override
@@ -175,6 +214,7 @@ class Reporte extends DataClass implements Insertable<Reporte> {
       'fecha': serializer.toJson<DateTime>(fecha),
       'turno': serializer.toJson<String>(turno),
       'planillero': serializer.toJson<String>(planillero),
+      'supabaseId': serializer.toJson<int?>(supabaseId),
     };
   }
 
@@ -183,11 +223,13 @@ class Reporte extends DataClass implements Insertable<Reporte> {
     DateTime? fecha,
     String? turno,
     String? planillero,
+    Value<int?> supabaseId = const Value.absent(),
   }) => Reporte(
     id: id ?? this.id,
     fecha: fecha ?? this.fecha,
     turno: turno ?? this.turno,
     planillero: planillero ?? this.planillero,
+    supabaseId: supabaseId.present ? supabaseId.value : this.supabaseId,
   );
   Reporte copyWithCompanion(ReportesCompanion data) {
     return Reporte(
@@ -197,6 +239,8 @@ class Reporte extends DataClass implements Insertable<Reporte> {
       planillero: data.planillero.present
           ? data.planillero.value
           : this.planillero,
+      supabaseId:
+      data.supabaseId.present ? data.supabaseId.value : this.supabaseId,
     );
   }
 
@@ -206,13 +250,14 @@ class Reporte extends DataClass implements Insertable<Reporte> {
           ..write('id: $id, ')
           ..write('fecha: $fecha, ')
           ..write('turno: $turno, ')
-          ..write('planillero: $planillero')
+          ..write('planillero: $planillero, ')
+          ..write('supabaseId: $supabaseId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, fecha, turno, planillero);
+  int get hashCode => Object.hash(id, fecha, turno, planillero, supabaseId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -220,7 +265,8 @@ class Reporte extends DataClass implements Insertable<Reporte> {
           other.id == this.id &&
           other.fecha == this.fecha &&
           other.turno == this.turno &&
-          other.planillero == this.planillero);
+          other.planillero == this.planillero &&
+          other.supabaseId == this.supabaseId);
 }
 
 class ReportesCompanion extends UpdateCompanion<Reporte> {
@@ -228,17 +274,20 @@ class ReportesCompanion extends UpdateCompanion<Reporte> {
   final Value<DateTime> fecha;
   final Value<String> turno;
   final Value<String> planillero;
+  final Value<int?> supabaseId;
   const ReportesCompanion({
     this.id = const Value.absent(),
     this.fecha = const Value.absent(),
     this.turno = const Value.absent(),
     this.planillero = const Value.absent(),
+    this.supabaseId = const Value.absent(),
   });
   ReportesCompanion.insert({
     this.id = const Value.absent(),
     required DateTime fecha,
     required String turno,
     required String planillero,
+    this.supabaseId = const Value.absent(),
   }) : fecha = Value(fecha),
        turno = Value(turno),
        planillero = Value(planillero);
@@ -247,12 +296,14 @@ class ReportesCompanion extends UpdateCompanion<Reporte> {
     Expression<DateTime>? fecha,
     Expression<String>? turno,
     Expression<String>? planillero,
+    Expression<int>? supabaseId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (fecha != null) 'fecha': fecha,
       if (turno != null) 'turno': turno,
       if (planillero != null) 'planillero': planillero,
+      if (supabaseId != null) 'supabase_id': supabaseId,
     });
   }
 
@@ -261,12 +312,14 @@ class ReportesCompanion extends UpdateCompanion<Reporte> {
     Value<DateTime>? fecha,
     Value<String>? turno,
     Value<String>? planillero,
+    Value<int?>? supabaseId,
   }) {
     return ReportesCompanion(
       id: id ?? this.id,
       fecha: fecha ?? this.fecha,
       turno: turno ?? this.turno,
       planillero: planillero ?? this.planillero,
+      supabaseId: supabaseId ?? this.supabaseId,
     );
   }
 
@@ -284,6 +337,9 @@ class ReportesCompanion extends UpdateCompanion<Reporte> {
     }
     if (planillero.present) {
       map['planillero'] = Variable<String>(planillero.value);
+    }
+    if (supabaseId.present) {
+      map['supabase_id'] = Variable<int>(supabaseId.value);
     }
     return map;
   }

@@ -42,7 +42,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return '$day/$month/$year';
   }
 
-  /// Calcula el promedio de horas por persona en el reporte completo
+  /// Calcula la suma y no el promedio de horas por persona en el reporte completo
   double _calcularHorasPromedio(ReporteDetalle detalle) {
     double totalHoras = 0;
     for (final area in detalle.areas) {
@@ -52,9 +52,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         }
       }
     }
-    if (detalle.totalPersonas == 0) return 0;
-    return totalHoras / detalle.totalPersonas;
+
+    // AHORA DEVUELVE LA SUMA, NO EL PROMEDIO
+    if (totalHoras <= 0) return 0;
+    return totalHoras;
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +110,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                       reporte: detalle,
                       // 👇 Usamos el id del reporte como id en Supabase.
                       // Si tu tabla remota usa otro id, cámbialo aquí.
-                      supabaseReporteId: widget.reporteId,
+                      supabaseReporteId: detalle.supabaseId,
                     ),
                   ),
               ],
@@ -190,7 +193,8 @@ class _HeaderCard extends StatelessWidget {
                 if (mostrarHorasPromedio)
                   _StatChip(
                     icon: Icons.schedule_rounded,
-                    label: '${horasPromedio.toStringAsFixed(2)} h promedio',
+                    // AHORA ES SUMA, SIN LA PALABRA "promedio"
+                    label: '${horasPromedio.toStringAsFixed(2)} h',
                     color: theme.colorScheme.primary,
                   )
                 else
@@ -199,6 +203,7 @@ class _HeaderCard extends StatelessWidget {
                     label: '${totalKilos.toStringAsFixed(3)} kg',
                     color: theme.colorScheme.primary,
                   ),
+
               ],
             ),
           ],

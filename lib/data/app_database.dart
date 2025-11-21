@@ -686,6 +686,8 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
 
           final resolvedAreaId = area.id ?? reporteAreaId;
 
+
+
           for (final cuadrilla in area.cuadrillas) {
             final cuadrillaId = await into(cuadrillas).insert(
               CuadrillasCompanion(

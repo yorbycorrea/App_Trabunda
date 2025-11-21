@@ -1,9 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import '../data/app_database.dart';
 import '../data/db.dart';
-import '../services/auth_service.dart';
 import '../services/report_pdf_service.dart';
 
 class ReportDetailPage extends StatefulWidget {
@@ -25,14 +24,45 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   void initState() {
     super.initState();
     _future = db.reportesDao.fetchReporteDetalle(widget.reporteId);
+
+    () async {
+      final detalle = await db.reportesDao.fetchReporteDetalle(widget.reporteId);
+
+      debugPrint('--------- DEBUG SANEAMIENTO ---------');
+      debugPrint('Áreas locales para reporte ${widget.reporteId}: ${detalle?.areas.length}');
+      for (final a in detalle?.areas ?? []) {
+        debugPrint('Area: ${a.nombre}, cantidad: ${a.cantidad}, integrantes: ${a.totalIntegrantes}');
+        for (final c in a.cuadrillas) {
+          debugPrint('  Cuadrilla ${c.nombre}, integrantes: ${c.integrantes.length}');
+          for (final i in c.integrantes) {
+            debugPrint('    -> ${i.nombre}, horas=${i.horas}, inicio=${i.horaInicio}, fin=${i.horaFin}');
+          }
+        }
+      }
+      debugPrint('-------------------------------------');
+    }();
   }
 
+
   Future<void> _reload() async {
-    final future = db.reportesDao.fetchReporteDetalle(widget.reporteId);
+    final detalle = await db.reportesDao.fetchReporteDetalle(widget.reporteId);
+
+    debugPrint('--------- DEBUG SANEAMIENTO ---------');
+    debugPrint('Áreas locales para reporte ${widget.reporteId}: ${detalle?.areas.length}');
+    for (final a in detalle?.areas ?? []) {
+      debugPrint('Area: ${a.nombre}, cantidad: ${a.cantidad}, integrantes: ${a.totalIntegrantes}');
+      for (final c in a.cuadrillas) {
+        debugPrint('  Cuadrilla ${c.nombre}, integrantes: ${c.integrantes.length}');
+        for (final i in c.integrantes) {
+          debugPrint('    -> ${i.nombre}, horas=${i.horas}, inicio=${i.horaInicio}, fin=${i.horaFin}');
+        }
+      }
+    }
+    debugPrint('-------------------------------------');
+
     setState(() {
-      _future = future;
+      _future = Future.value(detalle);
     });
-    await future;
   }
 
   String _formatDate(DateTime date) {
@@ -42,8 +72,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return '$day/$month/$year';
   }
 
-  /// Calcula la suma y no el promedio de horas por persona en el reporte completo
-  double _calcularHorasPromedio(ReporteDetalle detalle) {
+  /// Calcula la **suma** de horas de todos los integrantes del reporte.
+  double _calcularHorasSaneamiento(ReporteDetalle detalle) {
     double totalHoras = 0;
     for (final area in detalle.areas) {
       for (final c in area.cuadrillas) {
@@ -52,12 +82,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         }
       }
     }
-
-    // AHORA DEVUELVE LA SUMA, NO EL PROMEDIO
     if (totalHoras <= 0) return 0;
     return totalHoras;
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +111,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               detalle.areas
                   .every((a) => a.nombre.toLowerCase().contains('saneamiento'));
 
-          final double horasPromedio = _calcularHorasPromedio(detalle);
+          final double horasSaneamiento = _calcularHorasSaneamiento(detalle);
 
           return RefreshIndicator(
             onRefresh: _reload,
@@ -97,8 +124,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   planillero: detalle.planillero,
                   totalPersonas: detalle.totalPersonas,
                   totalKilos: detalle.totalKilos,
-                  mostrarHorasPromedio: soloSaneamiento,
-                  horasPromedio: horasPromedio,
+                  mostrarHorasSaneamiento: soloSaneamiento,
+                  horasSaneamiento: horasSaneamiento,
                 ),
                 const SizedBox(height: 16),
                 if (detalle.areas.isEmpty)
@@ -108,8 +135,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         (area) => _AreaSection(
                       area: area,
                       reporte: detalle,
-                      // 👇 Usamos el id del reporte como id en Supabase.
-                      // Si tu tabla remota usa otro id, cámbialo aquí.
+                      // id del reporte en Supabase (puede ser null si aún no está sincronizado)
                       supabaseReporteId: detalle.supabaseId,
                     ),
                   ),
@@ -129,8 +155,8 @@ class _HeaderCard extends StatelessWidget {
     required this.planillero,
     required this.totalPersonas,
     required this.totalKilos,
-    required this.mostrarHorasPromedio,
-    required this.horasPromedio,
+    required this.mostrarHorasSaneamiento,
+    required this.horasSaneamiento,
   });
 
   final String fecha;
@@ -139,9 +165,9 @@ class _HeaderCard extends StatelessWidget {
   final int totalPersonas;
   final double totalKilos;
 
-  /// Si es true, mostramos horas promedio en vez de kilos
-  final bool mostrarHorasPromedio;
-  final double horasPromedio;
+  /// Si es true, mostramos horas (suma) en vez de kilos
+  final bool mostrarHorasSaneamiento;
+  final double horasSaneamiento;
 
   @override
   Widget build(BuildContext context) {
@@ -190,11 +216,11 @@ class _HeaderCard extends StatelessWidget {
                   '$totalPersonas ${_plural(totalPersonas, 'persona', 'personas')}',
                   color: secondary,
                 ),
-                if (mostrarHorasPromedio)
+                if (mostrarHorasSaneamiento)
                   _StatChip(
                     icon: Icons.schedule_rounded,
-                    // AHORA ES SUMA, SIN LA PALABRA "promedio"
-                    label: '${horasPromedio.toStringAsFixed(2)} h',
+                    // Es la suma total de horas
+                    label: '${horasSaneamiento.toStringAsFixed(2)} h',
                     color: theme.colorScheme.primary,
                   )
                 else
@@ -203,7 +229,6 @@ class _HeaderCard extends StatelessWidget {
                     label: '${totalKilos.toStringAsFixed(3)} kg',
                     color: theme.colorScheme.primary,
                   ),
-
               ],
             ),
           ],
@@ -346,7 +371,6 @@ class _AreaSectionState extends State<_AreaSection> {
         result = await _pdfService.generateAreaReport(
           reporte: widget.reporte,
           area: widget.area,
-          // 👇 mandamos el id para subir a Supabase
           supabaseReporteId: widget.supabaseReporteId,
         );
       } else if (name == 'recepción' || name == 'recepcion') {
@@ -354,11 +378,9 @@ class _AreaSectionState extends State<_AreaSection> {
         result = await _pdfService.generateRecepcionReport(
           reporte: widget.reporte,
           area: widget.area,
-          // 👇 mandamos el id para subir a Supabase
           supabaseReporteId: widget.supabaseReporteId,
         );
       } else {
-        // Por si se llama desde un área sin formato
         scaffold.showSnackBar(
           const SnackBar(
             content: Text('Aún no hay formato PDF para esta área.'),
@@ -409,7 +431,6 @@ class _AreaSectionState extends State<_AreaSection> {
       final result = await _pdfService.generateSaneamientoReport(
         reporte: widget.reporte,
         area: widget.area,
-        // 👇 mandamos el id para subir el PDF a Supabase
         supabaseReporteId: widget.supabaseReporteId,
       );
 
@@ -453,7 +474,7 @@ class _AreaSectionState extends State<_AreaSection> {
 
     final esSaneamiento = area.nombre.toLowerCase().contains('saneamiento');
 
-    // 🔹 Sumamos las horas de todos los integrantes del área
+    // Sumamos las horas de todos los integrantes del área
     double horas = 0;
     for (final c in area.cuadrillas) {
       for (final i in c.integrantes) {
@@ -461,9 +482,6 @@ class _AreaSectionState extends State<_AreaSection> {
       }
     }
 
-    // 🔹 Subtítulo:
-    //   - Saneamiento → muestra suma de horas (h)
-    //   - Otros       → kilos (kg) como antes
     final subtitle = esSaneamiento
         ? '${area.cantidad} '
         '${_plural(area.cantidad, 'trabajador', 'trabajadores')} • '
@@ -529,8 +547,6 @@ class _AreaSectionState extends State<_AreaSection> {
             ),
             const SizedBox(height: 12),
           ],
-
-          // --- sección final según tipo de área ---
           if (esSaneamiento) ...[
             Padding(
               padding: const EdgeInsets.only(top: 12),

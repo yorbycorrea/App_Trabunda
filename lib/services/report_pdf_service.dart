@@ -8,6 +8,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../services/pdf_storage_service.dart';
 import '../data/app_database.dart';
 
 /// Resultado de la creación del PDF
@@ -28,11 +29,16 @@ class ReportPdfService {
 
   // ============================================================
   // GENERAR PDF DE ÁREA FILETEROS
+  //
+  // - Genera el PDF localmente (como siempre).
+  // - SI reciba [supabaseReporteId] (id de la fila en Supabase),
+  //   también sube el PDF al bucket "reportes-pdf" y actualiza
+  //   las columnas pdf_path / pdf_url / pdf_generated_at.
   // ============================================================
-
   Future<ReportPdfResult> generateAreaReport({
     required ReporteDetalle reporte,
     required ReporteAreaDetalle area,
+    int? supabaseReporteId, // 👈 id de la tabla `public.reportes` en Supabase
   }) async {
     if (!_isFileterosArea(area)) {
       throw ArgumentError(
@@ -43,7 +49,6 @@ class ReportPdfService {
     final elaboradoPor = reporte.planillero.trim();
     final bytes = await _buildFileterosDocument(reporte, area, elaboradoPor);
 
-    // Nombre de archivo sin barras: reporte_fileteros_16-11-2025_fileteros.pdf
     final filename = _buildFilename(
       reporte,
       area,
@@ -51,8 +56,21 @@ class ReportPdfService {
     );
 
     final file = await _persist(bytes, filename);
+    final result = ReportPdfResult(bytes: bytes, file: file, filename: filename);
 
-    return ReportPdfResult(bytes: bytes, file: file, filename: filename);
+    // 👇 Si tenemos id de Supabase, subimos el PDF y actualizamos la fila
+    if (supabaseReporteId != null) {
+      try {
+        await PdfStorageService.instance.subirPdfDeReporte(
+          reporteId: supabaseReporteId,
+          bytes: bytes,
+        );
+      } catch (e) {
+        debugPrint('Error subiendo PDF Fileteros a Supabase: $e');
+      }
+    }
+
+    return result;
   }
 
   Future<void> share(ReportPdfResult result) async {
@@ -64,11 +82,14 @@ class ReportPdfService {
 
   // ============================================================
   // GENERAR PDF DE RECEPCIÓN
+  //
+  // Igual lógica: genera local + (opcional) sube a Storage si
+  // [supabaseReporteId] no es null.
   // ============================================================
-
   Future<ReportPdfResult> generateRecepcionReport({
     required ReporteDetalle reporte,
     required ReporteAreaDetalle area,
+    int? supabaseReporteId, // 👈 id de la tabla `public.reportes`
   }) async {
     if (!_isRecepcionArea(area)) {
       throw ArgumentError(
@@ -116,7 +137,6 @@ class ReportPdfService {
 
     final bytes = await doc.save();
 
-    // Usamos _buildFilename para evitar caracteres inválidos
     final filename = _buildFilename(
       reporte,
       area,
@@ -124,19 +144,33 @@ class ReportPdfService {
     );
 
     final file = await _persist(bytes, filename);
+    final result = ReportPdfResult(bytes: bytes, file: file, filename: filename);
 
-    return ReportPdfResult(bytes: bytes, file: file, filename: filename);
+    if (supabaseReporteId != null) {
+      try {
+        await PdfStorageService.instance.subirPdfDeReporte(
+          reporteId: supabaseReporteId,
+          bytes: bytes,
+        );
+      } catch (e) {
+        debugPrint('Error subiendo PDF Recepción a Supabase: $e');
+      }
+    }
+
+    return result;
   }
 
   // ============================================================
   // GENERAR PDF DE SANEAMIENTO
+  //
+  // Igual: genera local + sube a Storage si [supabaseReporteId]
+  // viene con el id del reporte en Supabase.
   // ============================================================
-
   Future<ReportPdfResult> generateSaneamientoReport({
     required ReporteDetalle reporte,
     required ReporteAreaDetalle area,
+    int? supabaseReporteId, // 👈 id de la tabla `public.reportes`
   }) async {
-    // El usuario logeado (planillero) es el que elabora el informe
     final elaboradoPor = reporte.planillero.trim();
     final formattedDate = _formatDate(reporte.fecha);
     final workers = _buildSaneamientoWorkers(area);
@@ -183,16 +217,26 @@ class ReportPdfService {
     );
 
     final file = await _persist(bytes, filename);
+    final result = ReportPdfResult(bytes: bytes, file: file, filename: filename);
 
-    return ReportPdfResult(bytes: bytes, file: file, filename: filename);
+    // 👇 Subir a Supabase solo si tenemos el id del reporte remoto
+    if (supabaseReporteId != null) {
+      try {
+        await PdfStorageService.instance.subirPdfDeReporte(
+          reporteId: supabaseReporteId,
+          bytes: bytes,
+        );
+      } catch (e) {
+        debugPrint('Error subiendo PDF Saneamiento a Supabase: $e');
+      }
+    }
+
+    return result;
   }
-
-
 
   // ============================================================
   // DOCUMENTO FILETEROS (RESUMEN + ANEXO)
   // ============================================================
-
   Future<Uint8List> _buildFileterosDocument(
       ReporteDetalle reporte,
       ReporteAreaDetalle area,
@@ -274,7 +318,6 @@ class ReportPdfService {
   // ============================================================
   // LAYOUT FILETEROS RESUMEN
   // ============================================================
-
   pw.Widget _buildFileterosLayout({
     required ReporteDetalle reporte,
     required ReporteAreaDetalle area,
@@ -315,7 +358,6 @@ class ReportPdfService {
   // ============================================================
   // CABECERA GENERAL
   // ============================================================
-
   pw.Widget _buildFileterosHeader(String formattedDate, String turno) {
     return pw.Column(
       children: [
@@ -409,7 +451,6 @@ class ReportPdfService {
   // ============================================================
   // TABLA RECEPCIÓN OFICIAL
   // ============================================================
-
   pw.Widget _buildRecepcionMainTable(ReporteAreaDetalle area) {
     final rows = <pw.TableRow>[
       _tableRow(['N°', 'CÓDIGO', 'PRODUCTO', 'TOTAL'], isHeader: true),
@@ -460,7 +501,6 @@ class ReportPdfService {
   // ============================================================
   // TABLA RESUMEN CUADRILLAS FILETEROS
   // ============================================================
-
   pw.Widget _buildFileterosSummaryTable(ReporteAreaDetalle area) {
     final rows = <pw.TableRow>[];
 
@@ -569,7 +609,6 @@ class ReportPdfService {
   // ============================================================
   // PIE DE FIRMAS
   // ============================================================
-
   pw.Widget _buildFooterSignaturesFileteros(String elaboradoPor) {
     pw.Widget box(String label) {
       return pw.Container(
@@ -725,15 +764,9 @@ class ReportPdfService {
     );
   }
 
-
   // ============================================================
   // LAYOUT SANEAMIENTO
   // ============================================================
-
-  // ============================================================
-  // LAYOUT SANEAMIENTO
-  // ============================================================
-
   pw.Widget _buildSaneamientoHeader({
     required ReporteAreaDetalle area,
     required String formattedDate,
@@ -827,7 +860,7 @@ class ReportPdfService {
     );
   }
 
-// tabla saneamiento
+  // tabla saneamiento
   pw.Widget _buildSaneamientoTable(List<_SaneamientoWorkerRow> workers) {
     final headers = [
       'Nº',
@@ -858,10 +891,10 @@ class ReportPdfService {
       headers: headers,
       data: rows,
       headerStyle: pw.TextStyle(
-        fontSize: 9,
+        fontSize: 8,
         fontWeight: pw.FontWeight.bold,
       ),
-      cellStyle: const pw.TextStyle(fontSize: 9),
+      cellStyle: const pw.TextStyle(fontSize: 6),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
       cellAlignment: pw.Alignment.centerLeft,
       columnWidths: {
@@ -877,7 +910,6 @@ class ReportPdfService {
       border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
     );
   }
-
 
   List<_SaneamientoWorkerRow> _buildSaneamientoWorkers(
       ReporteAreaDetalle area,
@@ -927,8 +959,6 @@ class ReportPdfService {
     return rows;
   }
 
-
-
   String _formatHoraRange(String? inicio, String? fin) {
     final start = (inicio ?? '').trim();
     final end = (fin ?? '').trim();
@@ -972,12 +1002,9 @@ class ReportPdfService {
     }
   }
 
-
-
   // ============================================================
   // ANEXO TABLA DE TRABAJADORES
   // ============================================================
-
   List<Map<String, String>> _buildFileterosWorkers(
       ReporteAreaDetalle area,
       ) {
@@ -1021,7 +1048,6 @@ class ReportPdfService {
   // ============================================================
   // UTILITARIOS
   // ============================================================
-
   pw.TableRow _tableRow(List<String> cells, {bool isHeader = false}) {
     return pw.TableRow(
       decoration:
@@ -1034,7 +1060,7 @@ class ReportPdfService {
           child: pw.Text(
             c,
             style: pw.TextStyle(
-              fontSize: 9,
+              fontSize: isHeader ? 9 : 5,
               fontWeight:
               isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
             ),
@@ -1177,4 +1203,3 @@ class _SaneamientoWorkerRow {
     required this.labores,
   });
 }
-

@@ -429,8 +429,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
 
     return res.length;
   }
-
-  /// Consulta los reportes guardados aplicando filtros básicos.
   Future<List<ReporteAreaResumen>> fetchReportesFiltrados({
     DateTime? fechaInicio,
     DateTime? fechaFin,
@@ -447,10 +445,12 @@ SELECT
   r.planillero AS planillero,
   a.area_nombre AS area_nombre,
   a.cantidad AS cantidad,
-  IFNULL(SUM(c.kilos), 0) AS kilos
+  IFNULL(SUM(c.kilos), 0) AS kilos,
+  IFNULL(SUM(i.horas), 0) AS total_horas
 FROM reporte_areas a
 INNER JOIN reportes r ON r.id = a.reporte_id
 LEFT JOIN cuadrillas c ON c.reporte_area_id = a.id
+LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
 ''');
 
     final where = <String>[];
@@ -492,7 +492,7 @@ LEFT JOIN cuadrillas c ON c.reporte_area_id = a.id
     final rows = await customSelect(
       sql.toString(),
       variables: vars,
-      readsFrom: {reportes, reporteAreas, cuadrillas},
+      readsFrom: {reportes, reporteAreas, cuadrillas, integrantes},
     ).get();
 
     return rows
@@ -506,10 +506,12 @@ LEFT JOIN cuadrillas c ON c.reporte_area_id = a.id
         areaNombre: row.read<String>('area_nombre'),
         cantidad: row.read<int>('cantidad'),
         kilos: row.read<double?>('kilos') ?? 0,
+        totalHoras: row.read<double?>('total_horas') ?? 0,
       ),
     )
         .toList();
   }
+
 
   Future<ReporteDetalle?> fetchReporteDetalle(int reporteId) async {
     final reporteRow =
@@ -635,6 +637,7 @@ class ReporteAreaResumen {
   final String areaNombre;
   final int cantidad;
   final double kilos;
+  final double totalHoras;
 
   const ReporteAreaResumen({
     required this.reporteId,
@@ -645,8 +648,10 @@ class ReporteAreaResumen {
     required this.areaNombre,
     required this.cantidad,
     required this.kilos,
+    required this.totalHoras,
   });
 }
+
 
 class ReporteDetalle {
   final int id;

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+
 import 'cuadrilla_config_page.dart';
 import '../data/db.dart';
-import 'package:flutter/scheduler.dart';
-import '../data/app_database.dart';
 
 enum ModoTrabajo { individual, cuadrilla }
 
@@ -115,12 +115,19 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     setState(() {
       _saneamientoTrabajadores.add(_SaneamientoTrabajadorRow());
     });
+
+    // Después de construir el nuevo ítem, poner el cursor en su campo "código"
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final last = _saneamientoTrabajadores.last;
+      last.codigoFocus.requestFocus();
+    });
   }
 
   void _eliminarTrabajadorSaneamiento(int index) {
-    setState(() {
-      _saneamientoTrabajadores.removeAt(index);
-    });
+    final row = _saneamientoTrabajadores.removeAt(index);
+    row.dispose();
+    setState(() {});
   }
 
   String _fmt(TimeOfDay? t) {
@@ -186,7 +193,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     }
   }
 
-
   // ----- CUADRILLA: agregar/editar -----
   Future<void> _crearCuadrilla() async {
     final res = await Navigator.push<Map<String, dynamic>>(
@@ -216,7 +222,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                 .toList(),
           );
 
-          // usa el nombre de parámetro "integrantes" para tu DAO
           await db.reportesDao.replaceIntegrantes(
             cuadrillaId: cuadId,
             integrantesList:
@@ -253,13 +258,25 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
   int _calcularPersonas() {
     if (_modo == ModoTrabajo.individual) {
       if (_isSaneamiento) {
-        // En Saneamiento, una persona por trabajador
-        return _saneamientoTrabajadores.length;
+        // Solo contamos trabajadores que tengan información
+        return _saneamientoTrabajadores
+            .where((t) => t.hasData)
+            .length;
       }
-      return 1;
+
+      // Para áreas normales: cuenta 1 solo si hay algo escrito
+      final tieneDatosIndividual =
+          _codigoCtrl.text.trim().isNotEmpty ||
+              _nombreCtrl.text.trim().isNotEmpty ||
+              _kilosIndividualCtrl.text.trim().isNotEmpty;
+
+      return tieneDatosIndividual ? 1 : 0;
     }
+
+    // Modo cuadrilla
     return _cuadrillas.fold<int>(0, (sum, c) => sum + c.integrantes.length);
   }
+
 
   double _calcularKilosTotales() {
     if (_modo == ModoTrabajo.individual) {
@@ -291,6 +308,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     final saneamientoTrabajadores =
     _isSaneamiento && _modo == ModoTrabajo.individual
         ? _saneamientoTrabajadores
+        .where((t) => t.hasData)
         .map(
           (t) => {
         'code': t.codigoCtrl.text.trim(),
@@ -314,9 +332,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
       'hora_inicio': _inicio == null
           ? null
           : {'h': _inicio!.hour, 'm': _inicio!.minute},
-      'hora_fin': _fin == null
-          ? null
-          : {'h': _fin!.hour, 'm': _fin!.minute},
+      'hora_fin': _fin == null ? null : {'h': _fin!.hour, 'm': _fin!.minute},
       'horaInicio': horaInicio,
       'horaFin': horaFin,
       'trabajador': _modo == ModoTrabajo.individual && !_isSaneamiento
@@ -375,11 +391,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
               ?.cast<Map<String, dynamic>>() ??
               const <Map<String, dynamic>>[];
 
-      // =====================================================
-      // SANEAMIENTO:
-      // si no hay hora general, la calculamos desde los
-      // trabajadores (primera horaInicio y última horaFin)
-      // =====================================================
+      // Si en saneamiento no se puso hora general, la deducimos
       if (_isSaneamiento &&
           _modo == ModoTrabajo.individual &&
           saneamientoList.isNotEmpty &&
@@ -393,10 +405,10 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           final hf = (t['horaFin'] as String?)?.trim();
 
           if (hi != null && hi.isNotEmpty && firstInicio == null) {
-            firstInicio = hi; // primer inicio no vacío
+            firstInicio = hi;
           }
           if (hf != null && hf.isNotEmpty) {
-            lastFin = hf; // último fin no vacío
+            lastFin = hf;
           }
         }
 
@@ -439,7 +451,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
       Navigator.of(context).maybePop(result);
     }
 
-    // Ejecuta el pop fuera del frame actual para evitar `_debugLocked`
     if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.idle) {
       cerrar();
     } else {
@@ -447,20 +458,17 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     // En Saneamiento nunca será cuadrilla
-    final isCuadrilla =
-        !_isSaneamiento && _modo == ModoTrabajo.cuadrilla;
+    final isCuadrilla = !_isSaneamiento && _modo == ModoTrabajo.cuadrilla;
 
     return WillPopScope(
-      // Captura back nativo (gesto/flecha Android) y usa nuestro cierre seguro
       onWillPop: () async {
         if (_cerrando) return true;
         if (Navigator.of(context).canPop()) {
           await _guardarYVolver();
-          return false; // ya hicimos pop manual
+          return false;
         }
         return true;
       },
@@ -469,7 +477,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           title: Text('${widget.areaName} • Detalle'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: _guardarYVolver, // flecha también guarda y vuelve
+            onPressed: _guardarYVolver,
           ),
           actions: [
             IconButton(
@@ -518,7 +526,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                 ),
               )
             else
-            // En Saneamiento, solo texto informativo
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -580,7 +587,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
             // INDIVIDUAL
             if (!isCuadrilla) ...[
               if (_isSaneamiento)
-              // Layout especial para Saneamiento
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -604,8 +610,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                             onRemove:
                             _saneamientoTrabajadores.length > 1
                                 ? () =>
-                                _eliminarTrabajadorSaneamiento(
-                                    i)
+                                _eliminarTrabajadorSaneamiento(i)
                                 : null,
                             onScanQR: () => _scanQRSaneamiento(i),
                           ),
@@ -619,7 +624,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                   ],
                 )
               else
-              // Layout normal (código + nombre + kilos)
                 Card(
                   elevation: 2,
                   shape: RoundedRectangleBorder(
@@ -689,10 +693,9 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                           BorderSide(color: Colors.grey.shade200),
                         ),
                       ),
-                      child: Row(
-                        children: const [
-                          Expanded(
-                              flex: 6, child: Text('Cuadrilla')),
+                      child: const Row(
+                        children: [
+                          Expanded(flex: 6, child: Text('Cuadrilla')),
                           Expanded(
                               flex: 3,
                               child: Text('Integrantes',
@@ -701,8 +704,8 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                               flex: 3,
                               child: Text('Kilos',
                                   textAlign: TextAlign.center)),
-                          SizedBox(width: 44), // editar
-                          SizedBox(width: 44), // borrar
+                          SizedBox(width: 44),
+                          SizedBox(width: 44),
                         ],
                       ),
                     ),
@@ -888,27 +891,57 @@ class _HoraTile extends StatelessWidget {
 class _SaneamientoTrabajadorRow {
   TimeOfDay? inicio;
   TimeOfDay? fin;
+
   final TextEditingController codigoCtrl = TextEditingController();
   final TextEditingController nombreCtrl = TextEditingController();
   final TextEditingController laboresCtrl = TextEditingController();
 
+  // 👇 FocusNode para poder poner el cursor en el nuevo trabajador
+  final FocusNode codigoFocus = FocusNode();
+
+  // Horas trabajadas con 30 minutos descontados (almuerzo)
   double get horas {
     if (inicio == null || fin == null) return 0.0;
 
     final startMinutes = inicio!.hour * 60 + inicio!.minute;
     final endMinutes = fin!.hour * 60 + fin!.minute;
-    final diff = endMinutes - startMinutes;
-    if (diff <= 0) return 0.0;
 
-    return diff / 60.0;
+    // diferencia en minutos
+    int diff = endMinutes - startMinutes;
+
+    // Si la diferencia es <= 0, asumimos que cruzó medianoche (ej. 18:00 → 06:00)
+    if (diff <= 0) {
+      diff += 24 * 60; // sumamos 24 horas
+    }
+
+    double rawHours = diff / 60.0;
+
+    // Descontar 30 minutos de almuerzo
+    if (rawHours > 0.5) {
+      rawHours -= 0.5;
+    } else {
+      rawHours = 0.0;
+    }
+
+    return rawHours;
+  }
+
+  // indica si este trabajador tiene algún dato real
+  bool get hasData {
+    return horas > 0 ||
+        codigoCtrl.text.trim().isNotEmpty ||
+        nombreCtrl.text.trim().isNotEmpty ||
+        laboresCtrl.text.trim().isNotEmpty;
   }
 
   void dispose() {
     codigoCtrl.dispose();
     nombreCtrl.dispose();
     laboresCtrl.dispose();
+    codigoFocus.dispose();
   }
 }
+
 
 class _SaneamientoTrabajadorForm extends StatelessWidget {
   const _SaneamientoTrabajadorForm({
@@ -975,6 +1008,7 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
         const SizedBox(height: 12),
         TextField(
           controller: row.codigoCtrl,
+          focusNode: row.codigoFocus, // 👈 aquí usamos el FocusNode correcto
           decoration: InputDecoration(
             labelText: 'Código del trabajador',
             prefixIcon: const Icon(Icons.badge_outlined),
@@ -986,7 +1020,6 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
             ),
           ),
         ),
-
         const SizedBox(height: 12),
         TextField(
           controller: row.nombreCtrl,
@@ -997,7 +1030,6 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         TextField(
           controller: row.laboresCtrl,
           decoration: const InputDecoration(

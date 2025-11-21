@@ -70,7 +70,7 @@ class ReportsListPage extends StatefulWidget {
 
 class _ReportsListPageState extends State<ReportsListPage> {
   // Filtros
-  DateTimeRange? _rango;
+  DateTime? _fecha;
   final Set<String> _areas = {};
   String _turno = 'Todos'; // Todos | Día | Noche
   final _planilleroCtrl = TextEditingController();
@@ -88,14 +88,20 @@ class _ReportsListPageState extends State<ReportsListPage> {
   }
 
   @override
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_syncedPlanillero) return;
+
     final auth = AuthScope.read(context);
     final user = auth.currentUser;
-    if (user != null && user.isPlanillero) {
+
+    if (user != null) {
+      // 👉 Siempre mostrar el nombre del usuario logueado
       _planilleroCtrl.text = user.name;
-      if (!_autoFetchedForPlanillero) {
+
+      // 👉 Pero solo auto-buscar si es planillero
+      if (user.isPlanillero && !_autoFetchedForPlanillero) {
         _autoFetchedForPlanillero = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -104,22 +110,27 @@ class _ReportsListPageState extends State<ReportsListPage> {
         });
       }
     }
+
     _syncedPlanillero = true;
   }
+
 
   String _fmtDate(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  Future<void> _pickRango() async {
+  Future<void> _pickFecha() async {
     final today = DateTime.now();
-    final picked = await showDateRangePicker(
+    final picked = await showDatePicker(
       context: context,
       firstDate: DateTime(today.year - 2, 1, 1),
       lastDate: DateTime(today.year + 1, 12, 31),
-      initialDateRange: _rango ?? DateTimeRange(start: today, end: today),
+      initialDate: _fecha ?? today,
     );
-    if (picked != null) setState(() => _rango = picked);
+    if (picked != null) {
+      setState(() => _fecha = DateTime(picked.year, picked.month, picked.day));
+    }
   }
+
 
   void _openAreasSheet() {
     showModalBottomSheet(
@@ -144,19 +155,25 @@ class _ReportsListPageState extends State<ReportsListPage> {
 
   void _limpiar() {
     setState(() {
-      _rango = null;
+      _fecha = null;
       _areas.clear();
       _turno = 'Todos';
+
+
       final auth = AuthScope.read(context);
       final user = auth.currentUser;
-      if (user != null && user.isPlanillero) {
+
+      // 👉 Siempre que haya usuario, volvemos a poner su nombre
+      if (user != null) {
         _planilleroCtrl.text = user.name;
       } else {
         _planilleroCtrl.clear();
       }
+
       _items.clear();
     });
   }
+
 
   Future<void> _fetchReports() async {
     final auth = AuthScope.read(context);
@@ -170,19 +187,19 @@ class _ReportsListPageState extends State<ReportsListPage> {
     try {
       DateTime? inicio;
       DateTime? fin;
-      if (_rango != null) {
-        inicio = DateTime(
-            _rango!.start.year, _rango!.start.month, _rango!.start.day);
+      if (_fecha != null) {
+        inicio = DateTime(_fecha!.year, _fecha!.month, _fecha!.day);
         fin = DateTime(
-          _rango!.end.year,
-          _rango!.end.month,
-          _rango!.end.day,
+          _fecha!.year,
+          _fecha!.month,
+          _fecha!.day,
           23,
           59,
           59,
           999,
         );
       }
+
 
       final resultados = await db.reportesDao.fetchReportesFiltrados(
         fechaInicio: inicio,
@@ -216,6 +233,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
         );
         group.totalPersonal += row.cantidad;
         group.totalKilos += row.kilos;
+        group.totalHoras += row.totalHoras;
         group.areaNames.add(row.areaNombre);
       }
 
@@ -230,6 +248,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
                 turno: g.turno,
                 totalPersonal: g.totalPersonal,
                 kilos: g.totalKilos,
+                totalHoras: g.totalHoras,
                 planillero: g.planillero,
                 areaNames: List<String>.unmodifiable(g.areaNames),
               ),
@@ -262,6 +281,13 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final totalPersonal =
     _items.fold<int>(0, (acc, e) => acc + e.totalPersonal);
     final totalKilos = _items.fold<double>(0, (acc, e) => acc + e.kilos);
+    final totalHoras = _items.fold<double>(0, (acc, e) => acc + e.totalHoras);
+    final double horasPromedioGlobal =
+    totalPersonal == 0 ? 0 : totalHoras / totalPersonal;
+    final bool soloSaneamientoEnResultados = _items.isNotEmpty &&
+        _items.every((e) =>
+        e.areaNames.length == 1 && e.areaNames.first == 'Saneamiento');
+
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -299,14 +325,12 @@ class _ReportsListPageState extends State<ReportsListPage> {
                     children: [
                       Expanded(
                         child: _FilterTile(
-                          label: 'Rango de fechas',
-                          value: _rango == null
-                              ? 'Selecciona'
-                              : '${_fmtDate(_rango!.start)}  —  ${_fmtDate(_rango!.end)}',
+                          label: 'Fecha',
+                          value: _fecha == null ? 'Selecciona' : _fmtDate(_fecha!),
                           icon: Icons.calendar_month_rounded,
                           background: primaryColor,
                           foreground: Colors.white,
-                          onTap: _pickRango,
+                          onTap: _pickFecha,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -359,18 +383,21 @@ class _ReportsListPageState extends State<ReportsListPage> {
                       ),
                     ),
                   const SizedBox(height: 12),
-                  _FilterTile(
-                    label: 'Áreas',
-                    value: _areas.isEmpty
-                        ? 'Todas las áreas'
-                        : _areas.length == 1
-                        ? _areas.first
-                        : '${_areas.length} seleccionadas',
-                    icon: Icons.segment_rounded,
-                    background: _areas.isEmpty ? null : primaryColor,
-                    foreground: _areas.isEmpty ? null : Colors.white,
-                    onTap: _openAreasSheet,
-                  ),
+                  if (!(user?.isSupervisorSaneamiento ?? false)) ...[
+                    _FilterTile(
+                      label: 'Áreas',
+                      value: _areas.isEmpty
+                          ? 'Todas las áreas'
+                          : _areas.length == 1
+                          ? _areas.first
+                          : '${_areas.length} seleccionadas',
+                      icon: Icons.segment_rounded,
+                      background: _areas.isEmpty ? null : primaryColor,
+                      foreground: _areas.isEmpty ? null : Colors.white,
+                      onTap: _openAreasSheet,
+                    ),
+                  ],
+
                   if (_areas.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Wrap(
@@ -421,7 +448,9 @@ class _ReportsListPageState extends State<ReportsListPage> {
               ),
             ),
 
-            if (_items.isNotEmpty) ...[
+            // 💡 Mostrar resumen SOLO si hay items
+            // y NO es un listado exclusivo de Saneamiento
+            if (_items.isNotEmpty && !soloSaneamientoEnResultados) ...[
               const SizedBox(height: 16),
               Container(
                 decoration: BoxDecoration(
@@ -449,6 +478,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
               ),
             ] else
               const SizedBox(height: 16),
+
 
             // Resultados
             if (_loading)
@@ -491,6 +521,7 @@ class ReportSummary {
   final String turno;
   final int totalPersonal;
   final double kilos;
+  final double totalHoras;
   final String planillero;
   final List<String> areaNames;
 
@@ -500,12 +531,16 @@ class ReportSummary {
     required this.turno,
     required this.totalPersonal,
     required this.kilos,
+    required this.totalHoras,
     required this.planillero,
     required this.areaNames,
   });
   String get formattedId => 'RPT-${reporteId.toString().padLeft(4, '0')}';
 
   int get totalAreas => areaNames.length;
+
+  double get horasPromedio =>
+      totalPersonal == 0 ? 0 : totalHoras / totalPersonal;
 }
 class _AggregatedReport {
   _AggregatedReport({
@@ -521,6 +556,7 @@ class _AggregatedReport {
   final String planillero;
   int totalPersonal = 0;
   double totalKilos = 0;
+  double totalHoras = 0;
   final LinkedHashSet<String> areaNames = LinkedHashSet();
 }
 class _ReportCard extends StatelessWidget {
@@ -535,6 +571,10 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
+    final bool isSoloSaneamiento =
+        data.areaNames.length == 1 && data.areaNames.first == 'Saneamiento';
+
     String fmt(DateTime d) =>
         '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
@@ -556,6 +596,7 @@ class _ReportCard extends StatelessWidget {
       }
       areaSummaryText = buffer.toString();
     }
+
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -639,10 +680,17 @@ class _ReportCard extends StatelessWidget {
                 text: '${data.totalPersonal} personas',
               ),
               const SizedBox(height: 8),
-              _InfoRow(
-                icon: Icons.scale_rounded,
-                text: '${data.kilos.toStringAsFixed(3)} kg',
-              ),
+              if (isSoloSaneamiento)
+                _InfoRow(
+                  icon: Icons.schedule_rounded,
+                  text: '${data.horasPromedio.toStringAsFixed(2)} h promedio',
+                )
+              else
+                _InfoRow(
+                  icon: Icons.scale_rounded,
+                  text: '${data.kilos.toStringAsFixed(3)} kg',
+                ),
+
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
@@ -840,10 +888,16 @@ class _TurnoPill extends StatelessWidget {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            // El texto real se pinta en el padre
+          children: [
+            const Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              value, // 👈 muestra el turno actual: Todos / Día / Noche
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),

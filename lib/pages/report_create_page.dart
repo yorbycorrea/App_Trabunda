@@ -38,7 +38,8 @@ class _AreaRow {
 }
 
 class _ReportCreatePageState extends State<ReportCreatePage> {
-  int? _reporteId; // 👈 declarado una sola vez
+  int? _reporteId;
+  bool _enviadoASupabase = false;
   DateTime _fecha = DateTime.now();
   String _turno = 'Día'; // Día | Noche
   final TextEditingController _planilleroCtrl = TextEditingController();
@@ -76,10 +77,11 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
 
     final auth = AuthScope.read(context);
     final user = auth.currentUser;
-    final esSupervisorSaneamiento = user?.isSupervisorSaneamiento ?? false;
+    final esSaneamiento =
+        (user?.role ?? '').toLowerCase().trim() == 'saneamiento';
 
-    if (esSupervisorSaneamiento) {
-      // 👇 SOLO SANEAMIENTO para supervisores de saneamiento
+    if (esSaneamiento) {
+      // 👇 Solo área Saneamiento para usuarios con rol “saneamiento”
       _areas = [
         _AreaRow('Saneamiento'),
       ];
@@ -215,7 +217,7 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
     }
 
     // ¿Es un reporte nuevo? (sirve para decidir si lo mandamos a Supabase)
-    final bool esNuevoReporte = _reporteId == null;
+    final bool esNuevoReporte = !_enviadoASupabase;
 
     // Asegura que exista el borrador (crea si aún no hay _reporteId)
     if (_reporteId == null) {
@@ -238,12 +240,24 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
 
       // Solo enviamos si realmente hay usuario logueado
       if (currentUser != null) {
-        await ReportesSupabaseService.instance.insertarReporte(
-          fecha: _fecha,
-          turno: _turno,
-          planillero: plan,
-          userId: currentUser.id, // <- String no nulo
-        );
+        try {
+          await ReportesSupabaseService.instance.insertarReporte(
+            fecha: _fecha,
+            turno: _turno,
+            planillero: plan,
+            userId: currentUser.id, // <- String no nulo
+          );
+          setState(() => _enviadoASupabase = true);
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'No se pudo enviar a Supabase: ${e.toString()}',
+              ),
+            ),
+          );
+          return false;
+        }
       } else {
         debugPrint(
           '[ReportCreatePage] No se pudo enviar a Supabase: currentUser es null',
@@ -383,6 +397,8 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
     final cs = Theme.of(context).colorScheme;
     final user = AuthScope.watch(context).currentUser;
     final isAdmin = user?.isAdmin ?? false;
+    final esSaneamiento =
+        (user?.role ?? '').toLowerCase().trim() == 'saneamiento';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ingresar información')),
@@ -477,11 +493,13 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                   icon: const Icon(Icons.tune),
                   tooltip: 'Opciones',
                 ),
-                TextButton.icon(
-                  onPressed: _showAgregarAreaSheet,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Agregar área'),
-                ),
+                // 👇 SOLO mostramos "Agregar área" si el rol NO es saneamiento
+                if (!esSaneamiento)
+                  TextButton.icon(
+                    onPressed: _showAgregarAreaSheet,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Agregar área'),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -674,6 +692,9 @@ class _AreaRowTile extends StatelessWidget {
               textAlign: TextAlign.center,
               keyboardType: const TextInputType.numberWithOptions(
                   signed: false, decimal: false),
+              readOnly: true,
+              showCursor: false,
+              enableInteractiveSelection: false,
               decoration: const InputDecoration(
                 isDense: true,
                 contentPadding:
@@ -684,26 +705,12 @@ class _AreaRowTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.menu),
-            onSelected: (v) {
-              switch (v) {
-                case 'detalles':
-                // Espera al siguiente frame para que el popup se cierre
-                  WidgetsBinding.instance
-                      .addPostFrameCallback((_) => onDetalles());
-                  break;
-                case 'eliminar':
-                  WidgetsBinding.instance
-                      .addPostFrameCallback((_) => onRemove());
-                  break;
-              }
-            },
-            itemBuilder: (ctx) => const [
-              PopupMenuItem(value: 'detalles', child: Text('Detalles')),
-              PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
-            ],
-          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_forward_ios_rounded),
+            onPressed: onDetalles,
+          )
+
+
         ],
       ),
     );

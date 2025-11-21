@@ -42,6 +42,20 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return '$day/$month/$year';
   }
 
+  /// Calcula el promedio de horas por persona en el reporte completo
+  double _calcularHorasPromedio(ReporteDetalle detalle) {
+    double totalHoras = 0;
+    for (final area in detalle.areas) {
+      for (final c in area.cuadrillas) {
+        for (final i in c.integrantes) {
+          totalHoras += i.horas ?? 0;
+        }
+      }
+    }
+    if (detalle.totalPersonas == 0) return 0;
+    return totalHoras / detalle.totalPersonas;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,6 +76,13 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             return _EmptyState(onRetry: _reload);
           }
 
+          // ¿El reporte es solo de Saneamiento?
+          final bool soloSaneamiento = detalle.areas.isNotEmpty &&
+              detalle.areas
+                  .every((a) => a.nombre.toLowerCase().contains('saneamiento'));
+
+          final double horasPromedio = _calcularHorasPromedio(detalle);
+
           return RefreshIndicator(
             onRefresh: _reload,
             child: ListView(
@@ -73,6 +94,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   planillero: detalle.planillero,
                   totalPersonas: detalle.totalPersonas,
                   totalKilos: detalle.totalKilos,
+                  mostrarHorasPromedio: soloSaneamiento,
+                  horasPromedio: horasPromedio,
                 ),
                 const SizedBox(height: 16),
                 if (detalle.areas.isEmpty)
@@ -100,6 +123,8 @@ class _HeaderCard extends StatelessWidget {
     required this.planillero,
     required this.totalPersonas,
     required this.totalKilos,
+    required this.mostrarHorasPromedio,
+    required this.horasPromedio,
   });
 
   final String fecha;
@@ -107,6 +132,10 @@ class _HeaderCard extends StatelessWidget {
   final String planillero;
   final int totalPersonas;
   final double totalKilos;
+
+  /// Si es true, mostramos horas promedio en vez de kilos
+  final bool mostrarHorasPromedio;
+  final double horasPromedio;
 
   @override
   Widget build(BuildContext context) {
@@ -155,11 +184,18 @@ class _HeaderCard extends StatelessWidget {
                   '$totalPersonas ${_plural(totalPersonas, 'persona', 'personas')}',
                   color: secondary,
                 ),
-                _StatChip(
-                  icon: Icons.scale_rounded,
-                  label: '${totalKilos.toStringAsFixed(3)} kg',
-                  color: theme.colorScheme.primary,
-                ),
+                if (mostrarHorasPromedio)
+                  _StatChip(
+                    icon: Icons.schedule_rounded,
+                    label: '${horasPromedio.toStringAsFixed(2)} h promedio',
+                    color: theme.colorScheme.primary,
+                  )
+                else
+                  _StatChip(
+                    icon: Icons.scale_rounded,
+                    label: '${totalKilos.toStringAsFixed(3)} kg',
+                    color: theme.colorScheme.primary,
+                  ),
               ],
             ),
           ],
@@ -399,10 +435,21 @@ class _AreaSectionState extends State<_AreaSection> {
 
     final esSaneamiento = area.nombre.toLowerCase().contains('saneamiento');
 
+    // 🔹 Sumamos las horas de todos los integrantes del área
+    double horas = 0;
+    for (final c in area.cuadrillas) {
+      for (final i in c.integrantes) {
+        horas += i.horas ?? 0;
+      }
+    }
+
+    // 🔹 Subtítulo:
+    //   - Saneamiento → muestra suma de horas (h)
+    //   - Otros       → kilos (kg) como antes
     final subtitle = esSaneamiento
         ? '${area.cantidad} '
         '${_plural(area.cantidad, 'trabajador', 'trabajadores')} • '
-        '${area.totalKilos.toStringAsFixed(2)} h'
+        '${horas.toStringAsFixed(2)} h'
         : '${area.cantidad} '
         '${_plural(area.cantidad, 'persona', 'personas')} • '
         '${area.totalKilos.toStringAsFixed(3)} kg';
@@ -600,8 +647,7 @@ class _CuadrillaTile extends StatelessWidget {
                   .map(
                     (it) => Chip(
                   label: Text(it.nombre),
-                  avatar:
-                  it.code == null || it.code!.isEmpty
+                  avatar: it.code == null || it.code!.isEmpty
                       ? null
                       : const Icon(Icons.qr_code_2, size: 16),
                 ),

@@ -6,13 +6,13 @@ class PdfStorageService {
   PdfStorageService._();
   static final PdfStorageService instance = PdfStorageService._();
 
-  static const String _bucketName = 'reports_pdf'; // el nombre que creaste en Storage
+  static const String _bucketName = 'reports_pdf'; // bucket de Storage
 
   SupabaseClient get _client => Supabase.instance.client;
 
   /// Sube el PDF al bucket y actualiza la fila correspondiente en `reportes`.
   ///
-  /// [reporteId] = id de la tabla `public.reportes` en Supabase.
+  /// [reporteId] = id de la tabla `public.reportes` en Supabase (NO el id local).
   Future<void> subirPdfDeReporte({
     required int reporteId,
     required Uint8List bytes,
@@ -29,7 +29,7 @@ class PdfStorageService {
       ),
     );
 
-    // 2) Obtener URL (si el bucket es público)
+    // 2) Obtener URL pública (si el bucket es público)
     final publicUrl = _client.storage.from(_bucketName).getPublicUrl(path);
 
     // 3) Actualizar la tabla `reportes`

@@ -373,6 +373,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         ..where((c) => c.reporteAreaId.equals(reporteAreaId)))
           .get();
 
+
       int cuadrillaId;
 
       if (existing.isEmpty) {
@@ -422,6 +423,22 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
 
       }
     });
+
+    // --- Actualizamos la CANTIDAD de personas en reporte_areas ---
+    final personasValidas = trabajadores.where((t) {
+      final code = (t['code'] ?? '').toString();
+      final name = (t['name'] ?? '').toString();
+      // contamos solo si tiene algo
+      return code.isNotEmpty || name.isNotEmpty;
+    }).length;
+
+    await (update(reporteAreas)..where((t) => t.id.equals(reporteAreaId)))
+        .write(
+      ReporteAreasCompanion(
+        cantidad: Value(personasValidas),
+      ),
+    );
+
   }
 
 
@@ -656,21 +673,49 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
     );
   }
 
-  Future<void> upsertReportesRemotos(List<ReporteRemoto> reportesRemotos) async {
+  Future<void> upsertReportesRemotos(
+      List<ReporteRemoto> reportesRemotos,
+      ) async {
     if (reportesRemotos.isEmpty) return;
 
     await transaction(() async {
       for (final remoto in reportesRemotos) {
+        // 1) Insertar/actualizar cabecera del reporte
         await into(reportes).insert(
           ReportesCompanion(
             id: Value(remoto.id),
             fecha: Value(remoto.fecha),
             turno: Value(remoto.turno),
             planillero: Value(remoto.planillero),
+            // opcional: si quieres guardar también el id remoto
+            // supabaseId: Value(remoto.id),
           ),
           mode: InsertMode.insertOrReplace,
         );
 
+        // 2) Si NO vienen áreas desde Supabase, creamos una por defecto
+        if (remoto.areas.isEmpty) {
+          // ¿Ya existen áreas locales para este reporte?
+          final existingAreas = await (select(reporteAreas)
+            ..where((a) => a.reporteId.equals(remoto.id)))
+              .get();
+
+          if (existingAreas.isEmpty) {
+            // Creamos un área "Saneamiento" vacía para que el INNER JOIN devuelva algo
+            await into(reporteAreas).insert(
+              ReporteAreasCompanion.insert(
+                reporteId: remoto.id,
+                areaNombre: 'Saneamiento',
+                cantidad: const Value(0),
+              ),
+            );
+          }
+
+          // No hay más que procesar para este reporte
+          continue;
+        }
+
+        // 3) Si SÍ vienen áreas, las sincronizamos normalmente
         for (final area in remoto.areas) {
           final reporteAreaId = await into(reporteAreas).insert(
             ReporteAreasCompanion(
@@ -694,7 +739,8 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
                 id: cuadrilla.id != null
                     ? Value(cuadrilla.id!)
                     : const Value.absent(),
-                reporteAreaId: Value(cuadrilla.reporteAreaId ?? resolvedAreaId),
+                reporteAreaId:
+                Value(cuadrilla.reporteAreaId ?? resolvedAreaId),
                 nombre: Value(cuadrilla.nombre ?? 'Cuadrilla'),
                 horaInicio: Value(cuadrilla.horaInicio),
                 horaFin: Value(cuadrilla.horaFin),
@@ -711,7 +757,8 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
                   id: integrante.id != null
                       ? Value(integrante.id!)
                       : const Value.absent(),
-                  cuadrillaId: Value(integrante.cuadrillaId ?? resolvedCuadrillaId),
+                  cuadrillaId:
+                  Value(integrante.cuadrillaId ?? resolvedCuadrillaId),
                   code: Value(integrante.code ?? ''),
                   nombre: Value(integrante.nombre ?? ''),
                   horaInicio: Value(integrante.horaInicio),
@@ -727,6 +774,7 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
       }
     });
   }
+
 }
 
 /// =======================
@@ -756,8 +804,6 @@ class ReporteAreaResumen {
     required this.totalHoras,
   });
 }
-
-
 class ReporteDetalle {
   final int id;
   final DateTime fecha;
@@ -775,11 +821,16 @@ class ReporteDetalle {
     this.supabaseId,
   });
 
+  // 👉 ahora usamos el totalPersonas de cada área
   int get totalPersonas =>
-      areas.fold(0, (sum, area) => sum + area.cantidad);
+      areas.fold(0, (sum, area) => sum + area.totalPersonas);
 
   double get totalKilos =>
       areas.fold(0, (sum, area) => sum + area.totalKilos);
+
+  // 👉 nuevo: total de horas del reporte
+  double get totalHoras =>
+      areas.fold(0, (sum, area) => sum + area.totalHoras);
 }
 
 class ReporteAreaDetalle {
@@ -805,6 +856,14 @@ class ReporteAreaDetalle {
 
   int get totalIntegrantes =>
       cuadrillas.fold(0, (sum, c) => sum + c.totalIntegrantes);
+
+  /// 👉 Si la columna cantidad es 0, usamos los integrantes reales.
+  int get totalPersonas =>
+      cantidad != 0 ? cantidad : totalIntegrantes;
+
+  /// 👉 horas totales del área
+  double get totalHoras =>
+      cuadrillas.fold(0, (sum, c) => sum + c.totalHoras);
 }
 
 class CuadrillaDetalle {
@@ -827,7 +886,12 @@ class CuadrillaDetalle {
   });
 
   int get totalIntegrantes => integrantes.length;
+
+  /// 👉 horas totales de la cuadrilla
+  double get totalHoras =>
+      integrantes.fold(0, (sum, it) => sum + (it.horas ?? 0));
 }
+
 
 class IntegranteDetalle {
   final int id;

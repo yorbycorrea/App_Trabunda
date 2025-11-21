@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/db.dart';
 import '../services/auth_service.dart';
+import '../services/reportes_supabase_service.dart';
 import 'report_detail_page.dart';
 
 /// 🔹 Lista referencia de áreas (puedes unificarla con la que ya usas)
@@ -160,7 +161,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
     }
   }
 
-
   void _openAreasSheet() {
     showModalBottomSheet(
       context: context,
@@ -191,7 +191,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
       final auth = AuthScope.read(context);
       final user = auth.currentUser;
 
-      // Siempre que haya usuario, volvemos a poner su nombre
       if (user != null) {
         _planilleroCtrl.text = user.name;
       } else {
@@ -212,22 +211,31 @@ class _ReportsListPageState extends State<ReportsListPage> {
     bool sendPlanilleroToQuery = false;
 
     if (isPlanillero) {
-      // El propio planillero solo ve sus reportes
+      // El planillero siempre filtra por su propio nombre
       planilleroFilter = user!.name;
       sendPlanilleroToQuery = true;
     } else if (isAdmin) {
-      // Admin puede filtrar por cualquier planillero
+      // El admin puede buscar por cualquier planillero
       planilleroFilter = _planilleroCtrl.text.trim();
       sendPlanilleroToQuery = planilleroFilter.isNotEmpty;
-    } else {
-      // Otros roles (supervisor, etc.) NO filtran por planillero
-      planilleroFilter = '';
-      sendPlanilleroToQuery = false;
     }
 
     setState(() => _loading = true);
 
     try {
+      // 1) 🔄 TRAER DATOS DE SUPABASE Y GUARDARLOS EN LA BD LOCAL
+      final remotos = await ReportesSupabaseService.instance.listarReportes(
+        fecha: _fecha,
+        // MUY IMPORTANTE: NO mandar 'Todos' a Supabase
+        turno: _turno == 'Todos' ? null : _turno,
+      );
+
+      debugPrint(
+          '[ReportsListPage] Supabase devolvió ${remotos.length} reportes remotos');
+
+      await db.reportesDao.upsertReportesRemotos(remotos);
+
+      // 2) 🔍 AHORA SÍ, LEEMOS DESDE LA BD LOCAL CON LOS FILTROS
       DateTime? inicio;
       DateTime? fin;
       if (_fecha != null) {
@@ -248,8 +256,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
         fechaFin: fin,
         areas: _areas.isEmpty ? null : _areas.toList(),
         turno: _turno == 'Todos' ? null : _turno,
-        planilleroQuery:
-        sendPlanilleroToQuery ? planilleroFilter : null,
+        planilleroQuery: sendPlanilleroToQuery ? planilleroFilter : null,
       );
 
       if (!mounted) return;
@@ -299,7 +306,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
             ),
           );
       });
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[ReportsListPage] Error en _fetchReports: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudieron cargar los reportes')),
@@ -311,6 +319,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     const primaryColor = _kPrimaryColor;
@@ -320,6 +329,9 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final user = auth.currentUser;
     final bool isPlanillero = user?.isPlanillero ?? false;
     final bool isAdmin = user?.isAdmin ?? false;
+    final bool isSupervisorSaneamiento =
+        user?.isSupervisorSaneamiento ?? false;
+    final bool canEditPlanillero = isAdmin || isSupervisorSaneamiento;
 
     // Rol visible del usuario (para mostrar "Saneamiento", "Planillero", etc.)
     String? roleLabel;
@@ -340,14 +352,14 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final totalAreas = _items.fold<int>(0, (acc, e) => acc + e.totalAreas);
     final totalPersonal =
     _items.fold<int>(0, (acc, e) => acc + e.totalPersonal);
-    final totalKilos =
-    _items.fold<double>(0, (acc, e) => acc + e.kilos);
+    final totalKilos = _items.fold<double>(0, (acc, e) => acc + e.kilos);
     final totalHoras =
     _items.fold<double>(0, (acc, e) => acc + e.totalHoras);
 
     final bool soloSaneamientoEnResultados = _items.isNotEmpty &&
         _items.every(
-              (e) => e.areaNames.length == 1 && e.areaNames.first == 'Saneamiento',
+              (e) =>
+          e.areaNames.length == 1 && e.areaNames.first == 'Saneamiento',
         );
 
     return Scaffold(
@@ -387,7 +399,9 @@ class _ReportsListPageState extends State<ReportsListPage> {
                       Expanded(
                         child: _FilterTile(
                           label: 'Fecha',
-                          value: _fecha == null ? 'Selecciona' : _fmtDate(_fecha!),
+                          value: _fecha == null
+                              ? 'Selecciona'
+                              : _fmtDate(_fecha!),
                           icon: Icons.calendar_month_rounded,
                           background: primaryColor,
                           foreground: Colors.white,
@@ -398,10 +412,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
                       SizedBox(
                         width: 140,
                         child: _FilterTile(
-                          // pequeño arriba (como en tu diseño antiguo no se veía la palabra “Turno”,
-                          // puedes dejarlo así o cambiarlo a 'Turno' si quieres)
                           label: 'Turno',
-                          // grande: el valor actual (Todos / Día / Noche)
                           value: _turno,
                           icon: Icons.access_time_rounded,
                           background: primaryColor,
@@ -411,12 +422,11 @@ class _ReportsListPageState extends State<ReportsListPage> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 12),
 
-                  // Admin: filtro planillero editable
-                  // Otros: pill que muestra ROL (etiqueta pequeña) y NOMBRE (texto grande)
-                  if (isAdmin)
+                  // Admin / supervisor: filtro planillero editable
+                  // Otros: pill con ROL + NOMBRE
+                  if (canEditPlanillero)
                     _FilterTile(
                       label: 'Planillero',
                       value: _planilleroCtrl.text.trim().isEmpty
@@ -445,11 +455,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
                     )
                   else
                     _FilterTile(
-                      // 👇 Aquí va el ROL en pequeño (antes decía "Área")
-                      label: (roleLabel ?? '').isEmpty
-                          ? 'Sin rol'
-                          : roleLabel!,
-                      // 👇 Aquí va el NOMBRE completo del usuario (antes decía "Saneamiento")
+                      label:
+                      (roleLabel ?? '').isEmpty ? 'Sin rol' : roleLabel!,
                       value: userName.isEmpty ? 'Sin nombre' : userName,
                       icon: Icons.apartment_rounded,
                       background: primaryColor,
@@ -524,7 +531,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
                           style: FilledButton.styleFrom(
                             backgroundColor: primaryColor,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding:
+                            const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: _fetchReports,
                           icon: const Icon(Icons.search_rounded),
@@ -742,9 +750,8 @@ class _ReportCard extends StatelessWidget {
               const SizedBox(height: 12),
               _InfoRow(
                 icon: Icons.person_outline,
-                text: data.planillero.isEmpty
-                    ? 'Sin planillero'
-                    : data.planillero,
+                text:
+                data.planillero.isEmpty ? 'Sin planillero' : data.planillero,
               ),
               const SizedBox(height: 8),
               _InfoRow(
@@ -778,8 +785,7 @@ class _ReportCard extends StatelessWidget {
               else
                 _InfoRow(
                   icon: Icons.scale_rounded,
-                  text:
-                  '${data.kilos.toStringAsFixed(3)} kg (total)',
+                  text: '${data.kilos.toStringAsFixed(3)} kg (total)',
                 ),
             ],
           ),
@@ -916,8 +922,8 @@ class _TurnoPill extends StatelessWidget {
             child: GestureDetector(
               onTap: () => onChanged(opt),
               child: Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 6),
                 decoration: BoxDecoration(
                   color: selected ? color : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
@@ -927,9 +933,12 @@ class _TurnoPill extends StatelessWidget {
                   opt,
                   style: TextStyle(
                     fontSize: 12,
-                    color: selected ? Colors.white : const Color(0xFF234136),
-                    fontWeight:
-                    selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected
+                        ? Colors.white
+                        : const Color(0xFF234136),
+                    fontWeight: selected
+                        ? FontWeight.w700
+                        : FontWeight.w500,
                   ),
                 ),
               ),

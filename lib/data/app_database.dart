@@ -664,9 +664,9 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
         await into(reportes).insert(
           ReportesCompanion(
             id: Value(remoto.id),
-            fecha: remoto.fecha,
-            turno: remoto.turno,
-            planillero: remoto.planillero,
+            fecha: Value(remoto.fecha),
+            turno: Value(remoto.turno),
+            planillero: Value(remoto.planillero),
           ),
           mode: InsertMode.insertOrReplace,
         );
@@ -676,7 +676,7 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
             ReporteAreasCompanion(
               id: area.id != null ? Value(area.id!) : const Value.absent(),
               reporteId: Value(area.reporteId ?? remoto.id),
-              areaNombre: area.areaNombre,
+              areaNombre: Value(area.areaNombre),
               cantidad: Value(area.cantidad),
               horaInicio: Value(area.horaInicio),
               horaFin: Value(area.horaFin),
@@ -711,7 +711,7 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
                       : const Value.absent(),
                   cuadrillaId: Value(integrante.cuadrillaId ?? resolvedCuadrillaId),
                   code: Value(integrante.code ?? ''),
-                  nombre: integrante.nombre ?? '',
+                  nombre: Value(integrante.nombre ?? ''),
                   horaInicio: Value(integrante.horaInicio),
                   horaFin: Value(integrante.horaFin),
                   horas: Value(integrante.horas),

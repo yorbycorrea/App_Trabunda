@@ -83,7 +83,10 @@ class ReporteAreaRemoto {
       cantidad: (map['cantidad'] is num) ? (map['cantidad'] as num).toInt() : 0,
       horaInicio: map['hora_inicio'] as String?,
       horaFin: map['hora_fin'] as String?,
-      cuadrillas: cuadrillas,
+      cuadrillas: (map['cuadrillas'] as List<dynamic>? ?? [])
+          .map((e) => CuadrillaRemota.fromMap(e as Map<String, dynamic>))
+          .toList(),
+
     );
   }
 }
@@ -125,7 +128,10 @@ class CuadrillaRemota {
       horaInicio: map['hora_inicio'] as String?,
       horaFin: map['hora_fin'] as String?,
       kilos: kilosValue is num ? kilosValue.toDouble() : null,
-      integrantes: integrantes,
+      integrantes: (map['integrantes'] as List<dynamic>? ?? [])
+          .map((e) => IntegranteRemoto.fromMap(e as Map<String, dynamic>))
+          .toList(),
+
     );
   }
 }

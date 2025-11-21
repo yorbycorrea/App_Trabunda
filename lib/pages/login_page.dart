@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -11,10 +12,31 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
-  final _pass  = TextEditingController();
+  final _pass = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
   String? _bannerError; // sólo visual (UI)
+
+  // 👇 versión de la app (ej. "v1.0.0")
+  String _appVersion = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      setState(() {
+        _appVersion = 'v${info.version}';
+      });
+    } catch (e) {
+      // Si falla, simplemente no mostramos nada
+      _appVersion = '';
+    }
+  }
 
   @override
   void dispose() {
@@ -44,7 +66,8 @@ class _LoginPageState extends State<LoginPage> {
     } else {
       setState(() {
         _loading = false;
-        _bannerError = 'Credenciales incorrectas. Verifica tu correo y contraseña.';
+        _bannerError =
+        'Credenciales incorrectas. Verifica tu correo y contraseña.';
       });
     }
   }
@@ -65,7 +88,8 @@ class _LoginPageState extends State<LoginPage> {
           // CONTENIDO
           SafeArea(
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               children: [
                 const SizedBox(height: 12),
                 // LOGO
@@ -80,7 +104,8 @@ class _LoginPageState extends State<LoginPage> {
                 Text(
                   'Ingreso de supervisores',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  style:
+                  Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: const Color(0xFF0E2233),
                     fontWeight: FontWeight.w600,
                   ),
@@ -97,7 +122,8 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     child: Text(
                       _bannerError!,
-                      style: const TextStyle(color: Color(0xFFC62828)),
+                      style:
+                      const TextStyle(color: Color(0xFFC62828)),
                     ),
                   ),
                 ],
@@ -125,7 +151,9 @@ class _LoginPageState extends State<LoginPage> {
                               if (v == null || v.trim().isEmpty) {
                                 return 'Ingresa tu email';
                               }
-                              final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v);
+                              final ok = RegExp(
+                                  r'^[^@]+@[^@]+\.[^@]+')
+                                  .hasMatch(v);
                               return ok ? null : 'Email no válido';
                             },
                           ),
@@ -138,14 +166,21 @@ class _LoginPageState extends State<LoginPage> {
                               prefixIcon: const Icon(Icons.lock),
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _obscure ? Icons.visibility : Icons.visibility_off,
+                                  _obscure
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
                                 ),
-                                onPressed: () => setState(() => _obscure = !_obscure),
+                                onPressed: () => setState(
+                                        () => _obscure = !_obscure),
                               ),
                             ),
                             validator: (v) {
-                              if (v == null || v.isEmpty) return 'Ingresa tu contraseña';
-                              if (v.length < 6) return 'Mínimo 6 caracteres';
+                              if (v == null || v.isEmpty) {
+                                return 'Ingresa tu contraseña';
+                              }
+                              if (v.length < 6) {
+                                return 'Mínimo 6 caracteres';
+                              }
                               return null;
                             },
                           ),
@@ -156,8 +191,12 @@ class _LoginPageState extends State<LoginPage> {
                               onPressed: _loading ? null : _submit,
                               child: _loading
                                   ? const SizedBox(
-                                height: 20, width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                height: 20,
+                                width: 20,
+                                child:
+                                CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                                   : const Text('Entrar'),
                             ),
@@ -165,7 +204,8 @@ class _LoginPageState extends State<LoginPage> {
                           const SizedBox(height: 8),
                           TextButton(
                             onPressed: _loading ? null : () {},
-                            child: const Text('Olvidé mi contraseña'),
+                            child:
+                            const Text('Olvidé mi contraseña'),
                           ),
                         ],
                       ),
@@ -174,13 +214,33 @@ class _LoginPageState extends State<LoginPage> {
                 ),
 
                 const SizedBox(height: 24),
-                // PIE (opcional)
+                // PIE: texto + versión
                 Center(
-                  child: Text(
-                    'TRABUNDA SAC• Procesos Marinos',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF6B7A8C),
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'TRABUNDA SAC• Procesos Marinos',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                          color: const Color(0xFF6B7A8C),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (_appVersion.isNotEmpty)
+                        Text(
+                          _appVersion, // ej: v1.0.0
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                            color: const Color(0xFF6B7A8C),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -213,12 +273,16 @@ class _WavesPainter extends CustomPainter {
     final p1 = Path()
       ..lineTo(0, size.height * 0.18)
       ..quadraticBezierTo(
-        size.width * 0.25, size.height * 0.10,
-        size.width * 0.50, size.height * 0.16,
+        size.width * 0.25,
+        size.height * 0.10,
+        size.width * 0.50,
+        size.height * 0.16,
       )
       ..quadraticBezierTo(
-        size.width * 0.75, size.height * 0.22,
-        size.width, size.height * 0.14,
+        size.width * 0.75,
+        size.height * 0.22,
+        size.width,
+        size.height * 0.14,
       )
       ..lineTo(size.width, 0)
       ..close();
@@ -230,12 +294,16 @@ class _WavesPainter extends CustomPainter {
     final p2 = Path()
       ..moveTo(0, size.height * 0.14)
       ..quadraticBezierTo(
-        size.width * 0.30, size.height * 0.08,
-        size.width * 0.55, size.height * 0.14,
+        size.width * 0.30,
+        size.height * 0.08,
+        size.width * 0.55,
+        size.height * 0.14,
       )
       ..quadraticBezierTo(
-        size.width * 0.80, size.height * 0.20,
-        size.width, size.height * 0.12,
+        size.width * 0.80,
+        size.height * 0.20,
+        size.width,
+        size.height * 0.12,
       )
       ..lineTo(size.width, 0)
       ..lineTo(0, 0)
@@ -251,18 +319,23 @@ class _WavesPainter extends CustomPainter {
       ..shader = const LinearGradient(
         colors: [Color(0xFF0F5DAA), Color(0xFF1B81C2)],
       ).createShader(headerRect)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0);
+      ..maskFilter =
+      const MaskFilter.blur(BlurStyle.normal, 0);
     // Curva inferior del header
     final header = Path()
       ..moveTo(0, 0)
       ..lineTo(0, headerH)
       ..quadraticBezierTo(
-        size.width * 0.25, headerH - 18,
-        size.width * 0.50, headerH - 8,
+        size.width * 0.25,
+        headerH - 18,
+        size.width * 0.50,
+        headerH - 8,
       )
       ..quadraticBezierTo(
-        size.width * 0.80, headerH + 2,
-        size.width, headerH - 14,
+        size.width * 0.80,
+        headerH + 2,
+        size.width,
+        headerH - 14,
       )
       ..lineTo(size.width, 0)
       ..close();

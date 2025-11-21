@@ -42,8 +42,6 @@ class $ReportesTable extends Reportes with TableInfo<$ReportesTable, Reporte> {
   static const VerificationMeta _planilleroMeta = const VerificationMeta(
     'planillero',
   );
-  static const VerificationMeta _supabaseIdMeta =
-  const VerificationMeta('supabaseId');
   @override
   late final GeneratedColumn<String> planillero = GeneratedColumn<String>(
     'planillero',
@@ -51,6 +49,9 @@ class $ReportesTable extends Reportes with TableInfo<$ReportesTable, Reporte> {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _supabaseIdMeta = const VerificationMeta(
+    'supabaseId',
   );
   @override
   late final GeneratedColumn<int> supabaseId = GeneratedColumn<int>(
@@ -110,13 +111,9 @@ class $ReportesTable extends Reportes with TableInfo<$ReportesTable, Reporte> {
     if (data.containsKey('supabase_id')) {
       context.handle(
         _supabaseIdMeta,
-        supabaseId.isAcceptableOrUnknown(
-          data['supabase_id']!,
-          _supabaseIdMeta,
-        ),
+        supabaseId.isAcceptableOrUnknown(data['supabase_id']!, _supabaseIdMeta),
       );
     }
-
     return context;
   }
 
@@ -239,8 +236,9 @@ class Reporte extends DataClass implements Insertable<Reporte> {
       planillero: data.planillero.present
           ? data.planillero.value
           : this.planillero,
-      supabaseId:
-      data.supabaseId.present ? data.supabaseId.value : this.supabaseId,
+      supabaseId: data.supabaseId.present
+          ? data.supabaseId.value
+          : this.supabaseId,
     );
   }
 
@@ -350,7 +348,8 @@ class ReportesCompanion extends UpdateCompanion<Reporte> {
           ..write('id: $id, ')
           ..write('fecha: $fecha, ')
           ..write('turno: $turno, ')
-          ..write('planillero: $planillero')
+          ..write('planillero: $planillero, ')
+          ..write('supabaseId: $supabaseId')
           ..write(')'))
         .toString();
   }
@@ -2440,6 +2439,7 @@ typedef $$ReportesTableCreateCompanionBuilder =
       required DateTime fecha,
       required String turno,
       required String planillero,
+      Value<int?> supabaseId,
     });
 typedef $$ReportesTableUpdateCompanionBuilder =
     ReportesCompanion Function({
@@ -2447,6 +2447,7 @@ typedef $$ReportesTableUpdateCompanionBuilder =
       Value<DateTime> fecha,
       Value<String> turno,
       Value<String> planillero,
+      Value<int?> supabaseId,
     });
 
 final class $$ReportesTableReferences
@@ -2498,6 +2499,11 @@ class $$ReportesTableFilterComposer
 
   ColumnFilters<String> get planillero => $composableBuilder(
     column: $table.planillero,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get supabaseId => $composableBuilder(
+    column: $table.supabaseId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2555,6 +2561,11 @@ class $$ReportesTableOrderingComposer
     column: $table.planillero,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get supabaseId => $composableBuilder(
+    column: $table.supabaseId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ReportesTableAnnotationComposer
@@ -2577,6 +2588,11 @@ class $$ReportesTableAnnotationComposer
 
   GeneratedColumn<String> get planillero => $composableBuilder(
     column: $table.planillero,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get supabaseId => $composableBuilder(
+    column: $table.supabaseId,
     builder: (column) => column,
   );
 
@@ -2638,11 +2654,13 @@ class $$ReportesTableTableManager
                 Value<DateTime> fecha = const Value.absent(),
                 Value<String> turno = const Value.absent(),
                 Value<String> planillero = const Value.absent(),
+                Value<int?> supabaseId = const Value.absent(),
               }) => ReportesCompanion(
                 id: id,
                 fecha: fecha,
                 turno: turno,
                 planillero: planillero,
+                supabaseId: supabaseId,
               ),
           createCompanionCallback:
               ({
@@ -2650,11 +2668,13 @@ class $$ReportesTableTableManager
                 required DateTime fecha,
                 required String turno,
                 required String planillero,
+                Value<int?> supabaseId = const Value.absent(),
               }) => ReportesCompanion.insert(
                 id: id,
                 fecha: fecha,
                 turno: turno,
                 planillero: planillero,
+                supabaseId: supabaseId,
               ),
           withReferenceMapper: (p0) => p0
               .map(

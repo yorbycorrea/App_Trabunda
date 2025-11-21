@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
 import 'dart:collection';
+
+import 'package:flutter/material.dart';
+
 import '../data/db.dart';
 import '../services/auth_service.dart';
 import 'report_detail_page.dart';
-import '../services/reportes_supabase_service.dart';
 
 /// 🔹 Lista referencia de áreas (puedes unificarla con la que ya usas)
 const List<String> kAreasOrdenadas = [
@@ -97,10 +98,10 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final user = auth.currentUser;
 
     if (user != null) {
-      // 👉 Siempre mostrar el nombre del usuario logueado
+      // Siempre mostrar el nombre completo del usuario logueado
       _planilleroCtrl.text = user.name;
 
-      // 👉 Pero solo auto-buscar si es planillero
+      // Solo auto-buscar si es planillero
       if (user.isPlanillero && !_autoFetchedForPlanillero) {
         _autoFetchedForPlanillero = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -129,6 +130,36 @@ class _ReportsListPageState extends State<ReportsListPage> {
       setState(() => _fecha = DateTime(picked.year, picked.month, picked.day));
     }
   }
+
+  Future<void> _pickTurno() async {
+    const opciones = ['Todos', 'Día', 'Noche'];
+
+    final seleccion = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return SimpleDialog(
+          title: const Text('Selecciona turno'),
+          children: opciones
+              .map(
+                (opt) => RadioListTile<String>(
+              title: Text(opt),
+              value: opt,
+              groupValue: _turno,
+              onChanged: (v) {
+                Navigator.pop(ctx, v);
+              },
+            ),
+          )
+              .toList(),
+        );
+      },
+    );
+
+    if (seleccion != null && mounted) {
+      setState(() => _turno = seleccion);
+    }
+  }
+
 
   void _openAreasSheet() {
     showModalBottomSheet(
@@ -160,7 +191,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
       final auth = AuthScope.read(context);
       final user = auth.currentUser;
 
-      // 👉 Siempre que haya usuario, volvemos a poner su nombre
+      // Siempre que haya usuario, volvemos a poner su nombre
       if (user != null) {
         _planilleroCtrl.text = user.name;
       } else {
@@ -171,18 +202,28 @@ class _ReportsListPageState extends State<ReportsListPage> {
     });
   }
 
-  Future<void> _fetchReports({bool forceRemoteSync = false}) async {
+  Future<void> _fetchReports() async {
     final auth = AuthScope.read(context);
     final user = auth.currentUser;
     final bool isPlanillero = user?.isPlanillero ?? false;
-    final String planilleroFilter = isPlanillero
-        ? user!.name
-        : _planilleroCtrl.text.trim();
+    final bool isAdmin = user?.isAdmin ?? false;
 
-    if (isPlanillero && user != null) {
-      _planilleroCtrl.text = user.name;
+    String planilleroFilter = '';
+    bool sendPlanilleroToQuery = false;
+
+    if (isPlanillero) {
+      // El propio planillero solo ve sus reportes
+      planilleroFilter = user!.name;
+      sendPlanilleroToQuery = true;
+    } else if (isAdmin) {
+      // Admin puede filtrar por cualquier planillero
+      planilleroFilter = _planilleroCtrl.text.trim();
+      sendPlanilleroToQuery = planilleroFilter.isNotEmpty;
+    } else {
+      // Otros roles (supervisor, etc.) NO filtran por planillero
+      planilleroFilter = '';
+      sendPlanilleroToQuery = false;
     }
-
 
     setState(() => _loading = true);
 
@@ -202,28 +243,13 @@ class _ReportsListPageState extends State<ReportsListPage> {
         );
       }
 
-      var shouldSyncRemotely = forceRemoteSync;
-      shouldSyncRemotely =
-          shouldSyncRemotely || !(await db.reportesDao.hasReportes());
-
-      if (shouldSyncRemotely && user != null) {
-        final remotos = await ReportesSupabaseService.instance.listarReportes(
-          userId: user.id,
-          fecha: _fecha,
-          turno: _turno == 'Todos' ? null : _turno,
-        );
-
-        if (remotos.isNotEmpty) {
-          await db.reportesDao.upsertReportesRemotos(remotos);
-        }
-      }
-
       final resultados = await db.reportesDao.fetchReportesFiltrados(
         fechaInicio: inicio,
         fechaFin: fin,
         areas: _areas.isEmpty ? null : _areas.toList(),
         turno: _turno == 'Todos' ? null : _turno,
-        planilleroQuery: planilleroFilter.isEmpty ? null : planilleroFilter,
+        planilleroQuery:
+        sendPlanilleroToQuery ? planilleroFilter : null,
       );
 
       if (!mounted) return;
@@ -282,8 +308,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
       if (mounted) {
         setState(() => _loading = false);
       }
-    } // 👈 cierra finally
-  } // 👈 cierra _fetchReports
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -294,35 +320,35 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final user = auth.currentUser;
     final bool isPlanillero = user?.isPlanillero ?? false;
     final bool isAdmin = user?.isAdmin ?? false;
-    final bool isSupervisorSaneamiento =
-        user?.isSupervisorSaneamiento ?? false;
+
+    // Rol visible del usuario (para mostrar "Saneamiento", "Planillero", etc.)
+    String? roleLabel;
+    if (user != null) {
+      if (user.isSupervisorSaneamiento) {
+        roleLabel = 'Saneamiento';
+      } else if (user.isPlanillero) {
+        roleLabel = 'Planillero';
+      } else if (user.isAdmin) {
+        roleLabel = 'Administrador';
+      } else {
+        roleLabel = user.role; // campo role del AppUser
+      }
+    }
+
+    final String userName = user?.name ?? '';
 
     final totalAreas = _items.fold<int>(0, (acc, e) => acc + e.totalAreas);
     final totalPersonal =
     _items.fold<int>(0, (acc, e) => acc + e.totalPersonal);
-    final totalKilos = _items.fold<double>(0, (acc, e) => acc + e.kilos);
-    final totalHoras = _items.fold<double>(0, (acc, e) => acc + e.totalHoras);
+    final totalKilos =
+    _items.fold<double>(0, (acc, e) => acc + e.kilos);
+    final totalHoras =
+    _items.fold<double>(0, (acc, e) => acc + e.totalHoras);
 
     final bool soloSaneamientoEnResultados = _items.isNotEmpty &&
-        _items.every((e) =>
-        e.areaNames.length == 1 && e.areaNames.first == 'Saneamiento');
-
-    // 👇 Texto y valor dinámico para la ficha marcada en tu captura
-    final String planilleroLabel =
-    isSupervisorSaneamiento ? 'Área' : 'Planillero';
-    final String planilleroValue = isSupervisorSaneamiento
-        ? 'Saneamiento'
-        : (_planilleroCtrl.text.trim().isEmpty
-        ? 'Buscar planillero'
-        : _planilleroCtrl.text.trim());
-    final IconData planilleroIcon =
-    isSupervisorSaneamiento ? Icons.apartment_rounded : Icons.badge_outlined;
-    final Color? planilleroBackground = isSupervisorSaneamiento
-        ? primaryColor
-        : (_planilleroCtrl.text.trim().isEmpty ? null : primaryColor);
-    final Color? planilleroForeground = isSupervisorSaneamiento
-        ? Colors.white
-        : (_planilleroCtrl.text.trim().isEmpty ? null : Colors.white);
+        _items.every(
+              (e) => e.areaNames.length == 1 && e.areaNames.first == 'Saneamiento',
+        );
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -334,7 +360,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
         centerTitle: false,
       ),
       body: RefreshIndicator(
-        onRefresh: () => _fetchReports(forceRemoteSync: true),
+        onRefresh: _fetchReports,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           children: [
@@ -371,38 +397,67 @@ class _ReportsListPageState extends State<ReportsListPage> {
                       const SizedBox(width: 12),
                       SizedBox(
                         width: 140,
-                        child: _TurnoPill(
+                        child: _FilterTile(
+                          // pequeño arriba (como en tu diseño antiguo no se veía la palabra “Turno”,
+                          // puedes dejarlo así o cambiarlo a 'Turno' si quieres)
+                          label: 'Turno',
+                          // grande: el valor actual (Todos / Día / Noche)
                           value: _turno,
-                          color: primaryColor,
-                          onChanged: (v) => setState(() => _turno = v),
+                          icon: Icons.access_time_rounded,
+                          background: primaryColor,
+                          foreground: Colors.white,
+                          onTap: _pickTurno,
                         ),
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 12),
-                  // 🔹 AQUÍ ES DONDE CAMBIA EL TEXTO SEGÚN EL ROL
-                  _FilterTile(
-                    label: planilleroLabel,
-                    value: planilleroValue,
-                    icon: planilleroIcon,
-                    background: planilleroBackground,
-                    foreground: planilleroForeground,
-                    onTap: isAdmin
-                        ? () async {
-                      await showDialog<void>(
-                        context: context,
-                        builder: (ctx) {
-                          return _PlanilleroDialog(
-                            controller: _planilleroCtrl,
-                            primaryColor: primaryColor,
-                          );
-                        },
-                      );
-                      if (mounted) setState(() {});
-                    }
-                        : null,
-                    enabled: isAdmin,
-                  ),
+
+                  // Admin: filtro planillero editable
+                  // Otros: pill que muestra ROL (etiqueta pequeña) y NOMBRE (texto grande)
+                  if (isAdmin)
+                    _FilterTile(
+                      label: 'Planillero',
+                      value: _planilleroCtrl.text.trim().isEmpty
+                          ? 'Buscar planillero'
+                          : _planilleroCtrl.text.trim(),
+                      icon: Icons.badge_outlined,
+                      background: _planilleroCtrl.text.trim().isEmpty
+                          ? null
+                          : primaryColor,
+                      foreground: _planilleroCtrl.text.trim().isEmpty
+                          ? null
+                          : Colors.white,
+                      onTap: () async {
+                        await showDialog<void>(
+                          context: context,
+                          builder: (ctx) {
+                            return _PlanilleroDialog(
+                              controller: _planilleroCtrl,
+                              primaryColor: primaryColor,
+                            );
+                          },
+                        );
+                        if (mounted) setState(() {});
+                      },
+                      enabled: true,
+                    )
+                  else
+                    _FilterTile(
+                      // 👇 Aquí va el ROL en pequeño (antes decía "Área")
+                      label: (roleLabel ?? '').isEmpty
+                          ? 'Sin rol'
+                          : roleLabel!,
+                      // 👇 Aquí va el NOMBRE completo del usuario (antes decía "Saneamiento")
+                      value: userName.isEmpty ? 'Sin nombre' : userName,
+                      icon: Icons.apartment_rounded,
+                      background: primaryColor,
+                      foreground: Colors.white,
+                      onTap: null,
+                      enabled: false,
+                    ),
+
                   if (isPlanillero)
                     const Padding(
                       padding: EdgeInsets.only(top: 6),
@@ -415,6 +470,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
                       ),
                     ),
                   const SizedBox(height: 12),
+
+                  // El supervisor de saneamiento NO debe cambiar áreas manualmente
                   if (!(user?.isSupervisorSaneamiento ?? false)) ...[
                     _FilterTile(
                       label: 'Áreas',
@@ -439,7 +496,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
                             (a) => Chip(
                           label: Text(a),
                           deleteIconColor: primaryColor,
-                          onDeleted: () => setState(() => _areas.remove(a)),
+                          onDeleted: () =>
+                              setState(() => _areas.remove(a)),
                         ),
                       )
                           .toList(),
@@ -452,7 +510,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: primaryColor,
-                            side: BorderSide(color: primaryColor),
+                            side: const BorderSide(color: primaryColor),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: _limpiar,
@@ -479,8 +537,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
               ),
             ),
 
-            // 💡 Mostrar resumen SOLO si hay items
-            // y NO es un listado exclusivo de Saneamiento
+            // Resumen si hay items y NO es solo saneamiento
             if (_items.isNotEmpty && !soloSaneamientoEnResultados) ...[
               const SizedBox(height: 16),
               Container(
@@ -495,7 +552,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
                   children: [
                     Text(
                       'Total áreas: $totalAreas',
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: primaryColor,
                         fontWeight: FontWeight.w700,
                       ),
@@ -503,7 +560,10 @@ class _ReportsListPageState extends State<ReportsListPage> {
                     const SizedBox(height: 4),
                     Text('Personal total: $totalPersonal'),
                     const SizedBox(height: 4),
-                    Text('Kilos totales: ${totalKilos.toStringAsFixed(3)}'),
+                    Text('Horas totales: ${totalHoras.toStringAsFixed(2)}'),
+                    const SizedBox(height: 4),
+                    Text(
+                        'Kilos totales: ${totalKilos.toStringAsFixed(3)}'),
                   ],
                 ),
               ),
@@ -527,9 +587,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ReportDetailPage(
-                          reporteId: r.reporteId,
-                        ),
+                        builder: (_) =>
+                            ReportDetailPage(reporteId: r.reporteId),
                       ),
                     );
                   },
@@ -596,6 +655,7 @@ class _ReportCard extends StatelessWidget {
   final ReportSummary data;
   final Color primaryColor;
   final VoidCallback onTap;
+
   const _ReportCard({
     required this.data,
     required this.primaryColor,
@@ -663,8 +723,8 @@ class _ReportCard extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: primaryColor,
                       borderRadius: BorderRadius.circular(14),
@@ -682,8 +742,9 @@ class _ReportCard extends StatelessWidget {
               const SizedBox(height: 12),
               _InfoRow(
                 icon: Icons.person_outline,
-                text:
-                data.planillero.isEmpty ? 'Sin planillero' : data.planillero,
+                text: data.planillero.isEmpty
+                    ? 'Sin planillero'
+                    : data.planillero,
               ),
               const SizedBox(height: 8),
               _InfoRow(
@@ -712,27 +773,14 @@ class _ReportCard extends StatelessWidget {
               if (isSoloSaneamiento)
                 _InfoRow(
                   icon: Icons.schedule_rounded,
-                  // 🔹 AHORA MUESTRA LA SUMA TOTAL DE HORAS, NO EL PROMEDIO
                   text: '${data.totalHoras.toStringAsFixed(2)} h',
                 )
               else
                 _InfoRow(
                   icon: Icons.scale_rounded,
-                  text: '${data.kilos.toStringAsFixed(3)} kg',
+                  text:
+                  '${data.kilos.toStringAsFixed(3)} kg (total)',
                 ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: primaryColor,
-                    side: BorderSide(color: primaryColor),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: onTap,
-                  child: const Text('Ver detalle'),
-                ),
-              ),
             ],
           ),
         ),
@@ -744,7 +792,11 @@ class _ReportCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String text;
-  const _InfoRow({required this.icon, required this.text});
+
+  const _InfoRow({
+    required this.icon,
+    required this.text,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -755,7 +807,10 @@ class _InfoRow extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(fontWeight: FontWeight.w500),
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black87,
+            ),
           ),
         ),
       ],
@@ -767,113 +822,65 @@ class _FilterTile extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  final VoidCallback? onTap;
   final Color? background;
   final Color? foreground;
+  final VoidCallback? onTap;
   final bool enabled;
+
   const _FilterTile({
     required this.label,
     required this.value,
     required this.icon,
-    required this.onTap,
     this.background,
     this.foreground,
+    this.onTap,
     this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bool clickable = enabled && onTap != null;
-    final bool highlighted = background != null;
-    final Color effectiveBackground = background ?? Colors.white;
-    final Color effectiveForeground =
-        foreground ?? (highlighted ? Colors.white : const Color(0xFF0E1F18));
-    final bool isHint = value.trim().isEmpty ||
-        value.toLowerCase().contains('selecciona') ||
-        value.toLowerCase().contains('buscar');
-    final Color labelColor = highlighted
-        ? (foreground ?? Colors.white).withOpacity(0.8)
-        : (clickable ? const Color(0xFF7A807D) : const Color(0xFF9BA29F));
-    final Color valueColor = highlighted
-        ? (foreground ?? Colors.white)
-        : isHint
-        ? const Color(0xFF9BA29F)
-        : (clickable ? effectiveForeground : const Color(0xFF5F6662));
+    final bg = background ?? const Color(0xFFE9EFEC);
+    final fg = foreground ?? const Color(0xFF234136);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: clickable ? onTap : null,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: effectiveBackground,
-            borderRadius: BorderRadius.circular(18),
-            border: highlighted
-                ? null
-                : Border.all(
-              color: clickable
-                  ? const Color(0xFFE1E5E3)
-                  : const Color(0xFFD5DAD7),
-            ),
-            boxShadow: highlighted
-                ? [
-              BoxShadow(
-                color: background!.withOpacity(0.25),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
-              ),
-            ]
-                : clickable
-                ? const [
-              BoxShadow(
-                color: Color(0x0F000000),
-                blurRadius: 10,
-                offset: Offset(0, 6),
-              ),
-            ]
-                : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: labelColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: fg),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    icon,
-                    size: 18,
-                    color: highlighted
-                        ? (foreground ?? Colors.white)
-                        : (clickable
-                        ? const Color(0xFF0E4B3B)
-                        : const Color(0xFF7D8A85)),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: fg.withOpacity(0.9),
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      value,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: valueColor,
-                      ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -884,6 +891,7 @@ class _TurnoPill extends StatelessWidget {
   final String value;
   final Color color;
   final ValueChanged<String> onChanged;
+
   const _TurnoPill({
     required this.value,
     required this.color,
@@ -892,42 +900,42 @@ class _TurnoPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      initialValue: value,
-      onSelected: onChanged,
-      padding: EdgeInsets.zero,
-      itemBuilder: (ctx) => const [
-        PopupMenuItem(value: 'Todos', child: Text('Todos')),
-        PopupMenuItem(value: 'Día', child: Text('Día')),
-        PopupMenuItem(value: 'Noche', child: Text('Noche')),
-      ],
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.25),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              value, // 👈 muestra el turno actual: Todos / Día / Noche
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+    final options = ['Todos', 'Día', 'Noche'];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9EFEC),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: options.map((opt) {
+          final bool selected = value == opt;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(opt),
+              child: Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                decoration: BoxDecoration(
+                  color: selected ? color : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  opt,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: selected ? Colors.white : const Color(0xFF234136),
+                    fontWeight:
+                    selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -936,6 +944,7 @@ class _TurnoPill extends StatelessWidget {
 class _PlanilleroDialog extends StatefulWidget {
   final TextEditingController controller;
   final Color primaryColor;
+
   const _PlanilleroDialog({
     required this.controller,
     required this.primaryColor,
@@ -946,7 +955,7 @@ class _PlanilleroDialog extends StatefulWidget {
 }
 
 class _PlanilleroDialogState extends State<_PlanilleroDialog> {
-  late final TextEditingController _tmpController;
+  late TextEditingController _tmpController;
 
   @override
   void initState() {
@@ -960,18 +969,21 @@ class _PlanilleroDialogState extends State<_PlanilleroDialog> {
     super.dispose();
   }
 
+  void _submit() {
+    widget.controller.text = _tmpController.text;
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text('Buscar planillero'),
       content: TextField(
         controller: _tmpController,
         decoration: const InputDecoration(
-          hintText: 'Nombre del planillero',
-          prefixIcon: Icon(Icons.search_rounded),
+          labelText: 'Nombre de planillero',
         ),
-        textInputAction: TextInputAction.done,
+        textInputAction: TextInputAction.search,
         onSubmitted: (_) => _submit(),
       ),
       actions: [
@@ -980,17 +992,14 @@ class _PlanilleroDialogState extends State<_PlanilleroDialog> {
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: widget.primaryColor),
           onPressed: _submit,
-          child: const Text('Aplicar'),
+          style: FilledButton.styleFrom(
+            backgroundColor: widget.primaryColor,
+          ),
+          child: const Text('Aceptar'),
         ),
       ],
     );
-  }
-
-  void _submit() {
-    widget.controller.text = _tmpController.text;
-    Navigator.pop(context);
   }
 }
 
@@ -998,6 +1007,7 @@ class _PlanilleroDialogState extends State<_PlanilleroDialog> {
 class _AreasPickerSheet extends StatefulWidget {
   final Set<String> seleccionadas;
   final ValueChanged<Set<String>> onConfirm;
+
   const _AreasPickerSheet({
     required this.seleccionadas,
     required this.onConfirm,
@@ -1026,7 +1036,11 @@ class _AreasPickerSheetState extends State<_AreasPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final filtered = kAreasOrdenadas
-        .where((a) => a.toLowerCase().contains(_qCtrl.text.trim().toLowerCase()))
+        .where(
+          (a) => a.toLowerCase().contains(
+        _qCtrl.text.trim().toLowerCase(),
+      ),
+    )
         .toList();
 
     return SafeArea(
@@ -1051,8 +1065,10 @@ class _AreasPickerSheetState extends State<_AreasPickerSheet> {
             ),
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('Selecciona áreas',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
+              child: Text(
+                'Selecciona áreas',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -1129,6 +1145,7 @@ class _AreasPickerSheetState extends State<_AreasPickerSheet> {
 /// Estado vacío cuando no hay resultados
 class _EmptyState extends StatelessWidget {
   final VoidCallback onTapBuscar;
+
   const _EmptyState({required this.onTapBuscar});
 
   @override
@@ -1140,14 +1157,21 @@ class _EmptyState extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 56),
         child: Column(
           children: [
-            const Icon(Icons.find_in_page_outlined,
-                size: 64, color: Colors.black38),
+            const Icon(
+              Icons.find_in_page_outlined,
+              size: 64,
+              color: Colors.black38,
+            ),
             const SizedBox(height: 12),
-            const Text('Sin resultados',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text(
+              'Sin resultados',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 4),
-            const Text('Ajusta los filtros y vuelve a intentarlo.',
-                style: TextStyle(color: Colors.black54)),
+            const Text(
+              'Ajusta los filtros y vuelve a intentarlo.',
+              style: TextStyle(color: Colors.black54),
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onTapBuscar,

@@ -270,11 +270,43 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
 
   // =====================================================
   // Flujo de UI para el botón Guardar:
+  // 0) Valida que haya al menos 1 persona
   // 1) Pregunta "¿Estás seguro?"
   // 2) Si SÍ → llama a _guardar()
   // 3) Si se guarda ok → muestra "Archivo guardado" y vuelve al menú principal
   // =====================================================
   Future<void> _onGuardarPressed() async {
+    // 0) VALIDACIÓN: no permitir guardar si no hay personal
+    if (_totalPersonal == 0) {
+      await showCupertinoDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return CupertinoAlertDialog(
+            title: const Text(
+              'Registro inválido',
+              textAlign: TextAlign.center,
+            ),
+            content: const Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: Text(
+                'Debes registrar al menos 1 persona en alguna área antes de guardar el reporte.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+            actions: [
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
     // 1) Diálogo de confirmación
     final bool? shouldSave = await showCupertinoDialog<bool>(
       context: context,
@@ -441,7 +473,8 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                             value: _turno,
                             items: const [
                               DropdownMenuItem(value: 'Día', child: Text('Día')),
-                              DropdownMenuItem(value: 'Noche', child: Text('Noche')),
+                              DropdownMenuItem(
+                                  value: 'Noche', child: Text('Noche')),
                             ],
                             decoration: const InputDecoration(
                               labelText: 'Turno',
@@ -612,7 +645,7 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16)),
           ),
-          onPressed: _onGuardarPressed, // 👈 ahora usa el flujo con diálogos
+          onPressed: _onGuardarPressed, // 👈 ahora usa el flujo con validación
           icon: const Icon(Icons.save_outlined),
           label: const Text('Guardar'),
         ),
@@ -708,9 +741,7 @@ class _AreaRowTile extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.arrow_forward_ios_rounded),
             onPressed: onDetalles,
-          )
-
-
+          ),
         ],
       ),
     );

@@ -105,6 +105,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         (area) => _AreaSection(
                       area: area,
                       reporte: detalle,
+                      // 👇 Usamos el id del reporte como id en Supabase.
+                      // Si tu tabla remota usa otro id, cámbialo aquí.
+                      supabaseReporteId: widget.reporteId,
                     ),
                   ),
               ],
@@ -290,10 +293,15 @@ class _AreaSection extends StatefulWidget {
   const _AreaSection({
     required this.area,
     required this.reporte,
+    required this.supabaseReporteId,
   });
 
   final ReporteAreaDetalle area;
   final ReporteDetalle reporte;
+
+  /// Id del reporte en Supabase (tabla `reportes`).
+  /// Si quieres que NO suba el PDF, pásale null.
+  final int? supabaseReporteId;
 
   @override
   State<_AreaSection> createState() => _AreaSectionState();
@@ -333,12 +341,16 @@ class _AreaSectionState extends State<_AreaSection> {
         result = await _pdfService.generateAreaReport(
           reporte: widget.reporte,
           area: widget.area,
+          // 👇 mandamos el id para subir a Supabase
+          supabaseReporteId: widget.supabaseReporteId,
         );
       } else if (name == 'recepción' || name == 'recepcion') {
         // Formato especial RECEPCIÓN
         result = await _pdfService.generateRecepcionReport(
           reporte: widget.reporte,
           area: widget.area,
+          // 👇 mandamos el id para subir a Supabase
+          supabaseReporteId: widget.supabaseReporteId,
         );
       } else {
         // Por si se llama desde un área sin formato
@@ -384,7 +396,6 @@ class _AreaSectionState extends State<_AreaSection> {
   }
 
   Future<void> _downloadSaneamientoReport(BuildContext context) async {
-    // Aquí luego puedes conectar con un formato PDF específico de Saneamiento.
     if (_isSaneamientoLoading) return;
 
     setState(() => _isSaneamientoLoading = true);
@@ -393,6 +404,8 @@ class _AreaSectionState extends State<_AreaSection> {
       final result = await _pdfService.generateSaneamientoReport(
         reporte: widget.reporte,
         area: widget.area,
+        // 👇 mandamos el id para subir el PDF a Supabase
+        supabaseReporteId: widget.supabaseReporteId,
       );
 
       await _pdfService.share(result);

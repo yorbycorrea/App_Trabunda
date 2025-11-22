@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../models/reporte_remoto.dart';
@@ -494,13 +495,25 @@ SELECT
   r.turno AS turno,
   r.planillero AS planillero,
   a.area_nombre AS area_nombre,
-  a.cantidad AS cantidad,
-  IFNULL(SUM(c.kilos), 0) AS kilos,
-  IFNULL(SUM(i.horas), 0) AS total_horas
+   CASE
+    WHEN a.cantidad > 0 THEN a.cantidad
+    ELSE IFNULL(i_sum.integrantes_count, 0)
+  END AS cantidad,
+  IFNULL(c_sum.kilos, 0) AS kilos,
+  IFNULL(i_sum.total_horas, 0) AS total_horas
 FROM reporte_areas a
 INNER JOIN reportes r ON r.id = a.reporte_id
-LEFT JOIN cuadrillas c ON c.reporte_area_id = a.id
-LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
+LEFT JOIN (
+  SELECT reporte_area_id, SUM(kilos) AS kilos
+  FROM cuadrillas
+  GROUP BY reporte_area_id
+) c_sum ON c_sum.reporte_area_id = a.id
+LEFT JOIN (
+  SELECT c.reporte_area_id, COUNT(i.id) AS integrantes_count, SUM(i.horas) AS total_horas
+  FROM integrantes i
+  INNER JOIN cuadrillas c ON c.id = i.cuadrilla_id
+  GROUP BY c.reporte_area_id
+) i_sum ON i_sum.reporte_area_id = a.id
 ''');
 
     final where = <String>[];
@@ -679,8 +692,24 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
       ) async {
     if (reportesRemotos.isEmpty) return;
 
+    String formatSample<T>(
+        List<T> items,
+        String Function(T) formatter,
+        {int maxItems = 3}) {
+      if (items.isEmpty) return '[]';
+      final take = items.take(maxItems).map(formatter).toList();
+      final suffix = items.length > maxItems
+          ? ' ... (+${items.length - maxItems} más)'
+          : '';
+      return '[${take.join('; ')}]$suffix';
+    }
+
     await transaction(() async {
       for (final remoto in reportesRemotos) {
+        debugPrint(
+          '[upsertReportesRemotos] Reporte ${remoto.id} con '
+              '${remoto.areas.length} áreas remotas recibidas.',
+        );
         // 1) Insertar/actualizar cabecera del reporte
         await into(reportes).insert(
           ReportesCompanion(
@@ -702,6 +731,10 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
               .get();
 
           if (existingAreas.isEmpty) {
+            debugPrint(
+              '[upsertReportesRemotos] Reporte ${remoto.id} sin áreas remotas. '
+                  'Creando área por defecto "Saneamiento".',
+            );
             // Creamos un área "Saneamiento" vacía para que el INNER JOIN devuelva algo
             await into(reporteAreas).insert(
               ReporteAreasCompanion.insert(
@@ -712,25 +745,35 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
             );
           }
 
-          // No hay más que procesar para este reporte
-          continue;
-        }
+          // No hay más que procesar áreas remotas para este reporte
+        } else {
+          // 3) Si SÍ vienen áreas, las sincronizamos normalmente
+          for (final area in remoto.areas) {
+            var integrantesArea = 0;
 
-        // 3) Si SÍ vienen áreas, las sincronizamos normalmente
-        for (final area in remoto.areas) {
-          var integrantesArea = 0;
+            debugPrint(
+              '[upsertReportesRemotos][Reporte ${remoto.id}] Área '
+                  '${area.areaNombre}: ${area.desglose.length} desgloses '
+                  '(${formatSample(area.desglose, (d) =>
+              '${d.categoria}:${d.personas}p/${d.kilos}kg')}) | '
+                  '${area.cuadrillas.length} cuadrillas '
+                  '(${formatSample(area.cuadrillas, (c) =>
+              '${c.nombre ?? 'Cuadrilla'}: ${c.integrantes.length} integrantes, '
+                  'kilos=${c.kilos ?? 0}')}).',
+            );
+          }
 
           final reporteAreaId = await into(reporteAreas).insert(
             ReporteAreasCompanion(
-              id: area.id != null ? Value(area.id!) : const Value.absent(),
-              reporteId: Value(area.reporteId ?? remoto.id),
-              areaNombre: Value(area.areaNombre),
-              cantidad: Value(area.cantidad ?? 0),
-              horaInicio: Value(area.horaInicio),
-              horaFin: Value(area.horaFin),
-            ),
-            mode: InsertMode.insertOrReplace,
-          );
+                id: area.id != null ? Value(area.id!) : const Value.absent(),
+                reporteId: Value(area.reporteId ?? remoto.id),
+                areaNombre: Value(area.areaNombre),
+                cantidad: Value(area.cantidad ?? 0),
+                horaInicio: Value(area.horaInicio),
+                horaFin: Value(area.horaFin),,
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
 
           final resolvedAreaId = area.id ?? reporteAreaId;
 
@@ -738,15 +781,25 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
           for (final desglose in area.desglose) {
             await into(reporteAreaDesgloses).insert(
               ReporteAreaDesglosesCompanion(
-                id: desglose.id != null
-                    ? Value(desglose.id!)
-                    : const Value.absent(),
-                reporteAreaId: Value(resolvedAreaId),
-                categoria: Value(desglose.categoria),
-                personas: Value(desglose.personas),
-                kilos: Value(desglose.kilos),
-              ),
-              mode: InsertMode.insertOrReplace,
+                  id: desglose.id != null
+                      ? Value(desglose.id!)
+                      : const Value.absent(),
+                  reporteAreaId: Value(resolvedAreaId),
+                  categoria: Value(desglose.categoria),
+                  personas: Value(desglose.personas),
+                  kilos: Value(desglose.kilos),
+                ),
+                mode: InsertMode.insertOrReplace,
+              );
+            }
+
+            // Integrantes de la cuadrilla
+          if (area.desglose.isNotEmpty) {
+            debugPrint(
+              '[upsertReportesRemotos][Reporte ${remoto.id}] Área '
+                  '${area.areaNombre}: insertados ${area.desglose.length} '
+                  'desgloses. Ejemplos: ${formatSample(area.desglose, (d) =>
+              '${d.categoria}:${d.personas}p/${d.kilos}kg')}',
             );
           }
 
@@ -756,17 +809,16 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
               CuadrillasCompanion(
                 id: cuadrilla.id != null
                     ? Value(cuadrilla.id!)
-                    : const Value.absent(),
+                      : const Value.absent(),
                 reporteAreaId:
                 Value(cuadrilla.reporteAreaId ?? resolvedAreaId),
                 nombre: Value(cuadrilla.nombre ?? 'Cuadrilla'),
                 horaInicio: Value(cuadrilla.horaInicio),
                 horaFin: Value(cuadrilla.horaFin),
                 kilos: Value(cuadrilla.kilos),
-              ),
-              mode: InsertMode.insertOrReplace,
-            );
-
+                ),
+                mode: InsertMode.insertOrReplace,
+              );
             final resolvedCuadrillaId = cuadrilla.id ?? cuadrillaId;
 
             // Desgloses por cuadrilla
@@ -782,6 +834,16 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
                   kilos: Value(desglose.kilos),
                 ),
                 mode: InsertMode.insertOrReplace,
+              );
+            }
+
+            if (cuadrilla.desglose.isNotEmpty) {
+              debugPrint(
+                '[upsertReportesRemotos][Reporte ${remoto.id}] Cuadrilla '
+                    '${cuadrilla.nombre ?? 'Cuadrilla'}: insertados '
+                    '${cuadrilla.desglose.length} desgloses. Ejemplos: '
+                    '${formatSample(cuadrilla.desglose, (d) =>
+                '${d.categoria}:${d.personas}p/${d.kilos}kg')}',
               );
             }
 
@@ -806,6 +868,28 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
                 mode: InsertMode.insertOrReplace,
               );
             }
+
+            if (cuadrilla.integrantes.isNotEmpty) {
+              debugPrint(
+                '[upsertReportesRemotos][Reporte ${remoto.id}] Cuadrilla '
+                    '${cuadrilla.nombre ?? 'Cuadrilla'}: insertados '
+                    '${cuadrilla.integrantes.length} integrantes. '
+                    'Ejemplos: ${formatSample(cuadrilla.integrantes, (i) =>
+                '${i.nombre ?? ''} (${i.code ?? ''}) '
+                    'horas=${i.horas ?? 0}')}',
+              );
+            }
+            }
+
+
+          if (area.cuadrillas.isNotEmpty) {
+            debugPrint(
+              '[upsertReportesRemotos][Reporte ${remoto.id}] Área '
+                  '${area.areaNombre}: insertadas ${area.cuadrillas.length} '
+                  'cuadrillas. Ejemplos: ${formatSample(area.cuadrillas, (c) =>
+              '${c.nombre ?? 'Cuadrilla'}: ${c.integrantes.length} integrantes, '
+                  'kilos=${c.kilos ?? 0}')}',
+            );
           }
 
           // Si la cantidad del área es 0 o null, la reemplazamos por el número de integrantes
@@ -818,7 +902,39 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
               ),
             );
           }
+
+          final cantidadRecibida = area.cantidad ?? 0;
+          final cantidadGuardada =
+          cantidadRecibida == 0 ? integrantesArea : cantidadRecibida;
+          debugPrint(
+            '[upsertReportesRemotos][Reporte ${remoto.id}] Área '
+                '${area.areaNombre}: cantidad recibida=$cantidadRecibida, '
+                'guardada=$cantidadGuardada (integrantes recalculados='
+                '$integrantesArea).',
+            );
+          }
         }
+
+      final detalleLocal = await fetchReporteDetalle(remoto.id);
+      if (detalleLocal != null) {
+        final totalAreas = detalleLocal.areas.length;
+        final totalPersonas = detalleLocal.totalPersonas;
+        final totalKilos = detalleLocal.totalKilos;
+        final totalHoras = detalleLocal.totalHoras;
+
+        debugPrint(
+          '[upsertReportesRemotos][Reporte ${remoto.id}] Resumen local → '
+              'áreas=$totalAreas, personas=$totalPersonas, '
+              'kilos=${totalKilos.toStringAsFixed(2)}, '
+              'horas=${totalHoras.toStringAsFixed(2)}. '
+              'Supabase envió áreas=${remoto.areas.length}.',
+        );
+      } else {
+        debugPrint(
+          '[upsertReportesRemotos][Reporte ${remoto.id}] No se pudo obtener '
+              'detalle local para el resumen.',
+        );
+      }
       }
     });
   }

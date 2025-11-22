@@ -87,10 +87,10 @@ class ReportesSupabaseService {
 
       final response = await query.order('fecha', ascending: false);
 
-      debugPrint('[Supabase] listarReportes → response crudo: $response');
+      debugPrint('[Supabase][OUT] listarReportes → response crudo: $response');
 
       if (response is! List) {
-        debugPrint('[Supabase] listarReportes → response no es List');
+        debugPrint('[Supabase][WARN] listarReportes → response no es List');
         return const [];
       }
 
@@ -106,12 +106,12 @@ class ReportesSupabaseService {
       return list;
     } on PostgrestException catch (e, st) {
       debugPrint(
-        '[Supabase] Error Postgrest al listar reportes: '
+        '[Supabase][ERROR] Error Postgrest al listar reportes: '
             '${e.message} (${e.code})\n$st',
       );
       rethrow;
     } catch (e, st) {
-      debugPrint('[Supabase] Error inesperado al listar reportes: $e\n$st');
+      debugPrint('[Supabase][ERROR] Error inesperado al listar reportes: $e\n$st');
       rethrow;
     }
   }
@@ -142,7 +142,7 @@ class ReportesSupabaseService {
           .single();
 
       final id = result['id'] as int?;
-      debugPrint('[Supabase] Reporte insertado con id=$id');
+      debugPrint('[Supabase][OUT] Reporte insertado con id=$id');
 
       if (id == null) {
         throw const FormatException('Respuesta sin id al insertar reporte');
@@ -151,12 +151,12 @@ class ReportesSupabaseService {
       return id;
     } on PostgrestException catch (e, st) {
       debugPrint(
-        '[Supabase] Error Postgrest al insertar reporte: '
+        '[Supabase][ERROR] Error Postgrest al insertar reporte: '
             '${e.message} (${e.code})\n$st',
       );
       rethrow;
     } catch (e, st) {
-      debugPrint('[Supabase] Error inesperado al insertar reporte: $e\n$st');
+      debugPrint('[Supabase][ERROR] Error inesperado al insertar reporte: $e\n$st');
       rethrow;
     }
   }
@@ -179,6 +179,18 @@ class ReportesSupabaseService {
     String? observaciones,
   }) async {
     try {
+      final cabeceraData = {
+        'fecha': reporte.fecha.toIso8601String(),
+        'turno': reporte.turno,
+        'planillero': reporte.planillero,
+        'user_id': userId,
+        'observaciones': observaciones,
+        'cantidad': reporte.totalPersonas,
+        'total_horas': reporte.totalHoras,
+        'total_kilos': reporte.totalKilos,
+      };
+
+      debugPrint('[Supabase][OUT] Cabecera → $cabeceraData');
       // 1) Cabecera
       final reporteId = await insertarReporte(
         fecha: reporte.fecha,
@@ -191,6 +203,18 @@ class ReportesSupabaseService {
 
       // 2) Áreas
       for (final area in reporte.areas) {
+        final areaCantidad = area.totalPersonas;
+        final areaData = {
+          'reporte_id': reporteId,
+          'area_nombre': area.nombre,
+          'cantidad': areaCantidad,
+          'hora_inicio': area.horaInicio,
+          'hora_fin': area.horaFin,
+          'kilos': area.totalKilos,
+          'horas': area.totalHoras,
+        };
+
+        debugPrint('[Supabase][OUT] Área → $areaData');
         final areaId = await _insertarReporteArea(
           reporteId: reporteId,
           area: area,
@@ -198,6 +222,17 @@ class ReportesSupabaseService {
 
         // 3) Cuadrillas de esa área
         for (final cuad in area.cuadrillas) {
+          final cuadrillaData = {
+            'reporte_area_id': areaId,
+            'nombre': cuad.nombre,
+            'hora_inicio': cuad.horaInicio,
+            'hora_fin': cuad.horaFin,
+            'kilos': cuad.kilos,
+            'horas': cuad.totalHoras,
+            'cantidad': cuad.totalIntegrantes,
+          };
+
+          debugPrint('[Supabase][OUT] Cuadrilla → $cuadrillaData');
           final cuadrillaId = await _insertarCuadrilla(
             reporteAreaId: areaId,
             cuadrilla: cuad,
@@ -205,6 +240,19 @@ class ReportesSupabaseService {
 
           // 4) Integrantes de la cuadrilla
           for (final integ in cuad.integrantes) {
+            final integranteData = {
+              'cuadrilla_id': cuadrillaId,
+              'code': integ.code,
+              'nombre': integ.nombre,
+              'hora_inicio': integ.horaInicio,
+              'hora_fin': integ.horaFin,
+              'horas': integ.horas ?? 0,
+              'labores': integ.labores,
+              'cantidad': 1,
+            };
+
+            debugPrint(
+              '[Supabase][OUT] enviarReporteCompletoDesdeLocal → OK (id=$reporteId)',);
             await _insertarIntegrante(
               cuadrillaId: cuadrillaId,
               integrante: integ,
@@ -219,7 +267,7 @@ class ReportesSupabaseService {
       return reporteId;
     } catch (e, st) {
       debugPrint(
-        '[Supabase] Error al enviar reporte completo: $e\n$st',
+        '[Supabase][ERROR] Error al enviar reporte completo: $e\n$st',
       );
       rethrow;
     }
@@ -235,19 +283,24 @@ class ReportesSupabaseService {
     required ReporteAreaDetalle area,
   }) async {
     try {
+      final cantidadIntegrantes = area.totalPersonas;
       final data = {
         'reporte_id': reporteId,
         'area_nombre': area.nombre,
-        'cantidad': area.cantidad,
+        'cantidad': cantidadIntegrantes,
         'hora_inicio': area.horaInicio,
         'hora_fin': area.horaFin,
       };
+      debugPrint('[Supabase][OUT] Insert reporte_areas payload → $data');
 
       final res = await _client
           .from('reporte_areas')
           .insert(data)
-          .select('id')
+          .select()
           .single();
+
+      debugPrint(
+          '[Supabase][IN ] Insert reporte_areas response → $res');
 
       final id = res['id'] as int?;
       if (id == null) {
@@ -257,18 +310,18 @@ class ReportesSupabaseService {
       }
 
       debugPrint(
-        '[Supabase] _insertarReporteArea → id=$id (${area.nombre})',
+        '[Supabase][OUT] _insertarReporteArea → id=$id (${area.nombre})',
       );
       return id;
     } on PostgrestException catch (e, st) {
       debugPrint(
-        '[Supabase] Error Postgrest al insertar reporte_areas: '
+        '[Supabase][ERROR] Error Postgrest al insertar reporte_areas: '
             '${e.message} (${e.code})\n$st',
       );
       rethrow;
     } catch (e, st) {
       debugPrint(
-        '[Supabase] Error inesperado al insertar reporte_areas: $e\n$st',
+        '[Supabase][ERROR] Error inesperado al insertar reporte_areas: $e\n$st',
       );
       rethrow;
     }
@@ -287,11 +340,15 @@ class ReportesSupabaseService {
         'kilos': cuadrilla.kilos,
       };
 
+      debugPrint('[Supabase][OUT] Insert cuadrillas payload → $data');
+
       final res = await _client
           .from('cuadrillas')
           .insert(data)
-          .select('id')
+          .select()
           .single();
+
+      debugPrint('[Supabase][IN ] Insert cuadrillas response → $res');
 
       final id = res['id'] as int?;
       if (id == null) {
@@ -300,19 +357,17 @@ class ReportesSupabaseService {
         );
       }
 
-      debugPrint(
-        '[Supabase] _insertarCuadrilla → id=$id (${cuadrilla.nombre})',
-      );
+      debugPrint('[Supabase][OUT] _insertarCuadrilla → id=$id (${cuadrilla.nombre})');
       return id;
     } on PostgrestException catch (e, st) {
       debugPrint(
-        '[Supabase] Error Postgrest al insertar cuadrilla: '
+        '[Supabase][ERROR] Error Postgrest al insertar cuadrilla: '
             '${e.message} (${e.code})\n$st',
       );
       rethrow;
     } catch (e, st) {
       debugPrint(
-        '[Supabase] Error inesperado al insertar cuadrilla: $e\n$st',
+        '[Supabase][ERROR] Error inesperado al insertar cuadrilla: $e\n$st',
       );
       rethrow;
     }
@@ -323,7 +378,7 @@ class ReportesSupabaseService {
     required IntegranteDetalle integrante,
   }) async {
     try {
-      await _client.from('integrantes').insert({
+      final data = {
         'cuadrilla_id': cuadrillaId,
         'code': integrante.code,
         'nombre': integrante.nombre,
@@ -331,20 +386,26 @@ class ReportesSupabaseService {
         'hora_fin': integrante.horaFin,
         'horas': integrante.horas ?? 0,
         'labores': integrante.labores,
-      });
+      };
+
+      debugPrint('[Supabase][OUT] Insert integrantes payload → $data');
+
+      final res = await _client.from('integrantes').insert(data).select().single();
+
+      debugPrint('[Supabase][IN ] Insert integrantes response → $res');
 
       debugPrint(
-        '[Supabase] _insertarIntegrante → ${integrante.nombre} (cuadrilla=$cuadrillaId)',
+        '[Supabase][OUT] _insertarIntegrante → ${integrante.nombre} (cuadrilla=$cuadrillaId)',
       );
     } on PostgrestException catch (e, st) {
       debugPrint(
-        '[Supabase] Error Postgrest al insertar integrante: '
+        '[Supabase][ERROR] Error Postgrest al insertar integrante: '
             '${e.message} (${e.code})\n$st',
       );
       rethrow;
     } catch (e, st) {
       debugPrint(
-        '[Supabase] Error inesperado al insertar integrante: $e\n$st',
+        '[Supabase][ERROR] Error inesperado al insertar integrante: $e\n$st',
       );
       rethrow;
     }

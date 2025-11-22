@@ -75,7 +75,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   /// Calcula la **suma** de horas de todos los integrantes del reporte.
   double _calcularHorasSaneamiento(ReporteDetalle detalle) {
     double totalHoras = 0;
-    for (final area in detalle.areas) {
+    final areasSaneamiento = detalle.areas.where(
+          (area) => area.nombre.toLowerCase().contains('saneamiento'),
+    );
+
+    for (final area in areasSaneamiento) {
       for (final c in area.cuadrillas) {
         for (final i in c.integrantes) {
           totalHoras += i.horas ?? 0;

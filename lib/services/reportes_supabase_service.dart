@@ -37,6 +37,12 @@ class ReportesSupabaseService {
           cantidad,
           hora_inicio,
           hora_fin,
+          reporte_area_desgloses (
+            id,
+            categoria,
+            personas,
+            kilos
+          ),
           cuadrillas (
             id,
             reporte_area_id,
@@ -44,6 +50,12 @@ class ReportesSupabaseService {
             hora_inicio,
             hora_fin,
             kilos,
+             cuadrilla_desgloses (
+              id,
+              categoria,
+              personas,
+              kilos
+            ),
             integrantes (
               id,
               cuadrilla_id,

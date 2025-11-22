@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../models/reporte_remoto.dart';
+
 part 'app_database.g.dart';
 
 /// =======================
@@ -125,14 +126,15 @@ class AppDatabase extends _$AppDatabase {
 /// =======================
 
 @DriftAccessor(
-    tables: [
-      Reportes,
-      ReporteAreas,
-      ReporteAreaDesgloses,
-      Cuadrillas,
-      CuadrillaDesgloses,
-      Integrantes
-    ])
+  tables: [
+    Reportes,
+    ReporteAreas,
+    ReporteAreaDesgloses,
+    Cuadrillas,
+    CuadrillaDesgloses,
+    Integrantes
+  ],
+)
 class ReportesDao extends DatabaseAccessor<AppDatabase>
     with _$ReportesDaoMixin {
   ReportesDao(AppDatabase db) : super(db);
@@ -149,7 +151,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     return false;
   }
 
-
   /// Obtiene o crea un reporte (borrador) por fecha+turno+planillero.
   Future<int> getOrCreateReporte({
     required DateTime fecha,
@@ -157,10 +158,12 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     required String planillero,
   }) async {
     final row = await (select(reportes)
-      ..where((t) =>
-      t.fecha.equals(fecha) &
-      t.turno.equals(turno) &
-      t.planillero.equals(planillero)))
+      ..where(
+            (t) =>
+        t.fecha.equals(fecha) &
+        t.turno.equals(turno) &
+        t.planillero.equals(planillero),
+      ))
         .getSingleOrNull();
 
     if (row != null) return row.id;
@@ -205,13 +208,13 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     return row?.supabaseId;
   }
 
-
   /// Crea un reporte y sus áreas (solo cabecera y cantidades).
   Future<int> createReporte({
     required DateTime fecha,
     required String turno,
     required String planillero,
-    required List<Map<String, dynamic>> areas, // [{area:'Fileteros', cantidad:3}, ...]
+    required List<Map<String, dynamic>>
+    areas, // [{area:'Fileteros', cantidad:3}, ...]
   }) async {
     return transaction(() async {
       final repId = await into(reportes).insert(
@@ -242,9 +245,11 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   /// Devuelve o crea (si no existe) el ID de ReporteArea por nombre.
   Future<int> getOrCreateReporteAreaId(int reporteId, String areaNombre) async {
     final q = await (select(reporteAreas)
-      ..where((t) =>
-      t.reporteId.equals(reporteId) &
-      t.areaNombre.equals(areaNombre)))
+      ..where(
+            (t) =>
+        t.reporteId.equals(reporteId) &
+        t.areaNombre.equals(areaNombre),
+      ))
         .getSingleOrNull();
     if (q != null) return q.id;
 
@@ -373,7 +378,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         ..where((c) => c.reporteAreaId.equals(reporteAreaId)))
           .get();
 
-
       int cuadrillaId;
 
       if (existing.isEmpty) {
@@ -415,12 +419,10 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
             nombre: name,
             horaInicio: Value(hi),
             horaFin: Value(hf),
-            horas: Value(
-              hs is num ? hs.toDouble() : null),
+            horas: Value(hs is num ? hs.toDouble() : null),
             labores: Value(labores.isEmpty ? null : labores),
           ),
         );
-
       }
     });
 
@@ -438,9 +440,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         cantidad: Value(personasValidas),
       ),
     );
-
   }
-
 
   Future<void> replaceIntegrantes({
     required int cuadrillaId,
@@ -478,6 +478,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
 
     return res.length;
   }
+
   Future<List<ReporteAreaResumen>> fetchReportesFiltrados({
     DateTime? fechaInicio,
     DateTime? fechaFin,
@@ -560,7 +561,6 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
     )
         .toList();
   }
-
 
   Future<ReporteDetalle?> fetchReporteDetalle(int reporteId) async {
     final reporteRow =
@@ -646,7 +646,8 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
             (sum, c) => sum + c.kilos,
       );
       if (totalKilos == 0 && areaDesglose.isNotEmpty) {
-        totalKilos = areaDesglose.fold<double>(0, (sum, d) => sum + d.kilos);
+        totalKilos =
+            areaDesglose.fold<double>(0, (sum, d) => sum + d.kilos);
       }
 
       areas.add(
@@ -717,12 +718,14 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
 
         // 3) Si SÍ vienen áreas, las sincronizamos normalmente
         for (final area in remoto.areas) {
+          var integrantesArea = 0;
+
           final reporteAreaId = await into(reporteAreas).insert(
             ReporteAreasCompanion(
               id: area.id != null ? Value(area.id!) : const Value.absent(),
               reporteId: Value(area.reporteId ?? remoto.id),
               areaNombre: Value(area.areaNombre),
-              cantidad: Value(area.cantidad),
+              cantidad: Value(area.cantidad ?? 0),
               horaInicio: Value(area.horaInicio),
               horaFin: Value(area.horaFin),
             ),
@@ -731,8 +734,23 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
 
           final resolvedAreaId = area.id ?? reporteAreaId;
 
+          // Desgloses por área
+          for (final desglose in area.desglose) {
+            await into(reporteAreaDesgloses).insert(
+              ReporteAreaDesglosesCompanion(
+                id: desglose.id != null
+                    ? Value(desglose.id!)
+                    : const Value.absent(),
+                reporteAreaId: Value(resolvedAreaId),
+                categoria: Value(desglose.categoria),
+                personas: Value(desglose.personas),
+                kilos: Value(desglose.kilos),
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
+          }
 
-
+          // Cuadrillas del área
           for (final cuadrilla in area.cuadrillas) {
             final cuadrillaId = await into(cuadrillas).insert(
               CuadrillasCompanion(
@@ -750,6 +768,25 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
             );
 
             final resolvedCuadrillaId = cuadrilla.id ?? cuadrillaId;
+
+            // Desgloses por cuadrilla
+            for (final desglose in cuadrilla.desglose) {
+              await into(cuadrillaDesgloses).insert(
+                CuadrillaDesglosesCompanion(
+                  id: desglose.id != null
+                      ? Value(desglose.id!)
+                      : const Value.absent(),
+                  cuadrillaId: Value(resolvedCuadrillaId),
+                  categoria: Value(desglose.categoria),
+                  personas: Value(desglose.personas),
+                  kilos: Value(desglose.kilos),
+                ),
+                mode: InsertMode.insertOrReplace,
+              );
+            }
+
+            // Integrantes de la cuadrilla
+            integrantesArea += cuadrilla.integrantes.length;
 
             for (final integrante in cuadrilla.integrantes) {
               await into(integrantes).insert(
@@ -770,11 +807,21 @@ LEFT JOIN integrantes i ON i.cuadrilla_id = c.id
               );
             }
           }
+
+          // Si la cantidad del área es 0 o null, la reemplazamos por el número de integrantes
+          if ((area.cantidad ?? 0) == 0) {
+            await (update(reporteAreas)
+              ..where((t) => t.id.equals(resolvedAreaId)))
+                .write(
+              ReporteAreasCompanion(
+                cantidad: Value(integrantesArea),
+              ),
+            );
+          }
         }
       }
     });
   }
-
 }
 
 /// =======================
@@ -804,6 +851,7 @@ class ReporteAreaResumen {
     required this.totalHoras,
   });
 }
+
 class ReporteDetalle {
   final int id;
   final DateTime fecha;
@@ -821,14 +869,12 @@ class ReporteDetalle {
     this.supabaseId,
   });
 
-  // 👉 ahora usamos el totalPersonas de cada área
   int get totalPersonas =>
       areas.fold(0, (sum, area) => sum + area.totalPersonas);
 
   double get totalKilos =>
       areas.fold(0, (sum, area) => sum + area.totalKilos);
 
-  // 👉 nuevo: total de horas del reporte
   double get totalHoras =>
       areas.fold(0, (sum, area) => sum + area.totalHoras);
 }
@@ -857,11 +903,9 @@ class ReporteAreaDetalle {
   int get totalIntegrantes =>
       cuadrillas.fold(0, (sum, c) => sum + c.totalIntegrantes);
 
-  /// 👉 Si la columna cantidad es 0, usamos los integrantes reales.
   int get totalPersonas =>
       cantidad != 0 ? cantidad : totalIntegrantes;
 
-  /// 👉 horas totales del área
   double get totalHoras =>
       cuadrillas.fold(0, (sum, c) => sum + c.totalHoras);
 }
@@ -887,16 +931,13 @@ class CuadrillaDetalle {
 
   int get totalIntegrantes => integrantes.length;
 
-  /// 👉 horas totales de la cuadrilla
   double get totalHoras =>
       integrantes.fold(0, (sum, it) => sum + (it.horas ?? 0));
 }
 
-
 class IntegranteDetalle {
   final int id;
   final String nombre;
-
   final String? code;
   final String? horaInicio;
   final String? horaFin;
@@ -905,7 +946,6 @@ class IntegranteDetalle {
 
   const IntegranteDetalle({
     required this.id,
-
     required this.code,
     required this.nombre,
     this.horaInicio,

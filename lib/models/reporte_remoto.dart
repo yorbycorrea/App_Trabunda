@@ -28,13 +28,12 @@ class ReporteRemoto {
       throw ArgumentError('Fecha inválida en reporte remoto');
     }
 
-    final areasData = map['reporte_areas'];
-    final List<ReporteAreaRemoto> areas = areasData is List
-        ? areasData
+    final List<dynamic> areasRaw =
+        (map['reporte_areas'] as List<dynamic>?) ?? const [];
+    final List<ReporteAreaRemoto> areas = areasRaw
         .whereType<Map<String, dynamic>>()
         .map(ReporteAreaRemoto.fromMap)
-        .toList()
-        : const [];
+        .toList();
 
     return ReporteRemoto(
       id: map['id'] as int,
@@ -56,11 +55,13 @@ class ReporteAreaRemoto {
   final String? horaInicio;
   final String? horaFin;
   final List<CuadrillaRemota> cuadrillas;
+  final List<CategoriaDesgloseRemoto> desglose;
 
   ReporteAreaRemoto({
     required this.areaNombre,
     required this.cantidad,
     required this.cuadrillas,
+    this.desglose = const [],
     this.id,
     this.reporteId,
     this.horaInicio,
@@ -68,25 +69,30 @@ class ReporteAreaRemoto {
   });
 
   factory ReporteAreaRemoto.fromMap(Map<String, dynamic> map) {
-    final cuadrillasData = map['cuadrillas'];
-    final cuadrillas = cuadrillasData is List
-        ? cuadrillasData
+    final List<dynamic> cuadrillasRaw =
+        (map['cuadrillas'] as List<dynamic>?) ?? const [];
+    final List<CuadrillaRemota> cuadrillas = cuadrillasRaw
         .whereType<Map<String, dynamic>>()
         .map(CuadrillaRemota.fromMap)
-        .toList()
-        : const [];
+        .toList();
+
+    final List<dynamic> desgloseRaw =
+        (map['reporte_area_desgloses'] as List<dynamic>?) ?? const [];
+    final List<CategoriaDesgloseRemoto> desglose = desgloseRaw
+        .whereType<Map<String, dynamic>>()
+        .map(CategoriaDesgloseRemoto.fromMap)
+        .toList();
 
     return ReporteAreaRemoto(
       id: map['id'] as int?,
       reporteId: map['reporte_id'] as int?,
       areaNombre: (map['area_nombre'] ?? '').toString(),
-      cantidad: (map['cantidad'] is num) ? (map['cantidad'] as num).toInt() : 0,
+      cantidad:
+      (map['cantidad'] is num) ? (map['cantidad'] as num).toInt() : 0,
       horaInicio: map['hora_inicio'] as String?,
       horaFin: map['hora_fin'] as String?,
-      cuadrillas: (map['cuadrillas'] as List<dynamic>? ?? [])
-          .map((e) => CuadrillaRemota.fromMap(e as Map<String, dynamic>))
-          .toList(),
-
+      desglose: desglose,
+      cuadrillas: cuadrillas,
     );
   }
 }
@@ -98,10 +104,12 @@ class CuadrillaRemota {
   final String? horaInicio;
   final String? horaFin;
   final double? kilos;
+  final List<CategoriaDesgloseRemoto> desglose;
   final List<IntegranteRemoto> integrantes;
 
   CuadrillaRemota({
     required this.integrantes,
+    this.desglose = const [],
     this.id,
     this.reporteAreaId,
     this.nombre,
@@ -111,13 +119,19 @@ class CuadrillaRemota {
   });
 
   factory CuadrillaRemota.fromMap(Map<String, dynamic> map) {
-    final integrantesData = map['integrantes'];
-    final integrantes = integrantesData is List
-        ? integrantesData
+    final List<dynamic> integrantesRaw =
+        (map['integrantes'] as List<dynamic>?) ?? const [];
+    final List<IntegranteRemoto> integrantes = integrantesRaw
         .whereType<Map<String, dynamic>>()
         .map(IntegranteRemoto.fromMap)
-        .toList()
-        : const [];
+        .toList();
+
+    final List<dynamic> desgloseRaw =
+        (map['cuadrilla_desgloses'] as List<dynamic>?) ?? const [];
+    final List<CategoriaDesgloseRemoto> desglose = desgloseRaw
+        .whereType<Map<String, dynamic>>()
+        .map(CategoriaDesgloseRemoto.fromMap)
+        .toList();
 
     final kilosValue = map['kilos'];
 
@@ -128,10 +142,8 @@ class CuadrillaRemota {
       horaInicio: map['hora_inicio'] as String?,
       horaFin: map['hora_fin'] as String?,
       kilos: kilosValue is num ? kilosValue.toDouble() : null,
-      integrantes: (map['integrantes'] as List<dynamic>? ?? [])
-          .map((e) => IntegranteRemoto.fromMap(e as Map<String, dynamic>))
-          .toList(),
-
+      desglose: desglose,
+      integrantes: integrantes,
     );
   }
 }
@@ -168,6 +180,31 @@ class IntegranteRemoto {
       horaFin: map['hora_fin'] as String?,
       horas: horasVal is num ? horasVal.toDouble() : null,
       labores: map['labores'] as String?,
+    );
+  }
+}
+
+class CategoriaDesgloseRemoto {
+  final int? id;
+  final String categoria;
+  final int personas;
+  final double kilos;
+
+  const CategoriaDesgloseRemoto({
+    required this.categoria,
+    this.id,
+    this.personas = 0,
+    this.kilos = 0,
+  });
+
+  factory CategoriaDesgloseRemoto.fromMap(Map<String, dynamic> map) {
+    final kilosVal = map['kilos'];
+    return CategoriaDesgloseRemoto(
+      id: map['id'] as int?,
+      categoria: (map['categoria'] ?? '').toString(),
+      personas:
+      (map['personas'] is num) ? (map['personas'] as num).toInt() : 0,
+      kilos: kilosVal is num ? kilosVal.toDouble() : 0,
     );
   }
 }

@@ -26,16 +26,21 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     _future = db.reportesDao.fetchReporteDetalle(widget.reporteId);
 
     () async {
-      final detalle = await db.reportesDao.fetchReporteDetalle(widget.reporteId);
+      final detalle =
+          await db.reportesDao.fetchReporteDetalle(widget.reporteId);
 
       debugPrint('--------- DEBUG SANEAMIENTO ---------');
-      debugPrint('Áreas locales para reporte ${widget.reporteId}: ${detalle?.areas.length}');
+      debugPrint(
+          'Áreas locales para reporte ${widget.reporteId}: ${detalle?.areas.length}');
       for (final a in detalle?.areas ?? []) {
-        debugPrint('Area: ${a.nombre}, cantidad: ${a.cantidad}, integrantes: ${a.totalIntegrantes}');
+        debugPrint(
+            'Area: ${a.nombre}, cantidad: ${a.cantidad}, integrantes: ${a.totalIntegrantes}');
         for (final c in a.cuadrillas) {
-          debugPrint('  Cuadrilla ${c.nombre}, integrantes: ${c.integrantes.length}');
+          debugPrint(
+              '  Cuadrilla ${c.nombre}, integrantes: ${c.integrantes.length}');
           for (final i in c.integrantes) {
-            debugPrint('    -> ${i.nombre}, horas=${i.horas}, inicio=${i.horaInicio}, fin=${i.horaFin}');
+            debugPrint(
+                '    -> ${i.nombre}, horas=${i.horas}, inicio=${i.horaInicio}, fin=${i.horaFin}');
           }
         }
       }
@@ -43,18 +48,22 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     }();
   }
 
-
   Future<void> _reload() async {
-    final detalle = await db.reportesDao.fetchReporteDetalle(widget.reporteId);
+    final detalle =
+    await db.reportesDao.fetchReporteDetalle(widget.reporteId);
 
     debugPrint('--------- DEBUG SANEAMIENTO ---------');
-    debugPrint('Áreas locales para reporte ${widget.reporteId}: ${detalle?.areas.length}');
+    debugPrint(
+        'Áreas locales para reporte ${widget.reporteId}: ${detalle?.areas.length}');
     for (final a in detalle?.areas ?? []) {
-      debugPrint('Area: ${a.nombre}, cantidad: ${a.cantidad}, integrantes: ${a.totalIntegrantes}');
+      debugPrint(
+          'Area: ${a.nombre}, cantidad: ${a.cantidad}, integrantes: ${a.totalIntegrantes}');
       for (final c in a.cuadrillas) {
-        debugPrint('  Cuadrilla ${c.nombre}, integrantes: ${c.integrantes.length}');
+        debugPrint(
+            '  Cuadrilla ${c.nombre}, integrantes: ${c.integrantes.length}');
         for (final i in c.integrantes) {
-          debugPrint('    -> ${i.nombre}, horas=${i.horas}, inicio=${i.horaInicio}, fin=${i.horaFin}');
+          debugPrint(
+              '    -> ${i.nombre}, horas=${i.horas}, inicio=${i.horaInicio}, fin=${i.horaFin}');
         }
       }
     }

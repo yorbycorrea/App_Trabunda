@@ -676,13 +676,17 @@ LEFT JOIN (
         ),
       );
     }
+    // 🔹 Eliminar áreas "fantasma": sin personas y sin horas
+    final nonEmptyAreas = areas.where((a) {
+      return a.totalPersonas > 0 || a.totalHoras > 0;
+    }).toList();
 
     return ReporteDetalle(
       id: reporteRow.id,
       fecha: reporteRow.fecha,
       turno: reporteRow.turno,
       planillero: reporteRow.planillero,
-      areas: areas,
+      areas: nonEmptyAreas,
       supabaseId: reporteRow.supabaseId,
     );
   }

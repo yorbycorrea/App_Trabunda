@@ -204,6 +204,13 @@ class AuthScope extends InheritedWidget {
     required super.child,
   });
 
+  // --------- Getters cortos que te ayudan en el resto de la app ----------
+  // -------- Getters cortos que te ayudan en el resto de la app ----------
+  String? get currentUserId   => service.currentUser?.id;
+  String? get currentUserName => service.currentUser?.name;
+  String? get currentUserRole => service.currentUser?.role;
+
+
   static AuthService watch(BuildContext context) {
     final scope =
     context.dependOnInheritedWidgetOfExactType<AuthScope>();

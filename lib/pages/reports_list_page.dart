@@ -271,6 +271,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
           .toList()
           : resultados;
 
+      // ====== AGRUPAR POR REPORTE (igual que antes) ======
       final Map<int, _AggregatedReport> aggregated = {};
       for (final row in filtered) {
         final group = aggregated.putIfAbsent(
@@ -288,23 +289,52 @@ class _ReportsListPageState extends State<ReportsListPage> {
         group.areaNames.add(row.areaNombre);
       }
 
+      // Convertimos a ReportSummary
+      final summaries = aggregated.values
+          .map(
+            (g) => ReportSummary(
+          reporteId: g.reporteId,
+          fecha: g.fecha,
+          turno: g.turno,
+          totalPersonal: g.totalPersonal,
+          kilos: g.totalKilos,
+          totalHoras: g.totalHoras,
+          planillero: g.planillero,
+          areaNames: List<String>.unmodifiable(g.areaNames),
+        ),
+      )
+          .toList();
+
+      // 3) 🔍 FILTRAR SOLO REPORTES VACÍOS (0 personas, 0 horas, 0 kilos)
+      final nonEmptySummaries = summaries.where((s) {
+        final esVacio =
+            s.totalPersonal == 0 && s.totalHoras == 0 && s.kilos == 0;
+        return !esVacio;
+      }).toList();
+
+      // 4) 🧹 QUITAR SOLO DUPLICADOS EXACTOS
+      //    (mismo reporteId, fecha, turno, planillero, personas, horas, kilos y áreas)
+      final Map<String, ReportSummary> unique = {};
+      for (final s in nonEmptySummaries) {
+        final key = [
+          s.reporteId,
+          s.fecha.millisecondsSinceEpoch,
+          s.turno,
+          s.planillero,
+          s.totalPersonal,
+          s.totalHoras.toStringAsFixed(2),
+          s.kilos.toStringAsFixed(3),
+          s.areaNames.join('|'),
+        ].join('::');
+
+        // Si ya existe un registro EXACTAMENTE igual, lo ignoramos
+        unique.putIfAbsent(key, () => s);
+      }
+
       setState(() {
         _items
           ..clear()
-          ..addAll(
-            aggregated.values.map(
-                  (g) => ReportSummary(
-                reporteId: g.reporteId,
-                fecha: g.fecha,
-                turno: g.turno,
-                totalPersonal: g.totalPersonal,
-                kilos: g.totalKilos,
-                totalHoras: g.totalHoras,
-                planillero: g.planillero,
-                areaNames: List<String>.unmodifiable(g.areaNames),
-              ),
-            ),
-          );
+          ..addAll(unique.values);
       });
     } catch (e, st) {
       debugPrint('[ReportsListPage] Error en _fetchReports: $e\n$st');
@@ -319,7 +349,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     const primaryColor = _kPrimaryColor;
@@ -331,9 +360,11 @@ class _ReportsListPageState extends State<ReportsListPage> {
     final bool isAdmin = user?.isAdmin ?? false;
     final bool isSupervisorSaneamiento =
         user?.isSupervisorSaneamiento ?? false;
-    final bool canEditPlanillero = isAdmin || isSupervisorSaneamiento;
 
-    // Rol visible del usuario (para mostrar "Saneamiento", "Planillero", etc.)
+    // Solo el admin puede editar/buscar planillero
+    final bool canEditPlanillero = isAdmin;
+
+    // Rol visible del usuario
     String? roleLabel;
     if (user != null) {
       if (user.isSupervisorSaneamiento) {
@@ -343,7 +374,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
       } else if (user.isAdmin) {
         roleLabel = 'Administrador';
       } else {
-        roleLabel = user.role; // campo role del AppUser
+        roleLabel = user.role;
       }
     }
 
@@ -424,8 +455,10 @@ class _ReportsListPageState extends State<ReportsListPage> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Admin / supervisor: filtro planillero editable
-                  // Otros: pill con ROL + NOMBRE
+                  // Planillero:
+                  // - Admin: puede buscar (editable)
+                  // - Planillero y Supervisor Saneamiento: bloqueado con candado
+                  // - Otros roles: pill con su rol, también sin interacción
                   if (canEditPlanillero)
                     _FilterTile(
                       label: 'Planillero',
@@ -452,6 +485,18 @@ class _ReportsListPageState extends State<ReportsListPage> {
                         if (mounted) setState(() {});
                       },
                       enabled: true,
+                    )
+                  else if (isPlanillero || isSupervisorSaneamiento)
+                    _FilterTile(
+                      label: 'Planillero',
+                      value: userName.isEmpty ? 'Sin nombre' : userName,
+                      icon: Icons.badge_outlined,
+                      background: primaryColor,
+                      foreground: Colors.white,
+                      onTap: null,
+                      enabled: false,
+                      trailingIcon: Icons.lock_outline,
+                      trailingColor: Colors.white,
                     )
                   else
                     _FilterTile(
@@ -832,6 +877,8 @@ class _FilterTile extends StatelessWidget {
   final Color? foreground;
   final VoidCallback? onTap;
   final bool enabled;
+  final IconData? trailingIcon;
+  final Color? trailingColor;
 
   const _FilterTile({
     required this.label,
@@ -841,6 +888,8 @@ class _FilterTile extends StatelessWidget {
     this.foreground,
     this.onTap,
     this.enabled = true,
+    this.trailingIcon,
+    this.trailingColor,
   });
 
   @override
@@ -886,6 +935,14 @@ class _FilterTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (trailingIcon != null) ...[
+              const SizedBox(width: 8),
+              Icon(
+                trailingIcon,
+                size: 18,
+                color: trailingColor ?? fg,
+              ),
+            ],
           ],
         ),
       ),
@@ -922,8 +979,8 @@ class _TurnoPill extends StatelessWidget {
             child: GestureDetector(
               onTap: () => onChanged(opt),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 6, vertical: 6),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                 decoration: BoxDecoration(
                   color: selected ? color : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
@@ -936,9 +993,8 @@ class _TurnoPill extends StatelessWidget {
                     color: selected
                         ? Colors.white
                         : const Color(0xFF234136),
-                    fontWeight: selected
-                        ? FontWeight.w700
-                        : FontWeight.w500,
+                    fontWeight:
+                    selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
               ),

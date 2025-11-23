@@ -46,29 +46,47 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _submit() async {
+    // 1. Validar formulario
     if (!_formKey.currentState!.validate()) return;
 
     FocusScope.of(context).unfocus();
     final auth = AuthScope.read(context);
 
+    // 2. Activar loading y limpiar mensaje de error
     setState(() {
       _bannerError = null;
       _loading = true;
     });
 
-    final success = await auth.login(_email.text, _pass.text);
+    try {
+      // 3. Intentar login. Se asume que devuelve bool.
+      final success = await auth.login(_email.text.trim(), _pass.text.trim());
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (success) {
-      setState(() => _loading = false);
-      Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
-    } else {
+      if (success == true) {
+        // Login correcto → navegar a home
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+      } else {
+        // Credenciales incorrectas
+        setState(() {
+          _bannerError =
+          'Credenciales incorrectas. Verifica tu correo y contraseña.';
+        });
+      }
+    } catch (e) {
+      // 4. Error inesperado (red, servidor, etc.)
+      if (!mounted) return;
       setState(() {
-        _loading = false;
-        _bannerError =
-        'Credenciales incorrectas. Verifica tu correo y contraseña.';
+        _bannerError = 'No se pudo iniciar sesión. Intenta nuevamente.';
       });
+    } finally {
+      // 5. Siempre apagamos el loading
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 

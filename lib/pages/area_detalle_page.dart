@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import 'cuadrilla_config_page.dart';
 import '../data/db.dart';
@@ -301,10 +302,9 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
       }
 
       // Para áreas normales: cuenta 1 solo si hay algo escrito
-      final tieneDatosIndividual =
-          _codigoCtrl.text.trim().isNotEmpty ||
-              _nombreCtrl.text.trim().isNotEmpty ||
-              _kilosIndividualCtrl.text.trim().isNotEmpty;
+      final tieneDatosIndividual = _codigoCtrl.text.trim().isNotEmpty ||
+          _nombreCtrl.text.trim().isNotEmpty ||
+          _kilosIndividualCtrl.text.trim().isNotEmpty;
 
       return tieneDatosIndividual ? 1 : 0;
     }
@@ -404,9 +404,82 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
     };
   }
 
+  // ===== Validación de códigos de saneamiento (5–8 dígitos numéricos)
+  //       + horas obligatorias por trabajador =====
+  bool _validarCodigosSaneamiento() {
+    // Solo aplica en área Saneamiento, modo individual
+    if (!_isSaneamiento || _modo != ModoTrabajo.individual) {
+      return true;
+    }
+
+    for (final t in _saneamientoTrabajadores) {
+      if (!t.hasData) continue; // filas vacías se ignoran
+
+      final code = t.codigoCtrl.text.trim();
+
+      // Debe existir código si la fila tiene datos
+      if (code.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cada trabajador debe tener un código.'),
+          ),
+        );
+        return false;
+      }
+
+      // Solo números y entre 5 y 8 dígitos
+      final soloNumeros = RegExp(r'^\d+$').hasMatch(code);
+      if (!soloNumeros || code.length < 5 || code.length > 8) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Cada código de trabajador debe tener entre 5 y 8 dígitos numéricos',
+            ),
+          ),
+        );
+        return false;
+      }
+
+      // 👇 NUEVO: horas obligatorias
+      if (t.inicio == null || t.fin == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+            Text('Cada trabajador debe tener hora de inicio y hora de fin.'),
+          ),
+        );
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   // ===== Guardar y volver (pop seguro) =====
   Future<void> _guardarYVolver() async {
     if (_cerrando) return; // evita doble ejecución
+
+    // 1) Validar códigos y horas de saneamiento (si aplica)
+    if (!_validarCodigosSaneamiento()) return;
+
+    // 2) Validar código individual normal (no saneamiento)
+    if (!_isSaneamiento && _modo == ModoTrabajo.individual) {
+      final code = _codigoCtrl.text.trim();
+      if (code.isNotEmpty) {
+        final soloNumeros = RegExp(r'^\d+$').hasMatch(code);
+        if (!soloNumeros || code.length < 5 || code.length > 8) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'El código del trabajador debe tener entre 5 y 8 dígitos numéricos',
+              ),
+            ),
+          );
+          return;
+        }
+      }
+    }
+
     _cerrando = true;
 
     FocusScope.of(context).unfocus();
@@ -642,8 +715,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                                 _pickHoraTrabajador(i, inicio: true),
                             onPickHoraFin: () =>
                                 _pickHoraTrabajador(i, inicio: false),
-                            onRemove:
-                            _saneamientoTrabajadores.length > 1
+                            onRemove: _saneamientoTrabajadores.length > 1
                                 ? () => _eliminarTrabajadorSaneamiento(i)
                                 : null,
                             onScanQR: () => _scanQRSaneamiento(i),
@@ -670,6 +742,11 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                       children: [
                         TextField(
                           controller: _codigoCtrl,
+                          keyboardType: TextInputType.number,
+                          maxLength: 8,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           decoration: InputDecoration(
                             labelText: 'Código del trabajador',
                             prefixIcon: const Icon(Icons.badge_outlined),
@@ -782,8 +859,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                                 width: 44,
                                 child: IconButton(
                                   tooltip: 'Editar',
-                                  onPressed: () =>
-                                      _editarCuadrilla(i),
+                                  onPressed: () => _editarCuadrilla(i),
                                   icon: const Icon(Icons.edit_outlined),
                                 ),
                               ),
@@ -791,8 +867,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                                 width: 44,
                                 child: IconButton(
                                   tooltip: 'Quitar',
-                                  onPressed: () =>
-                                      _eliminarCuadrilla(i),
+                                  onPressed: () => _eliminarCuadrilla(i),
                                   icon: const Icon(
                                     Icons.remove_circle_outline,
                                     color: Colors.redAccent,
@@ -1046,6 +1121,11 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
         TextField(
           controller: row.codigoCtrl,
           focusNode: row.codigoFocus, // 👈 aquí usamos el FocusNode correcto
+          keyboardType: TextInputType.number,
+          maxLength: 8,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+          ],
           decoration: InputDecoration(
             labelText: 'Código del trabajador',
             prefixIcon: const Icon(Icons.badge_outlined),

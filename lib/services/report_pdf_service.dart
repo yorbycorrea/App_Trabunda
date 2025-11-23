@@ -940,17 +940,25 @@ class ReportPdfService {
           totalHoras = _calculateTotalHoras(hi, hf);
         }
 
+        // --- MAYÚSCULAS PARA NOMBRE Y LABORES ---
+        final nombreUpper = (integrante.nombre).toUpperCase();
+
+        final rawLabores = (integrante.labores == null ||
+            integrante.labores!.trim().isEmpty)
+            ? 'Saneamiento'
+            : integrante.labores!.trim();
+
+        final laboresUpper = rawLabores.toUpperCase();
+        // ----------------------------------------
+
         rows.add(
           _SaneamientoWorkerRow(
             codigo: integrante.code ?? '',
-            nombre: integrante.nombre,
+            nombre: nombreUpper,
             horaInicio: hi,
             horaFin: hf,
             totalHoras: totalHoras,
-            labores: (integrante.labores == null ||
-                integrante.labores!.trim().isEmpty)
-                ? 'Saneamiento'
-                : integrante.labores!.trim(),
+            labores: laboresUpper,
           ),
         );
       }

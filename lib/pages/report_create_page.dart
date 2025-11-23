@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart'; // 👈 para los diálogos estilo iOS
 
 import 'area_detalle_page.dart';
 import '../data/db.dart';
+import '../data/app_database.dart'; // 👈 para ReporteDetalle
 import '../services/auth_service.dart';
 import 'report_detail_page.dart';
 import '../services/reportes_supabase_service.dart';
@@ -220,7 +221,7 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       return false;
     }
 
-    // ¿Es un reporte nuevo? (sirve para decidir si lo mandamos a Supabase)
+    // ¿Es un reporte nuevo en Supabase? (aún no sincronizado)
     final bool esNuevoReporte = !_enviadoASupabase;
 
     // Asegura que exista el borrador (crea si aún no hay _reporteId)
@@ -237,24 +238,40 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
       planillero: plan,
     );
 
-    // 2) Si es un reporte nuevo, lo intentamos enviar también a Supabase (nube)
+    // 2) Si es un reporte NUEVO en Supabase, enviamos TODO el árbol
+    //    (cabecera + áreas + cuadrillas + integrantes)
     if (esNuevoReporte) {
       final auth = AuthScope.read(context);
       final currentUser = auth.currentUser;
 
-      // Solo enviamos si realmente hay usuario logueado
       if (currentUser != null) {
         try {
-          final supabaseId = await ReportesSupabaseService.instance.insertarReporte(
-            fecha: _fecha,
-            turno: _turno,
-            planillero: plan,
-            userId: currentUser.id, // <- String no nulo
+          // Cargamos el reporte completo desde la BD local
+          final ReporteDetalle? detalle =
+          await db.reportesDao.fetchReporteDetalle(_reporteId!);
+
+          if (detalle == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content:
+                Text('No se pudo cargar el detalle del reporte local.'),
+              ),
+            );
+            return false;
+          }
+
+          final supabaseId = await ReportesSupabaseService.instance
+              .enviarReporteCompletoDesdeLocal(
+            reporte: detalle,
+            userId: currentUser.id,
+            observaciones: null,
           );
+
           await db.reportesDao.saveReporteSupabaseId(
             _reporteId!,
             supabaseId,
           );
+
           setState(() => _enviadoASupabase = true);
         } catch (e) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -334,7 +351,6 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
             ),
           ),
           actions: [
-            // Botón NO
             CupertinoDialogAction(
               isDestructiveAction: true,
               onPressed: () {
@@ -342,7 +358,6 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
               },
               child: const Text('NO'),
             ),
-            // Botón SÍ
             CupertinoDialogAction(
               isDefaultAction: true,
               onPressed: () {
@@ -470,7 +485,11 @@ class _ReportCreatePageState extends State<ReportCreatePage> {
                               suffixIcon: Icon(Icons.calendar_today),
                             ),
                             controller: TextEditingController(
-                              text: _fecha.toLocal().toString().split(' ').first,
+                              text: _fecha
+                                  .toLocal()
+                                  .toString()
+                                  .split(' ')
+                                  .first,
                             ),
                           ),
                         ),

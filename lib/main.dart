@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'pages/home_menu_page.dart';
-import 'pages/reports_list_page.dart';
-import 'pages/report_create_page.dart';
-import 'pages/login_page.dart';
-import 'services/auth_service.dart';
-import 'qr_scanner.dart';
+import 'core/widgets/qr_scanner.dart';
+import 'features/auth/data/datasources/auth_remote_data_source.dart';
+import 'features/auth/data/repositories/auth_repository_impl.dart';
+import 'features/auth/domain/usecases/login_use_case.dart';
+import 'features/auth/domain/usecases/logout_use_case.dart';
+import 'features/auth/presentation/controllers/auth_controller.dart';
+import 'features/auth/presentation/pages/login_page.dart';
+import 'features/reports/presentation/pages/home_menu_page.dart';
+import 'features/reports/presentation/pages/report_create_page.dart';
+import 'features/reports/presentation/pages/reports_list_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,23 +24,33 @@ Future<void> main() async {
   );
   // =====================================================
 
-  runApp(TrabundaApp(authService: AuthService()));
+  final authRepository = AuthRepositoryImpl(
+    remoteDataSource: AuthRemoteDataSource(Supabase.instance.client),
+  );
+
+  final authController = AuthController(
+    repository: authRepository,
+    loginUseCase: LoginUseCase(authRepository),
+    logoutUseCase: LogoutUseCase(authRepository),
+  );
+
+  runApp(TrabundaApp(authController: authController));
 }
 
 class TrabundaApp extends StatelessWidget {
-  final AuthService authService;
+  final AuthController authController;
 
   const TrabundaApp({
     super.key,
-    required this.authService,
+    required this.authController,
   });
 
   @override
   Widget build(BuildContext context) {
     return AuthScope(
-      service: authService,
+      controller: authController,
       child: AnimatedBuilder(
-        animation: authService,
+        animation: authController,
         builder: (context, _) {
           return MaterialApp(
             title: 'TRABUNDA',
@@ -45,7 +59,8 @@ class TrabundaApp extends StatelessWidget {
               colorSchemeSeed: const Color(0xFF0A7CFF),
             ),
             debugShowCheckedModeBanner: false,
-            initialRoute: authService.currentUser == null ? '/login' : '/home',
+            initialRoute:
+                authController.currentUser == null ? '/login' : '/home',
             onGenerateRoute: (settings) {
               switch (settings.name) {
                 case '/login':
@@ -62,7 +77,7 @@ class TrabundaApp extends StatelessWidget {
                 case '/reports/create':
                   return MaterialPageRoute(
                     builder: (_) => ReportCreatePage(
-                      planilleroInicial: authService.currentUser?.name,
+                      planilleroInicial: authController.currentUser?.name,
                     ),
                   );
 

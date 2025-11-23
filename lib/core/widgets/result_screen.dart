@@ -6,8 +6,8 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'services/worker_directory.dart';
-import 'theme/app_colors.dart';
+import 'package:scanner_trabunda/core/theme/app_colors.dart';
+import 'package:scanner_trabunda/core/utils/worker_directory.dart';
 
 class ResultScreen extends StatelessWidget {
   final String code;

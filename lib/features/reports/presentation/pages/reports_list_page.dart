@@ -2,10 +2,10 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 
-import '../data/db.dart';
-import '../services/auth_service.dart';
-import '../services/reportes_supabase_service.dart';
-import 'report_detail_page.dart';
+import 'package:scanner_trabunda/data/drift/db.dart';
+import 'package:scanner_trabunda/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:scanner_trabunda/features/reports/data/datasources/reportes_supabase_service.dart';
+import 'package:scanner_trabunda/features/reports/presentation/pages/report_detail_page.dart';
 
 /// 🔹 Lista referencia de áreas (puedes unificarla con la que ya usas)
 const List<String> kAreasOrdenadas = [

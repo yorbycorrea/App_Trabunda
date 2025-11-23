@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart'; // 👈 para los diálogos estilo iOS
 
+import 'package:scanner_trabunda/data/drift/app_database.dart'; // 👈 para ReporteDetalle
+import 'package:scanner_trabunda/data/drift/db.dart';
+import 'package:scanner_trabunda/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:scanner_trabunda/features/reports/data/datasources/reportes_supabase_service.dart';
+import 'package:scanner_trabunda/features/reports/presentation/pages/report_detail_page.dart';
+
 import 'area_detalle_page.dart';
-import '../data/db.dart';
-import '../data/app_database.dart'; // 👈 para ReporteDetalle
-import '../services/auth_service.dart';
-import 'report_detail_page.dart';
-import '../services/reportes_supabase_service.dart';
 
 // ===========================================================
 //  Crear Reporte

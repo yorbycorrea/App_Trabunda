@@ -8,8 +8,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-import '../services/pdf_storage_service.dart';
-import '../data/app_database.dart';
+import 'package:scanner_trabunda/data/drift/app_database.dart';
+import 'package:scanner_trabunda/features/pdf/data/pdf_storage_service.dart';
 
 /// Resultado de la creación del PDF
 class ReportPdfResult {

@@ -2,8 +2,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/reporte_remoto.dart';
-import '../data/app_database.dart'; // Para ReporteDetalle, ReporteAreaDetalle, etc.
+import 'package:scanner_trabunda/data/drift/app_database.dart'; // Para ReporteDetalle, ReporteAreaDetalle, etc.
+import 'package:scanner_trabunda/features/reports/domain/entities/reporte_remoto.dart';
 
 /// Servicio para enviar / leer reportes en la tabla `reportes` de Supabase.
 class ReportesSupabaseService {

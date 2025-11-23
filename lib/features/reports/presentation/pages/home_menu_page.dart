@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/auth_service.dart';
+import 'package:scanner_trabunda/features/auth/presentation/controllers/auth_controller.dart';
 
 class HomeMenuPage extends StatelessWidget {
   const HomeMenuPage({super.key});

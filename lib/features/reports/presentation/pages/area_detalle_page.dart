@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import 'package:scanner_trabunda/data/drift/db.dart';
+
 import 'cuadrilla_config_page.dart';
-import '../data/db.dart';
 
 enum ModoTrabajo { individual, cuadrilla }
 

@@ -1,9 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
-import '../data/app_database.dart';
-import '../data/db.dart';
-import '../services/report_pdf_service.dart';
+import 'package:scanner_trabunda/data/drift/app_database.dart';
+import 'package:scanner_trabunda/data/drift/db.dart';
+import 'package:scanner_trabunda/features/pdf/data/report_pdf_service.dart';
 
 class ReportDetailPage extends StatefulWidget {
   const ReportDetailPage({

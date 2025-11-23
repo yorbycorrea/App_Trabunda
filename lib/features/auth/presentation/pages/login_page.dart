@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../controllers/auth_controller.dart';
+import '../controllers/login_controller.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class LoginPage extends StatefulWidget {
@@ -14,8 +15,9 @@ class _LoginPageState extends State<LoginPage> {
   final _email = TextEditingController();
   final _pass = TextEditingController();
   bool _obscure = true;
-  bool _loading = false;
   String? _bannerError; // sólo visual (UI)
+  late LoginController _loginController;
+  bool _controllerInitialized = false;
 
   // 👇 versión de la app (ej. "v1.0.0")
   String _appVersion = '';
@@ -24,6 +26,15 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _loadVersion();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_controllerInitialized) return;
+    final auth = AuthScope.read(context);
+    _loginController = LoginController(auth);
+    _controllerInitialized = true;
   }
 
   Future<void> _loadVersion() async {
@@ -42,6 +53,7 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _email.dispose();
     _pass.dispose();
+    _loginController.dispose();
     super.dispose();
   }
 
@@ -50,43 +62,32 @@ class _LoginPageState extends State<LoginPage> {
     if (!_formKey.currentState!.validate()) return;
 
     FocusScope.of(context).unfocus();
-    final auth = AuthScope.read(context);
 
     // 2. Activar loading y limpiar mensaje de error
     setState(() {
       _bannerError = null;
-      _loading = true;
     });
 
     try {
-      // 3. Intentar login. Se asume que devuelve bool.
-      final success = await auth.login(_email.text.trim(), _pass.text.trim());
+      final user = await _loginController.login(
+        _email.text.trim(),
+        _pass.text.trim(),
+      );
 
       if (!mounted) return;
 
-      if (success == true) {
-        // Login correcto → navegar a home
+      if (user != null) {
         Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
       } else {
-        // Credenciales incorrectas
         setState(() {
-          _bannerError =
-          'Credenciales incorrectas. Verifica tu correo y contraseña.';
+          _bannerError = _loginController.errorMessage;
         });
       }
-    } catch (e) {
-      // 4. Error inesperado (red, servidor, etc.)
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _bannerError = 'No se pudo iniciar sesión. Intenta nuevamente.';
+        _bannerError = _loginController.errorMessage;
       });
-    } finally {
-      // 5. Siempre apagamos el loading
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
     }
   }
 
@@ -206,22 +207,24 @@ class _LoginPageState extends State<LoginPage> {
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
-                              onPressed: _loading ? null : _submit,
-                              child: _loading
+                              onPressed:
+                                  _loginController.isLoading ? null : _submit,
+                              child: _loginController.isLoading
                                   ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child:
-                                CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
+                                      height: 20,
+                                      width: 20,
+                                      child:
+                                          CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                    )
                                   : const Text('Entrar'),
                             ),
                           ),
                           const SizedBox(height: 8),
                           TextButton(
-                            onPressed: _loading ? null : () {},
+                            onPressed:
+                                _loginController.isLoading ? null : () {},
                             child:
                             const Text('Olvidé mi contraseña'),
                           ),

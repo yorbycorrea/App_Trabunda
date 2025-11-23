@@ -5,7 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import '../models/reporte_remoto.dart';
+import 'package:scanner_trabunda/features/reports/domain/entities/reporte_remoto.dart';
 
 part 'app_database.g.dart';
 

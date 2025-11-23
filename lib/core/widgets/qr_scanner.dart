@@ -1,11 +1,11 @@
 import 'dart:convert';
-import 'result_screen.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'services/worker_directory.dart';
-import 'theme/app_colors.dart';
+import 'package:scanner_trabunda/core/theme/app_colors.dart';
+import 'package:scanner_trabunda/core/utils/worker_directory.dart';
+import 'package:scanner_trabunda/core/widgets/result_screen.dart';
 
 
 Future<String> getDeviceId() async {

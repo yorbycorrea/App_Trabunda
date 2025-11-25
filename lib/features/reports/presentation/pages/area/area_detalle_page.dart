@@ -429,6 +429,11 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                   final horaInicioTrabajador = t.inicio ?? _inicio;
                   final horaFinTrabajador = t.fin ?? _fin;
 
+                  final horas = _calcularHorasConAlmuerzo(
+                    horaInicioTrabajador,
+                    horaFinTrabajador,
+                  );
+
                   final horaInicioStr = horaInicioTrabajador == null
                       ? null
                       : '${horaInicioTrabajador.hour.toString().padLeft(2, '0')}:${horaInicioTrabajador.minute.toString().padLeft(2, '0')}';
@@ -436,9 +441,6 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                   final horaFinStr = horaFinTrabajador == null
                       ? null
                       : '${horaFinTrabajador.hour.toString().padLeft(2, '0')}:${horaFinTrabajador.minute.toString().padLeft(2, '0')}';
-
-                  final horas =
-                      _calcularHorasConAlmuerzo(horaInicioTrabajador, horaFinTrabajador);
 
                   return {
                     'code': t.codigoCtrl.text.trim(),

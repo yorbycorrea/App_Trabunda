@@ -271,7 +271,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
           .toList()
           : resultados;
 
-      // ====== AGRUPAR POR REPORTE (igual que antes) ======
+      // ====== AGRUPAR POR REPORTE (igual que antes, pero marcando pendientes salida) ======
       final Map<int, _AggregatedReport> aggregated = {};
       for (final row in filtered) {
         final group = aggregated.putIfAbsent(
@@ -287,6 +287,9 @@ class _ReportsListPageState extends State<ReportsListPage> {
         group.totalKilos += row.kilos;
         group.totalHoras += row.totalHoras;
         group.areaNames.add(row.areaNombre);
+        // 👇 si alguna área del reporte tiene pendientes de salida, marcamos el reporte
+        group.tienePendientesSalida =
+            group.tienePendientesSalida || row.tienePendientesSalida;
       }
 
       // Convertimos a ReportSummary
@@ -301,6 +304,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
           totalHoras: g.totalHoras,
           planillero: g.planillero,
           areaNames: List<String>.unmodifiable(g.areaNames),
+          tienePendientesSalida: g.tienePendientesSalida,
         ),
       )
           .toList();
@@ -325,6 +329,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
           s.totalHoras.toStringAsFixed(2),
           s.kilos.toStringAsFixed(3),
           s.areaNames.join('|'),
+          s.tienePendientesSalida ? 'P1' : 'P0',
         ].join('::');
 
         // Si ya existe un registro EXACTAMENTE igual, lo ignoramos
@@ -643,7 +648,11 @@ class _ReportsListPageState extends State<ReportsListPage> {
                         builder: (_) =>
                             ReportDetailPage(reporteId: r.reporteId),
                       ),
-                    );
+                    ).then((_) {
+                      if (mounted) {
+                        _fetchReports(); // recarga al volver
+                      }
+                    });
                   },
                 ),
               ),
@@ -667,6 +676,9 @@ class ReportSummary {
   final String planillero;
   final List<String> areaNames;
 
+  /// true si al menos un trabajador del reporte tiene hora_inicio y NO tiene hora_fin
+  final bool tienePendientesSalida;
+
   ReportSummary({
     required this.reporteId,
     required this.fecha,
@@ -676,6 +688,7 @@ class ReportSummary {
     required this.totalHoras,
     required this.planillero,
     required this.areaNames,
+    required this.tienePendientesSalida,
   });
 
   String get formattedId => 'RPT-${reporteId.toString().padLeft(4, '0')}';
@@ -702,6 +715,10 @@ class _AggregatedReport {
   double totalKilos = 0;
   double totalHoras = 0;
   final LinkedHashSet<String> areaNames = LinkedHashSet();
+
+  /// Se marca en true si alguna de las áreas de este reporte
+  /// tiene trabajadores sin hora de salida.
+  bool tienePendientesSalida = false;
 }
 
 class _ReportCard extends StatelessWidget {
@@ -795,8 +812,9 @@ class _ReportCard extends StatelessWidget {
               const SizedBox(height: 12),
               _InfoRow(
                 icon: Icons.person_outline,
-                text:
-                data.planillero.isEmpty ? 'Sin planillero' : data.planillero,
+                text: data.planillero.isEmpty
+                    ? 'Sin planillero'
+                    : data.planillero,
               ),
               const SizedBox(height: 8),
               _InfoRow(
@@ -821,6 +839,32 @@ class _ReportCard extends StatelessWidget {
                 icon: Icons.groups_rounded,
                 text: '${data.totalPersonal} personas',
               ),
+
+              // 👇 Aviso cuando hay trabajadores sin hora de salida
+              if (data.tienePendientesSalida) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: const [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: Colors.orange,
+                    ),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Faltan horas de salida',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.orange,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
               const SizedBox(height: 8),
               if (isSoloSaneamiento)
                 _InfoRow(

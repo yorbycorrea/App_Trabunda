@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:scanner_trabunda/data/drift/app_database.dart';
 import 'package:scanner_trabunda/data/drift/db.dart';
 import 'package:scanner_trabunda/features/pdf/data/report_pdf_service.dart';
+import 'package:scanner_trabunda/features/reports/presentation/pages/area_detalle_page.dart';
 
 class ReportDetailPage extends StatefulWidget {
   const ReportDetailPage({
@@ -147,8 +148,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         (area) => _AreaSection(
                       area: area,
                       reporte: detalle,
-                      // id del reporte en Supabase (puede ser null si aún no está sincronizado)
                       supabaseReporteId: detalle.supabaseId,
+                      // 👇 importante: cuando se edite el área, recargamos todo el informe
+                      onChanged: () {
+                        _reload();
+                      },
                     ),
                   ),
               ],
@@ -336,6 +340,7 @@ class _AreaSection extends StatefulWidget {
     required this.area,
     required this.reporte,
     required this.supabaseReporteId,
+    this.onChanged,
   });
 
   final ReporteAreaDetalle area;
@@ -344,6 +349,9 @@ class _AreaSection extends StatefulWidget {
   /// Id del reporte en Supabase (tabla `reportes`).
   /// Si quieres que NO suba el PDF, pásale null.
   final int? supabaseReporteId;
+
+  /// Se llama cuando se edita el área (por ejemplo, después de "Editar informe")
+  final VoidCallback? onChanged;
 
   @override
   State<_AreaSection> createState() => _AreaSectionState();
@@ -362,6 +370,23 @@ class _AreaSectionState extends State<_AreaSection> {
         name.contains('fileteo') ||
         name == 'recepción' ||
         name == 'recepcion';
+  }
+
+  /// Devuelve true si en el área de saneamiento hay al menos
+  /// un integrante con hora de salida pendiente.
+  bool _hayHorasSalidaPendientes(ReporteAreaDetalle area) {
+    for (final c in area.cuadrillas) {
+      for (final i in c.integrantes) {
+        final fin = i.horaFin;
+        if (fin == null) {
+          return true;
+        }
+        if (fin is String && fin.trim().isEmpty) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   Future<void> _downloadReport(BuildContext context) async {
@@ -479,12 +504,32 @@ class _AreaSectionState extends State<_AreaSection> {
     }
   }
 
+  /// Navega a la pantalla de edición del área (saneamiento).
+  Future<void> _editarSaneamiento(BuildContext context) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AreaDetallePage(
+          areaName: widget.area.nombre,
+          reporteAreaId: widget.area.id, // 👈 usamos el id del reporte_area
+        ),
+      ),
+    );
+
+    // Al volver de "Editar informe", pedimos al padre que recargue
+    if (widget.onChanged != null) {
+      widget.onChanged!();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final area = widget.area;
     final theme = Theme.of(context);
 
     final esSaneamiento = area.nombre.toLowerCase().contains('saneamiento');
+    final bool faltanHorasSalida =
+        esSaneamiento && _hayHorasSalidaPendientes(area);
 
     // Sumamos las horas de todos los integrantes del área
     double horas = 0;
@@ -570,27 +615,63 @@ class _AreaSectionState extends State<_AreaSection> {
                 ),
               ),
             ),
+            if (faltanHorasSalida) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Faltan horas de salida por completar.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
+            // 🔹 Botón principal: Editar informe (siempre visible en saneamiento)
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
-                onPressed: _isSaneamientoLoading
-                    ? null
-                    : () => _downloadSaneamientoReport(context),
-                icon: _isSaneamientoLoading
-                    ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-                    : const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                label: Text(
-                  _isSaneamientoLoading
-                      ? 'Generando formato...'
-                      : 'Descargar informe',
-                ),
+                onPressed: () => _editarSaneamiento(context),
+                icon: const Icon(Icons.edit_note_rounded, size: 18),
+                label: const Text('Editar informe'),
               ),
             ),
+            const SizedBox(height: 8),
+            // 🔹 Botón Descargar informe SOLO si ya está completo
+            if (!faltanHorasSalida)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: _isSaneamientoLoading
+                      ? null
+                      : () => _downloadSaneamientoReport(context),
+                  icon: _isSaneamientoLoading
+                      ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                      : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: Text(
+                    _isSaneamientoLoading
+                        ? 'Generando informe...'
+                        : 'Descargar informe',
+                  ),
+                ),
+              ),
           ] else if (area.cuadrillas.isEmpty) ...[
             const Padding(
               padding: EdgeInsets.only(top: 12),

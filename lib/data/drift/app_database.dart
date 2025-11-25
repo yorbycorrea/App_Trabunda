@@ -120,6 +120,23 @@ class AppDatabase extends _$AppDatabase {
       }
     },
   );
+
+  /// =====================================================
+  /// 🔹 Borrar todos los datos locales (para logout, debug)
+  /// =====================================================
+  Future<void> clearAllData() async {
+    await transaction(() async {
+      await batch((b) {
+        // Primero hijos, luego padres
+        b.deleteWhere(integrantes, (_) => const Constant(true));
+        b.deleteWhere(cuadrillaDesgloses, (_) => const Constant(true));
+        b.deleteWhere(cuadrillas, (_) => const Constant(true));
+        b.deleteWhere(reporteAreaDesgloses, (_) => const Constant(true));
+        b.deleteWhere(reporteAreas, (_) => const Constant(true));
+        b.deleteWhere(reportes, (_) => const Constant(true));
+      });
+    });
+  }
 }
 
 /// =======================
@@ -139,6 +156,38 @@ class AppDatabase extends _$AppDatabase {
 class ReportesDao extends DatabaseAccessor<AppDatabase>
     with _$ReportesDaoMixin {
   ReportesDao(AppDatabase db) : super(db);
+
+  /// Devuelve los trabajadores de Saneamiento (integrantes) para un área dada.
+  /// Se usa en AreaDetallePage para rellenar la lista cuando abres un reporte
+  /// que ya tenía gente registrada.
+  Future<List<Map<String, dynamic>>>
+  fetchSaneamientoTrabajadoresPorArea(int reporteAreaId) async {
+    // Tomamos la primera cuadrilla que pertenezca a ese reporte_area
+    final cuadList = await (select(cuadrillas)
+      ..where((c) => c.reporteAreaId.equals(reporteAreaId)))
+        .get();
+
+    if (cuadList.isEmpty) return [];
+
+    final cuadrillaId = cuadList.first.id;
+
+    final integrantesRows = await (select(integrantes)
+      ..where((i) => i.cuadrillaId.equals(cuadrillaId)))
+        .get();
+
+    return integrantesRows
+        .map(
+          (i) => {
+        'code': i.code ?? '',
+        'name': i.nombre,
+        'horaInicio': i.horaInicio,
+        'horaFin': i.horaFin,
+        'horas': i.horas,
+        'labores': i.labores ?? '',
+      },
+    )
+        .toList();
+  }
 
   Future<bool> hasReportes() async {
     final row = await customSelect(
@@ -204,8 +253,8 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<int?> getReporteSupabaseId(int id) async {
-    final row = await (select(reportes)..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final row =
+    await (select(reportes)..where((t) => t.id.equals(id))).getSingleOrNull();
     return row?.supabaseId;
   }
 
@@ -495,12 +544,13 @@ SELECT
   r.turno AS turno,
   r.planillero AS planillero,
   a.area_nombre AS area_nombre,
-   CASE
+  CASE
     WHEN a.cantidad > 0 THEN a.cantidad
     ELSE IFNULL(i_sum.integrantes_count, 0)
   END AS cantidad,
   IFNULL(c_sum.kilos, 0) AS kilos,
-  IFNULL(i_sum.total_horas, 0) AS total_horas
+  IFNULL(i_sum.total_horas, 0) AS total_horas,
+  IFNULL(i_sum.pendientes_salida, 0) AS pendientes_salida
 FROM reporte_areas a
 INNER JOIN reportes r ON r.id = a.reporte_id
 LEFT JOIN (
@@ -509,7 +559,18 @@ LEFT JOIN (
   GROUP BY reporte_area_id
 ) c_sum ON c_sum.reporte_area_id = a.id
 LEFT JOIN (
-  SELECT c.reporte_area_id, COUNT(i.id) AS integrantes_count, SUM(i.horas) AS total_horas
+  SELECT 
+    c.reporte_area_id,
+    COUNT(i.id) AS integrantes_count,
+    SUM(i.horas) AS total_horas,
+    SUM(
+      CASE 
+        WHEN i.hora_inicio IS NOT NULL 
+             AND (i.hora_fin IS NULL OR i.hora_fin = '')
+        THEN 1 
+        ELSE 0 
+      END
+    ) AS pendientes_salida
   FROM integrantes i
   INNER JOIN cuadrillas c ON c.id = i.cuadrilla_id
   GROUP BY c.reporte_area_id
@@ -570,6 +631,7 @@ LEFT JOIN (
         cantidad: row.read<int>('cantidad'),
         kilos: row.read<double?>('kilos') ?? 0,
         totalHoras: row.read<double?>('total_horas') ?? 0,
+        pendientesSalida: row.read<int>('pendientes_salida'),
       ),
     )
         .toList();
@@ -601,15 +663,56 @@ LEFT JOIN (
 
         final integrantesDetalle = integrantesQuery
             .map(
-              (it) => IntegranteDetalle(
-            id: it.id,
-            nombre: it.nombre,
-            code: it.code,
-            horaInicio: it.horaInicio,
-            horaFin: it.horaFin,
-            horas: it.horas,
-            labores: it.labores,
-          ),
+              (it) {
+            // 🔹 Recalcular horas si vienen null/0 pero hay horaInicio y horaFin
+            double? horasFinal = it.horas;
+            final hi = it.horaInicio;
+            final hf = it.horaFin;
+
+            if ((horasFinal == null || horasFinal == 0) &&
+                hi != null &&
+                hf != null &&
+                hi.isNotEmpty &&
+                hf.isNotEmpty) {
+              final partsIni = hi.split(':');
+              final partsFin = hf.split(':');
+              if (partsIni.length == 2 && partsFin.length == 2) {
+                final hiH = int.tryParse(partsIni[0]);
+                final hiM = int.tryParse(partsIni[1]);
+                final hfH = int.tryParse(partsFin[0]);
+                final hfM = int.tryParse(partsFin[1]);
+                if (hiH != null &&
+                    hiM != null &&
+                    hfH != null &&
+                    hfM != null) {
+                  int startMinutes = hiH * 60 + hiM;
+                  int endMinutes = hfH * 60 + hfM;
+                  int diff = endMinutes - startMinutes;
+                  if (diff <= 0) {
+                    diff += 24 * 60; // cruza medianoche
+                  }
+                  double rawHours = diff / 60.0;
+                  // Descuento de 30 minutos de almuerzo
+                  if (rawHours > 0.5) {
+                    rawHours -= 0.5;
+                  } else {
+                    rawHours = 0.0;
+                  }
+                  horasFinal = rawHours;
+                }
+              }
+            }
+
+            return IntegranteDetalle(
+              id: it.id,
+              nombre: it.nombre,
+              code: it.code,
+              horaInicio: it.horaInicio,
+              horaFin: it.horaFin,
+              horas: horasFinal,
+              labores: it.labores,
+            );
+          },
         )
             .toList();
 
@@ -726,31 +829,16 @@ LEFT JOIN (
           mode: InsertMode.insertOrReplace,
         );
 
-        // 2) Si NO vienen áreas desde Supabase, creamos una por defecto
+        // 2) Si NO vienen áreas desde Supabase: no tocamos las áreas locales
         if (remoto.areas.isEmpty) {
-          final existingAreas = await (select(reporteAreas)
-            ..where((a) => a.reporteId.equals(remoto.id)))
-              .get();
-
-          if (existingAreas.isEmpty) {
-            debugPrint(
-              '[upsertReportesRemotos] Reporte ${remoto.id} sin áreas remotas. '
-                  'Creando área por defecto "Saneamiento".',
-            );
-            await into(reporteAreas).insert(
-              ReporteAreasCompanion.insert(
-                reporteId: remoto.id,
-                areaNombre: 'Saneamiento',
-                cantidad: const Value(0),
-              ),
-            );
-          }
-
-          // Saltamos al siguiente reporte
+          debugPrint(
+            '[upsertReportesRemotos] Reporte ${remoto.id} sin áreas remotas. '
+                'Se mantienen las áreas locales existentes.',
+          );
           continue;
         }
 
-        // 3) Si SÍ vienen áreas, las sincronizamos normalmente
+        // 3) Si SÍ vienen áreas, las sincronizamos
         for (final area in remoto.areas) {
           var integrantesArea = 0;
 
@@ -763,33 +851,118 @@ LEFT JOIN (
                 'kilos=${c.kilos ?? 0}')} ).',
           );
 
-          final reporteAreaId = await into(reporteAreas).insert(
-            ReporteAreasCompanion(
-              id: area.id != null ? Value(area.id!) : const Value.absent(),
-              reporteId: Value(area.reporteId ?? remoto.id),
-              areaNombre: Value(area.areaNombre),
-              cantidad: Value(area.cantidad ?? 0),
-              horaInicio: Value(area.horaInicio),
-              horaFin: Value(area.horaFin),
-            ),
-            mode: InsertMode.insertOrReplace,
-          );
+          // 🔹 Buscar áreas locales existentes por (reporteId + nombre)
+          final existingAreas = await (select(reporteAreas)
+            ..where(
+                  (t) =>
+              t.reporteId.equals(remoto.id) &
+              t.areaNombre.equals(area.areaNombre),
+            ))
+              .get();
 
-          final resolvedAreaId = area.id ?? reporteAreaId;
+          int resolvedAreaId;
 
-          // Desgloses por área
+          if (existingAreas.isNotEmpty) {
+            // Nos quedamos con la primera como "oficial"
+            final existingArea = existingAreas.first;
+            resolvedAreaId = existingArea.id;
+
+            // Si hay más de una, consideramos las demás como duplicadas y las limpiamos
+            if (existingAreas.length > 1) {
+              final duplicateIds =
+              existingAreas.skip(1).map((a) => a.id).toList();
+
+              // Borrar cuadrillas + integrantes + desgloses de esas áreas duplicadas
+              if (duplicateIds.isNotEmpty) {
+                final oldCuadrillas = await (select(cuadrillas)
+                  ..where(
+                        (c) => c.reporteAreaId.isIn(duplicateIds),
+                  ))
+                    .get();
+
+                for (final c in oldCuadrillas) {
+                  await (delete(integrantes)
+                    ..where((i) => i.cuadrillaId.equals(c.id)))
+                      .go();
+                  await (delete(cuadrillaDesgloses)
+                    ..where((d) => d.cuadrillaId.equals(c.id)))
+                      .go();
+                }
+
+                await (delete(cuadrillas)
+                  ..where((c) => c.reporteAreaId.isIn(duplicateIds)))
+                    .go();
+
+                await (delete(reporteAreaDesgloses)
+                  ..where((d) => d.reporteAreaId.isIn(duplicateIds)))
+                    .go();
+
+                await (delete(reporteAreas)
+                  ..where((a) => a.id.isIn(duplicateIds)))
+                    .go();
+
+                debugPrint(
+                  '[upsertReportesRemotos][Reporte ${remoto.id}] '
+                      'Eliminadas ${duplicateIds.length} áreas duplicadas '
+                      'para "${area.areaNombre}".',
+                );
+              }
+            }
+
+            // Actualizamos cabecera del área que conservamos
+            await (update(reporteAreas)
+              ..where((t) => t.id.equals(resolvedAreaId)))
+                .write(
+              ReporteAreasCompanion(
+                cantidad: Value(area.cantidad ?? existingArea.cantidad),
+                horaInicio: Value(area.horaInicio ?? existingArea.horaInicio),
+                horaFin: Value(area.horaFin ?? existingArea.horaFin),
+              ),
+            );
+
+            // Limpiamos desgloses y cuadrillas de esa área para volver a llenar
+            await (delete(reporteAreaDesgloses)
+              ..where((d) => d.reporteAreaId.equals(resolvedAreaId)))
+                .go();
+
+            final oldCuadrillas = await (select(cuadrillas)
+              ..where((c) => c.reporteAreaId.equals(resolvedAreaId)))
+                .get();
+
+            for (final c in oldCuadrillas) {
+              await (delete(integrantes)
+                ..where((i) => i.cuadrillaId.equals(c.id)))
+                  .go();
+              await (delete(cuadrillaDesgloses)
+                ..where((d) => d.cuadrillaId.equals(c.id)))
+                  .go();
+            }
+            await (delete(cuadrillas)
+              ..where((c) => c.reporteAreaId.equals(resolvedAreaId)))
+                .go();
+          } else {
+            // No existía: insertamos una área nueva local sin usar el id remoto
+            final newAreaId = await into(reporteAreas).insert(
+              ReporteAreasCompanion.insert(
+                reporteId: remoto.id,
+                areaNombre: area.areaNombre,
+                cantidad: Value(area.cantidad ?? 0),
+                horaInicio: Value(area.horaInicio),
+                horaFin: Value(area.horaFin),
+              ),
+            );
+            resolvedAreaId = newAreaId;
+          }
+
+          // ----- Desgloses del área (desde cero) -----
           for (final desglose in area.desglose) {
             await into(reporteAreaDesgloses).insert(
-              ReporteAreaDesglosesCompanion(
-                id: desglose.id != null
-                    ? Value(desglose.id!)
-                    : const Value.absent(),
-                reporteAreaId: Value(resolvedAreaId),
-                categoria: Value(desglose.categoria),
+              ReporteAreaDesglosesCompanion.insert(
+                reporteAreaId: resolvedAreaId,
+                categoria: desglose.categoria,
                 personas: Value(desglose.personas),
                 kilos: Value(desglose.kilos),
               ),
-              mode: InsertMode.insertOrReplace,
             );
           }
 
@@ -797,97 +970,53 @@ LEFT JOIN (
             debugPrint(
               '[upsertReportesRemotos][Reporte ${remoto.id}] Área '
                   '${area.areaNombre}: insertados ${area.desglose.length} '
-                  'desgloses. Ejemplos: ${formatSample(area.desglose, (d) => '${d.categoria}:${d.personas}p/${d.kilos}kg')}',
+                  'desgloses.',
             );
           }
 
-          // Cuadrillas del área
+          // ----- Cuadrillas del área -----
           for (final cuadrilla in area.cuadrillas) {
             final cuadrillaId = await into(cuadrillas).insert(
-              CuadrillasCompanion(
-                id: cuadrilla.id != null
-                    ? Value(cuadrilla.id!)
-                    : const Value.absent(),
-                reporteAreaId:
-                Value(cuadrilla.reporteAreaId ?? resolvedAreaId),
+              CuadrillasCompanion.insert(
+                reporteAreaId: resolvedAreaId,
                 nombre: Value(cuadrilla.nombre ?? 'Cuadrilla'),
                 horaInicio: Value(cuadrilla.horaInicio),
                 horaFin: Value(cuadrilla.horaFin),
                 kilos: Value(cuadrilla.kilos),
               ),
-              mode: InsertMode.insertOrReplace,
             );
 
-            final resolvedCuadrillaId = cuadrilla.id ?? cuadrillaId;
-
-            // Desgloses por cuadrilla
+            // Desgloses de cuadrilla
             for (final desglose in cuadrilla.desglose) {
               await into(cuadrillaDesgloses).insert(
-                CuadrillaDesglosesCompanion(
-                  id: desglose.id != null
-                      ? Value(desglose.id!)
-                      : const Value.absent(),
-                  cuadrillaId: Value(resolvedCuadrillaId),
-                  categoria: Value(desglose.categoria),
+                CuadrillaDesglosesCompanion.insert(
+                  cuadrillaId: cuadrillaId,
+                  categoria: desglose.categoria,
                   personas: Value(desglose.personas),
                   kilos: Value(desglose.kilos),
                 ),
-                mode: InsertMode.insertOrReplace,
               );
             }
 
-            if (cuadrilla.desglose.isNotEmpty) {
-              debugPrint(
-                '[upsertReportesRemotos][Reporte ${remoto.id}] Cuadrilla '
-                    '${cuadrilla.nombre ?? 'Cuadrilla'}: insertados '
-                    '${cuadrilla.desglose.length} desgloses. Ejemplos: '
-                    '${formatSample(cuadrilla.desglose, (d) => '${d.categoria}:${d.personas}p/${d.kilos}kg')}',
-              );
-            }
-
-            // Integrantes de la cuadrilla
+            // Integrantes
             integrantesArea += cuadrilla.integrantes.length;
 
             for (final integrante in cuadrilla.integrantes) {
               await into(integrantes).insert(
-                IntegrantesCompanion(
-                  id: integrante.id != null
-                      ? Value(integrante.id!)
-                      : const Value.absent(),
-                  cuadrillaId:
-                  Value(integrante.cuadrillaId ?? resolvedCuadrillaId),
+                IntegrantesCompanion.insert(
+                  cuadrillaId: cuadrillaId,
                   code: Value(integrante.code ?? ''),
-                  nombre: Value(integrante.nombre ?? ''),
+                  nombre: integrante.nombre ?? '',
                   horaInicio: Value(integrante.horaInicio),
                   horaFin: Value(integrante.horaFin),
                   horas: Value(integrante.horas),
                   labores: Value(integrante.labores),
                 ),
-                mode: InsertMode.insertOrReplace,
-              );
-            }
-
-            if (cuadrilla.integrantes.isNotEmpty) {
-              debugPrint(
-                '[upsertReportesRemotos][Reporte ${remoto.id}] Cuadrilla '
-                    '${cuadrilla.nombre ?? 'Cuadrilla'}: insertados '
-                    '${cuadrilla.integrantes.length} integrantes. '
-                    'Ejemplos: ${formatSample(cuadrilla.integrantes, (i) => '${i.nombre ?? ''} (${i.code ?? ''}) '
-                    'horas=${i.horas ?? 0}')}',
               );
             }
           }
 
-          if (area.cuadrillas.isNotEmpty) {
-            debugPrint(
-              '[upsertReportesRemotos][Reporte ${remoto.id}] Área '
-                  '${area.areaNombre}: insertadas ${area.cuadrillas.length} '
-                  'cuadrillas. Ejemplos: ${formatSample(area.cuadrillas, (c) => '${c.nombre ?? 'Cuadrilla'}: ${c.integrantes.length} integrantes, '
-                  'kilos=${c.kilos ?? 0}')}',
-            );
-          }
-
-          // Si la cantidad del área es 0 o null, la reemplazamos por el número de integrantes
+          // Si la cantidad del área es 0 o null, usamos el número de integrantes
           if ((area.cantidad ?? 0) == 0) {
             await (update(reporteAreas)
               ..where((t) => t.id.equals(resolvedAreaId)))
@@ -949,6 +1078,7 @@ class ReporteAreaResumen {
   final int cantidad;
   final double kilos;
   final double totalHoras;
+  final int pendientesSalida;
 
   const ReporteAreaResumen({
     required this.reporteId,
@@ -960,7 +1090,11 @@ class ReporteAreaResumen {
     required this.cantidad,
     required this.kilos,
     required this.totalHoras,
+    required this.pendientesSalida,
   });
+
+  /// Hay al menos un trabajador con hora_inicio y SIN hora_fin
+  bool get tienePendientesSalida => pendientesSalida > 0;
 }
 
 class ReporteDetalle {
@@ -1014,8 +1148,7 @@ class ReporteAreaDetalle {
   int get totalIntegrantes =>
       cuadrillas.fold(0, (sum, c) => sum + c.totalIntegrantes);
 
-  int get totalPersonas =>
-      cantidad != 0 ? cantidad : totalIntegrantes;
+  int get totalPersonas => cantidad != 0 ? cantidad : totalIntegrantes;
 
   double get totalHoras =>
       cuadrillas.fold(0, (sum, c) => sum + c.totalHoras);

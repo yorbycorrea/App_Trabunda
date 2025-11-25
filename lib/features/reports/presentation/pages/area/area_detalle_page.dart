@@ -3,7 +3,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'package:scanner_trabunda/data/drift/db.dart';
-
 import 'package:scanner_trabunda/features/reports/presentation/pages/cuadrilla/cuadrilla_config_page.dart';
 
 enum ModoTrabajo { individual, cuadrilla }
@@ -55,10 +54,15 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
   void initState() {
     super.initState();
 
-    // Si es Saneamiento, solo modo individual y al menos un trabajador
+    // Si es Saneamiento, solo modo individual
     if (_isSaneamiento) {
       _modo = ModoTrabajo.individual;
       _saneamientoTrabajadores.add(_SaneamientoTrabajadorRow());
+    }
+
+    // 👇 Cargar trabajadores desde la BD si ya existe un reporte_area
+    if (_isSaneamiento && usaBD && widget.reporteAreaId != null) {
+      Future.microtask(_cargarSaneamientoDesdeBD);
     }
   }
 
@@ -75,6 +79,55 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
 
     super.dispose();
   }
+
+  // ================== CARGA DESDE BD (SANEAMIENTO) ==================
+
+  Future<void> _cargarSaneamientoDesdeBD() async {
+    try {
+      final lista = await db.reportesDao
+          .fetchSaneamientoTrabajadoresPorArea(widget.reporteAreaId!);
+
+      if (!mounted) return;
+
+      setState(() {
+        _saneamientoTrabajadores.clear();
+
+        if (lista.isEmpty) {
+          // Si no hay nada en BD, dejamos una fila vacía
+          _saneamientoTrabajadores.add(_SaneamientoTrabajadorRow());
+          return;
+        }
+
+        for (final t in lista) {
+          // 👇 Trabajador proveniente de BD → bloquear código y nombre
+          final row = _SaneamientoTrabajadorRow(lockFromQr: true);
+
+          row.codigoCtrl.text = (t['code'] ?? '') as String;
+          row.nombreCtrl.text = (t['name'] ?? '') as String;
+          row.laboresCtrl.text = (t['labores'] ?? '') as String;
+
+          row.inicio = _parseTimeOfDay(t['horaInicio'] as String?);
+          row.fin = _parseTimeOfDay(t['horaFin'] as String?);
+
+          _saneamientoTrabajadores.add(row);
+        }
+      });
+    } catch (_) {
+      // si algo falla no rompemos la pantalla, solo dejamos la fila vacía
+    }
+  }
+
+  TimeOfDay? _parseTimeOfDay(String? hhmm) {
+    if (hhmm == null || hhmm.isEmpty) return null;
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return TimeOfDay(hour: h, minute: m);
+  }
+
+  // ================== PICKERS DE HORA ==================
 
   Future<void> _pickHora({required bool inicio}) async {
     final base = inicio ? _inicio : _fin;
@@ -171,6 +224,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
         row.laboresCtrl.clear();
         row.inicio = null;
         row.fin = null;
+        row.lockFromQr = false;
       });
     }
   }
@@ -223,11 +277,14 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
       setState(() {
         row.codigoCtrl.text = code;
         if (name.isNotEmpty) row.nombreCtrl.text = name;
+        // 👇 Bloquear código y nombre cuando viene de QR
+        row.lockFromQr = true;
       });
       _onCodigoSaneamientoIngresado(index, row.codigoCtrl.text);
     } else if (result is String) {
       setState(() {
         row.codigoCtrl.text = result;
+        row.lockFromQr = true; // también bloquear si viene como String
       });
       _onCodigoSaneamientoIngresado(index, row.codigoCtrl.text);
     }
@@ -406,7 +463,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
   }
 
   // ===== Validación de códigos de saneamiento (5–8 dígitos numéricos)
-  //       + horas obligatorias por trabajador =====
+  //       + hora de inicio obligatoria (hora fin puede quedar vacía) =====
   bool _validarCodigosSaneamiento() {
     // Solo aplica en área Saneamiento, modo individual
     if (!_isSaneamiento || _modo != ModoTrabajo.individual) {
@@ -441,12 +498,15 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
         return false;
       }
 
-      // 👇 NUEVO: horas obligatorias
-      if (t.inicio == null || t.fin == null) {
+      // ✅ Hora de inicio obligatoria
+      //    La hora de fin se puede llenar luego (no es obligatoria)
+      if (t.inicio == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content:
-            Text('Cada trabajador debe tener hora de inicio y hora de fin.'),
+            content: Text(
+              'Cada trabajador debe tener al menos la hora de inicio. '
+                  'La hora de fin se puede completar al final del turno.',
+            ),
           ),
         );
         return false;
@@ -487,6 +547,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
 
     final result = _resultadoParaVolver();
 
+    // 👇 AQUÍ EL CAMBIO IMPORTANTE: esperamos los guardados ANTES de hacer pop
     if (usaBD && widget.reporteAreaId != null) {
       final personas = result['personas'] as int;
 
@@ -529,28 +590,28 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
         }
       }
 
-      // Guardamos en BD
-      Future.microtask(() async {
-        try {
-          await db.reportesDao.saveReporteAreaDatos(
-            reporteAreaId: widget.reporteAreaId!,
-            cantidad: personas,
-            horaInicio: horaInicio,
-            horaFin: horaFin,
-            desglose: const [],
-          );
+      try {
+        // Guardar cabecera área
+        await db.reportesDao.saveReporteAreaDatos(
+          reporteAreaId: widget.reporteAreaId!,
+          cantidad: personas,
+          horaInicio: horaInicio,
+          horaFin: horaFin,
+          desglose: const [],
+        );
 
-          // Guardar trabajadores de saneamiento como integrantes
-          if (_isSaneamiento &&
-              _modo == ModoTrabajo.individual &&
-              saneamientoList.isNotEmpty) {
-            await db.reportesDao.saveSaneamientoTrabajadores(
-              reporteAreaId: widget.reporteAreaId!,
-              trabajadores: saneamientoList,
-            );
-          }
-        } catch (_) {}
-      });
+        // Guardar trabajadores de saneamiento como integrantes
+        if (_isSaneamiento &&
+            _modo == ModoTrabajo.individual &&
+            saneamientoList.isNotEmpty) {
+          await db.reportesDao.saveSaneamientoTrabajadores(
+            reporteAreaId: widget.reporteAreaId!,
+            trabajadores: saneamientoList,
+          );
+        }
+      } catch (_) {
+        // si hay error, igual seguimos para no bloquear al usuario
+      }
     }
 
     if (!mounted) return;
@@ -868,7 +929,8 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                                 width: 44,
                                 child: IconButton(
                                   tooltip: 'Quitar',
-                                  onPressed: () => _eliminarCuadrilla(i),
+                                  onPressed: () =>
+                                      _eliminarCuadrilla(i),
                                   icon: const Icon(
                                     Icons.remove_circle_outline,
                                     color: Colors.redAccent,
@@ -880,8 +942,7 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                         ),
                     const Divider(height: 1),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                          12, 12, 12, 16),
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
                       child: Row(
                         children: [
                           const Expanded(
@@ -1001,6 +1062,8 @@ class _HoraTile extends StatelessWidget {
 }
 
 class _SaneamientoTrabajadorRow {
+  _SaneamientoTrabajadorRow({this.lockFromQr = false});
+
   TimeOfDay? inicio;
   TimeOfDay? fin;
 
@@ -1010,6 +1073,9 @@ class _SaneamientoTrabajadorRow {
 
   // 👇 FocusNode para poder poner el cursor en el nuevo trabajador
   final FocusNode codigoFocus = FocusNode();
+
+  // 👇 Indica si código y nombre vienen de QR / BD y no se deben editar
+  bool lockFromQr;
 
   // Horas trabajadas con 30 minutos descontados (almuerzo)
   double get horas {
@@ -1124,6 +1190,7 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
           focusNode: row.codigoFocus, // 👈 aquí usamos el FocusNode correcto
           keyboardType: TextInputType.number,
           maxLength: 8,
+          readOnly: row.lockFromQr, // 👈 Bloquea edición si viene de QR/BD
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
           ],
@@ -1143,6 +1210,7 @@ class _SaneamientoTrabajadorForm extends StatelessWidget {
         const SizedBox(height: 12),
         TextField(
           controller: row.nombreCtrl,
+          readOnly: row.lockFromQr, // 👈 también bloquea el nombre
           decoration: const InputDecoration(
             labelText: 'Nombre del trabajador',
             prefixIcon: Icon(Icons.person_outline),
@@ -1208,8 +1276,8 @@ class CuadrillaData {
 
   static CuadrillaData fromMap(Map<String, dynamic> m) => CuadrillaData(
     nombre: (m['nombre'] ?? '') as String?,
-    integrantes: (m['integrantes'] as List?)
-        ?.cast<Map<String, String>>() ??
+    integrantes:
+    (m['integrantes'] as List?)?.cast<Map<String, String>>() ??
         <Map<String, String>>[],
     kilos: (m['kilos'] is num)
         ? (m['kilos'] as num).toDouble()

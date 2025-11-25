@@ -429,23 +429,13 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
                   final horaInicioTrabajador = t.inicio ?? _inicio;
                   final horaFinTrabajador = t.fin ?? _fin;
 
-                  String? horaInicioStr;
-                  if (t.inicio != null) {
-                    horaInicioStr =
-                        '${t.inicio!.hour.toString().padLeft(2, '0')}:${t.inicio!.minute.toString().padLeft(2, '0')}';
-                  } else if (_inicio != null) {
-                    horaInicioStr =
-                        '${_inicio!.hour.toString().padLeft(2, '0')}:${_inicio!.minute.toString().padLeft(2, '0')}';
-                  }
+                  final horaInicioStr = horaInicioTrabajador == null
+                      ? null
+                      : '${horaInicioTrabajador.hour.toString().padLeft(2, '0')}:${horaInicioTrabajador.minute.toString().padLeft(2, '0')}';
 
-                  String? horaFinStr;
-                  if (t.fin != null) {
-                    horaFinStr =
-                        '${t.fin!.hour.toString().padLeft(2, '0')}:${t.fin!.minute.toString().padLeft(2, '0')}';
-                  } else if (_fin != null) {
-                    horaFinStr =
-                        '${_fin!.hour.toString().padLeft(2, '0')}:${_fin!.minute.toString().padLeft(2, '0')}';
-                  }
+                  final horaFinStr = horaFinTrabajador == null
+                      ? null
+                      : '${horaFinTrabajador.hour.toString().padLeft(2, '0')}:${horaFinTrabajador.minute.toString().padLeft(2, '0')}';
 
                   final horas =
                       _calcularHorasConAlmuerzo(horaInicioTrabajador, horaFinTrabajador);

@@ -607,6 +607,8 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
           await db.reportesDao.saveSaneamientoTrabajadores(
             reporteAreaId: widget.reporteAreaId!,
             trabajadores: saneamientoList,
+            horaInicioGeneral: horaInicio,
+            horaFinGeneral: horaFin,
           );
         }
       } catch (_) {

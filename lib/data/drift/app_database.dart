@@ -421,6 +421,8 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   Future<void> saveSaneamientoTrabajadores({
     required int reporteAreaId,
     required List<Map<String, dynamic>> trabajadores,
+    String? horaInicioGeneral,
+    String? horaFinGeneral,
   }) async {
     await transaction(() async {
       // Buscamos (o creamos) UNA única cuadrilla para este área
@@ -452,11 +454,19 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
           .go();
 
       // Insertamos los trabajadores nuevos
+      final hiGeneral = horaInicioGeneral?.trim();
+      final hfGeneral = horaFinGeneral?.trim();
       for (final t in trabajadores) {
         final code = (t['code'] ?? '').toString();
         final name = (t['name'] ?? '').toString();
-        final hi = (t['horaInicio'] ?? '') as String?;
-        final hf = (t['horaFin'] ?? '') as String?;
+        final hiRaw = t['horaInicio'];
+        final hfRaw = t['horaFin'];
+        final hi = (hiRaw is String ? hiRaw : hiRaw?.toString())?.trim();
+        final hf = (hfRaw is String ? hfRaw : hfRaw?.toString())?.trim();
+        final horaInicio =
+        (hi != null && hi.isNotEmpty) ? hi : (hiGeneral?.isNotEmpty == true ? hiGeneral : null);
+        final horaFin =
+        (hf != null && hf.isNotEmpty) ? hf : (hfGeneral?.isNotEmpty == true ? hfGeneral : null);
         final hs = t['horas'];
         final labores = (t['labores'] ?? '').toString();
 
@@ -467,8 +477,8 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
             cuadrillaId: cuadrillaId,
             code: Value(code),
             nombre: name,
-            horaInicio: Value(hi),
-            horaFin: Value(hf),
+            horaInicio: Value(horaInicio),
+            horaFin: Value(horaFin),
             horas: Value(hs is num ? hs.toDouble() : null),
             labores: Value(labores.isEmpty ? null : labores),
           ),

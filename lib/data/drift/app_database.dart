@@ -610,19 +610,61 @@ LEFT JOIN (
   GROUP BY reporte_area_id
 ) c_sum ON c_sum.reporte_area_id = a.id
 LEFT JOIN (
-  SELECT 
+  SELECT
     c.reporte_area_id,
     COUNT(i.id) AS integrantes_count,
-    SUM(i.horas) AS total_horas,
+    SUM(i.calculated_horas) AS total_horas,
     SUM(
-      CASE 
-        WHEN i.hora_inicio IS NOT NULL 
-             AND (i.hora_fin IS NULL OR i.hora_fin = '')
-        THEN 1 
-        ELSE 0 
+      CASE
+        WHEN i.calculated_horas IS NULL
+        THEN 1
+        ELSE 0
       END
     ) AS pendientes_salida
-  FROM integrantes i
+  FROM (
+    SELECT
+      i.id,
+      i.cuadrilla_id,
+      CASE
+        WHEN i.horas IS NOT NULL AND i.horas != 0 THEN i.horas
+        WHEN i.hora_inicio IS NOT NULL AND i.hora_fin IS NOT NULL
+             AND i.hora_inicio != '' AND i.hora_fin != '' THEN
+          CASE
+            WHEN (
+              CASE
+                WHEN (
+                  strftime('%s', '2000-01-01 ' || i.hora_fin) -
+                  strftime('%s', '2000-01-01 ' || i.hora_inicio)
+                ) <= 0 THEN (
+                  strftime('%s', '2000-01-01 ' || i.hora_fin) -
+                  strftime('%s', '2000-01-01 ' || i.hora_inicio) + 86400
+                )
+                ELSE (
+                  strftime('%s', '2000-01-01 ' || i.hora_fin) -
+                  strftime('%s', '2000-01-01 ' || i.hora_inicio)
+                )
+              END / 3600.0
+            ) > 0.5 THEN (
+              CASE
+                WHEN (
+                  strftime('%s', '2000-01-01 ' || i.hora_fin) -
+                  strftime('%s', '2000-01-01 ' || i.hora_inicio)
+                ) <= 0 THEN (
+                  strftime('%s', '2000-01-01 ' || i.hora_fin) -
+                  strftime('%s', '2000-01-01 ' || i.hora_inicio) + 86400
+                )
+                ELSE (
+                  strftime('%s', '2000-01-01 ' || i.hora_fin) -
+                  strftime('%s', '2000-01-01 ' || i.hora_inicio)
+                )
+              END / 3600.0 - 0.5
+            )
+            ELSE 0.0
+          END
+        ELSE NULL
+      END AS calculated_horas
+    FROM integrantes i
+  ) i
   INNER JOIN cuadrillas c ON c.id = i.cuadrilla_id
   GROUP BY c.reporte_area_id
 ) i_sum ON i_sum.reporte_area_id = a.id

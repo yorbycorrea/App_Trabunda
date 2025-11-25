@@ -568,14 +568,50 @@ LEFT JOIN (
   FROM cuadrillas
   GROUP BY reporte_area_id
 ) c_sum ON c_sum.reporte_area_id = a.id
-LEFT JOIN (
-  SELECT 
-    c.reporte_area_id,
-    COUNT(i.id) AS integrantes_count,
-    SUM(i.horas) AS total_horas,
-    SUM(
-      CASE 
-        WHEN i.hora_inicio IS NOT NULL 
+  LEFT JOIN (
+    SELECT
+      c.reporte_area_id,
+      COUNT(i.id) AS integrantes_count,
+      SUM(
+        CASE
+          WHEN i.horas IS NOT NULL AND i.horas > 0 THEN i.horas
+          WHEN i.hora_inicio IS NOT NULL AND i.hora_inicio != ''
+               AND i.hora_fin IS NOT NULL AND i.hora_fin != '' THEN
+            CASE
+              WHEN (
+                (
+                  (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                      CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                      (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                          CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                ) + CASE
+                  WHEN (
+                    (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                        CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                        (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                            CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                  ) <= 0 THEN 1440 ELSE 0 END
+              ) / 60.0 > 0.5 THEN (
+                (
+                  (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                      CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                      (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                          CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                ) + CASE
+                  WHEN (
+                    (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                        CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                        (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                            CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                  ) <= 0 THEN 1440 ELSE 0 END
+              ) / 60.0 - 0.5 ELSE 0
+            END
+          ELSE 0
+        END
+      ) AS total_horas,
+      SUM(
+        CASE
+          WHEN i.hora_inicio IS NOT NULL
              AND (i.hora_fin IS NULL OR i.hora_fin = '')
         THEN 1 
         ELSE 0 

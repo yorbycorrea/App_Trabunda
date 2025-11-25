@@ -377,15 +377,38 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
         // En Saneamiento, usamos kilos_total como total de horas
         return _saneamientoTrabajadores.fold<double>(
           0.0,
-              (sum, t) => sum + t.horas,
+          (sum, t) => sum + t.horas,
         );
       }
       return double.tryParse(_kilosIndividualCtrl.text.trim()) ?? 0.0;
     }
     return _cuadrillas.fold<double>(
       0.0,
-          (sum, c) => sum + (c.kilos ?? 0.0),
+      (sum, c) => sum + (c.kilos ?? 0.0),
     );
+  }
+
+  double _calcularHorasConAlmuerzo(TimeOfDay? inicio, TimeOfDay? fin) {
+    if (inicio == null || fin == null) return 0.0;
+
+    final startMinutes = inicio.hour * 60 + inicio.minute;
+    final endMinutes = fin.hour * 60 + fin.minute;
+
+    int diff = endMinutes - startMinutes;
+
+    if (diff <= 0) {
+      diff += 24 * 60;
+    }
+
+    double rawHours = diff / 60.0;
+
+    if (rawHours > 0.5) {
+      rawHours -= 0.5;
+    } else {
+      rawHours = 0.0;
+    }
+
+    return rawHours;
   }
 
   Map<String, dynamic> _resultadoParaVolver() {
@@ -399,25 +422,45 @@ class _AreaDetallePageState extends State<AreaDetallePage> {
         : '${_fin!.hour.toString().padLeft(2, '0')}:${_fin!.minute.toString().padLeft(2, '0')}';
 
     final saneamientoTrabajadores =
-    _isSaneamiento && _modo == ModoTrabajo.individual
-        ? _saneamientoTrabajadores
-        .where((t) => t.hasData)
-        .map(
-          (t) => {
-        'code': t.codigoCtrl.text.trim(),
-        'name': t.nombreCtrl.text.trim(),
-        'horaInicio': t.inicio == null
-            ? null
-            : '${t.inicio!.hour.toString().padLeft(2, '0')}:${t.inicio!.minute.toString().padLeft(2, '0')}',
-        'horaFin': t.fin == null
-            ? null
-            : '${t.fin!.hour.toString().padLeft(2, '0')}:${t.fin!.minute.toString().padLeft(2, '0')}',
-        'horas': t.horas,
-        'labores': t.laboresCtrl.text.trim(),
-      },
-    )
-        .toList()
-        : null;
+        _isSaneamiento && _modo == ModoTrabajo.individual
+            ? _saneamientoTrabajadores
+                .where((t) => t.hasData)
+                .map((t) {
+                  final horaInicioTrabajador = t.inicio ?? _inicio;
+                  final horaFinTrabajador = t.fin ?? _fin;
+
+                  String? horaInicioStr;
+                  if (t.inicio != null) {
+                    horaInicioStr =
+                        '${t.inicio!.hour.toString().padLeft(2, '0')}:${t.inicio!.minute.toString().padLeft(2, '0')}';
+                  } else if (_inicio != null) {
+                    horaInicioStr =
+                        '${_inicio!.hour.toString().padLeft(2, '0')}:${_inicio!.minute.toString().padLeft(2, '0')}';
+                  }
+
+                  String? horaFinStr;
+                  if (t.fin != null) {
+                    horaFinStr =
+                        '${t.fin!.hour.toString().padLeft(2, '0')}:${t.fin!.minute.toString().padLeft(2, '0')}';
+                  } else if (_fin != null) {
+                    horaFinStr =
+                        '${_fin!.hour.toString().padLeft(2, '0')}:${_fin!.minute.toString().padLeft(2, '0')}';
+                  }
+
+                  final horas =
+                      _calcularHorasConAlmuerzo(horaInicioTrabajador, horaFinTrabajador);
+
+                  return {
+                    'code': t.codigoCtrl.text.trim(),
+                    'name': t.nombreCtrl.text.trim(),
+                    'horaInicio': horaInicioStr,
+                    'horaFin': horaFinStr,
+                    'horas': horas,
+                    'labores': t.laboresCtrl.text.trim(),
+                  };
+                })
+                .toList()
+            : null;
 
     return {
       'area': widget.areaName,

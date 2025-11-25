@@ -569,16 +569,129 @@ LEFT JOIN (
   GROUP BY reporte_area_id
 ) c_sum ON c_sum.reporte_area_id = a.id
 LEFT JOIN (
-  SELECT 
+  SELECT
     c.reporte_area_id,
     COUNT(i.id) AS integrantes_count,
-    SUM(i.horas) AS total_horas,
     SUM(
-      CASE 
-        WHEN i.hora_inicio IS NOT NULL 
-             AND (i.hora_fin IS NULL OR i.hora_fin = '')
-        THEN 1 
-        ELSE 0 
+      CASE
+        WHEN (i.horas IS NULL OR i.horas = 0)
+             AND i.hora_inicio IS NOT NULL AND i.hora_inicio != ''
+             AND i.hora_fin IS NOT NULL AND i.hora_fin != ''
+        THEN
+          CASE
+            WHEN (
+              (
+                (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                     CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                     CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+              ) <= 0
+            ) THEN
+              CASE
+                WHEN (
+                  ((
+                    (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                    (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                  ) + 1440) / 60.0
+                ) > 0.5
+                THEN (
+                  ((
+                    (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                    (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                  ) + 1440) / 60.0
+                ) - 0.5
+                ELSE 0.0
+              END
+            ELSE
+              CASE
+                WHEN (
+                  (
+                    (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                    (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                  ) / 60.0
+                ) > 0.5
+                THEN (
+                  (
+                    (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                    (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                  ) / 60.0
+                ) - 0.5
+                ELSE 0.0
+              END
+          END
+        ELSE i.horas
+      END
+    ) AS total_horas,
+    SUM(
+      CASE
+        WHEN (
+          CASE
+            WHEN (i.horas IS NULL OR i.horas = 0)
+                 AND i.hora_inicio IS NOT NULL AND i.hora_inicio != ''
+                 AND i.hora_fin IS NOT NULL AND i.hora_fin != ''
+            THEN
+              CASE
+                WHEN (
+                  (
+                    (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                    (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                         CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                  ) <= 0
+                ) THEN
+                  CASE
+                    WHEN (
+                      ((
+                        (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                             CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                        (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                             CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                      ) + 1440) / 60.0
+                    ) > 0.5
+                    THEN (
+                      ((
+                        (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                             CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                        (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                             CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                      ) + 1440) / 60.0
+                    ) - 0.5
+                    ELSE 0.0
+                  END
+                ELSE
+                  CASE
+                    WHEN (
+                      (
+                        (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                             CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                        (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                             CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                      ) / 60.0
+                    ) > 0.5
+                    THEN (
+                      (
+                        (CAST(substr(i.hora_fin, 1, 2) AS INTEGER) * 60 +
+                             CAST(substr(i.hora_fin, 4, 2) AS INTEGER)) -
+                        (CAST(substr(i.hora_inicio, 1, 2) AS INTEGER) * 60 +
+                             CAST(substr(i.hora_inicio, 4, 2) AS INTEGER))
+                      ) / 60.0
+                    ) - 0.5
+                    ELSE 0.0
+                  END
+              END
+            ELSE i.horas
+          END
+        ) IS NULL
+        THEN 1
+        ELSE 0
       END
     ) AS pendientes_salida
   FROM integrantes i

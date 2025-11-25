@@ -511,6 +511,39 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         }
         final labores = (t['labores'] ?? '').toString();
 
+        double? horasFinal = hs is num ? hs.toDouble() : null;
+
+        if ((horasFinal == null || horasFinal == 0) &&
+            horaInicio != null &&
+            horaFin != null &&
+            horaInicio.isNotEmpty &&
+            horaFin.isNotEmpty) {
+          final partsIni = horaInicio.split(':');
+          final partsFin = horaFin.split(':');
+          if (partsIni.length == 2 && partsFin.length == 2) {
+            final hiH = int.tryParse(partsIni[0]);
+            final hiM = int.tryParse(partsIni[1]);
+            final hfH = int.tryParse(partsFin[0]);
+            final hfM = int.tryParse(partsFin[1]);
+            if (hiH != null && hiM != null && hfH != null && hfM != null) {
+              int startMinutes = hiH * 60 + hiM;
+              int endMinutes = hfH * 60 + hfM;
+              int diff = endMinutes - startMinutes;
+              if (diff <= 0) {
+                diff += 24 * 60; // cruza medianoche
+              }
+              double rawHours = diff / 60.0;
+              // Descuento de 30 minutos de almuerzo
+              if (rawHours > 0.5) {
+                rawHours -= 0.5;
+              } else {
+                rawHours = 0.0;
+              }
+              horasFinal = rawHours;
+            }
+          }
+        }
+
         if (code.isEmpty && name.isEmpty) continue;
 
         await into(integrantes).insert(

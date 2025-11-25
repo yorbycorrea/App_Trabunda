@@ -474,39 +474,11 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         final hs = t['horas'];
         double? horasFinal = hs is num ? hs.toDouble() : null;
 
-        if ((horasFinal == null || horasFinal == 0) &&
-            horaInicio != null &&
-            horaFin != null &&
-            horaInicio.isNotEmpty &&
-            horaFin.isNotEmpty) {
-          final partsIni = horaInicio.split(':');
-          final partsFin = horaFin.split(':');
-
-          if (partsIni.length == 2 && partsFin.length == 2) {
-            final hiH = int.tryParse(partsIni[0]);
-            final hiM = int.tryParse(partsIni[1]);
-            final hfH = int.tryParse(partsFin[0]);
-            final hfM = int.tryParse(partsFin[1]);
-
-            if (hiH != null && hiM != null && hfH != null && hfM != null) {
-              int startMinutes = hiH * 60 + hiM;
-              int endMinutes = hfH * 60 + hfM;
-              int diff = endMinutes - startMinutes;
-
-              if (diff <= 0) {
-                diff += 24 * 60; // cruza medianoche
-              }
-
-              double rawHours = diff / 60.0;
-
-              if (rawHours > 0.5) {
-                rawHours -= 0.5; // Descuento de 30 minutos de almuerzo
-              } else {
-                rawHours = 0.0;
-              }
-
-              horasFinal = rawHours;
-            }
+        if (horasFinal == null || horasFinal == 0) {
+          final horasCalculadas =
+              _calcularHorasConAlmuerzo(horaInicio: horaInicio, horaFin: horaFin);
+          if (horasCalculadas != null) {
+            horasFinal = horasCalculadas;
           }
         }
         final labores = (t['labores'] ?? '').toString();
@@ -720,38 +692,11 @@ LEFT JOIN (
             final hi = it.horaInicio;
             final hf = it.horaFin;
 
-            if ((horasFinal == null || horasFinal == 0) &&
-                hi != null &&
-                hf != null &&
-                hi.isNotEmpty &&
-                hf.isNotEmpty) {
-              final partsIni = hi.split(':');
-              final partsFin = hf.split(':');
-              if (partsIni.length == 2 && partsFin.length == 2) {
-                final hiH = int.tryParse(partsIni[0]);
-                final hiM = int.tryParse(partsIni[1]);
-                final hfH = int.tryParse(partsFin[0]);
-                final hfM = int.tryParse(partsFin[1]);
-                if (hiH != null &&
-                    hiM != null &&
-                    hfH != null &&
-                    hfM != null) {
-                  int startMinutes = hiH * 60 + hiM;
-                  int endMinutes = hfH * 60 + hfM;
-                  int diff = endMinutes - startMinutes;
-                  if (diff <= 0) {
-                    diff += 24 * 60; // cruza medianoche
-                  }
-                  double rawHours = diff / 60.0;
-                  // Descuento de 30 minutos de almuerzo
-                  if (rawHours > 0.5) {
-                    rawHours -= 0.5;
-                  } else {
-                    rawHours = 0.0;
-                  }
-                  horasFinal = rawHours;
-                }
-              }
+            if (horasFinal == null || horasFinal == 0) {
+              horasFinal = _calcularHorasConAlmuerzo(
+                horaInicio: hi,
+                horaFin: hf,
+              );
             }
 
             return IntegranteDetalle(
@@ -1112,6 +1057,48 @@ LEFT JOIN (
         }
       }
     });
+  }
+
+  /// Calcula horas descontando 30 minutos y considerando cruce de medianoche.
+  double? _calcularHorasConAlmuerzo({
+    required String? horaInicio,
+    required String? horaFin,
+  }) {
+    if (horaInicio == null ||
+        horaFin == null ||
+        horaInicio.isEmpty ||
+        horaFin.isEmpty) {
+      return null;
+    }
+
+    final partsIni = horaInicio.split(':');
+    final partsFin = horaFin.split(':');
+    if (partsIni.length != 2 || partsFin.length != 2) return null;
+
+    final hiH = int.tryParse(partsIni[0]);
+    final hiM = int.tryParse(partsIni[1]);
+    final hfH = int.tryParse(partsFin[0]);
+    final hfM = int.tryParse(partsFin[1]);
+
+    if (hiH == null || hiM == null || hfH == null || hfM == null) return null;
+
+    int startMinutes = hiH * 60 + hiM;
+    int endMinutes = hfH * 60 + hfM;
+    int diff = endMinutes - startMinutes;
+
+    if (diff <= 0) {
+      diff += 24 * 60; // cruza medianoche
+    }
+
+    double rawHours = diff / 60.0;
+
+    if (rawHours > 0.5) {
+      rawHours -= 0.5; // Descuento de 30 minutos de almuerzo
+    } else {
+      rawHours = 0.0;
+    }
+
+    return rawHours;
   }
 }
 

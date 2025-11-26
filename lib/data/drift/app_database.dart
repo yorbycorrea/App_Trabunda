@@ -120,6 +120,23 @@ class AppDatabase extends _$AppDatabase {
       }
     },
   );
+
+  /// =====================================================
+  /// 🔹 Borrar todos los datos locales (para logout, debug)
+  /// =====================================================
+  Future<void> clearAllData() async {
+    await transaction(() async {
+      await batch((b) {
+        // Primero hijos, luego padres
+        b.deleteWhere(integrantes, (_) => const Constant(true));
+        b.deleteWhere(cuadrillaDesgloses, (_) => const Constant(true));
+        b.deleteWhere(cuadrillas, (_) => const Constant(true));
+        b.deleteWhere(reporteAreaDesgloses, (_) => const Constant(true));
+        b.deleteWhere(reporteAreas, (_) => const Constant(true));
+        b.deleteWhere(reportes, (_) => const Constant(true));
+      });
+    });
+  }
 }
 
 /// =======================

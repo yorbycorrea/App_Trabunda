@@ -4,6 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:scanner_trabunda/data/drift/db.dart';
+
+
+
 import '../../domain/entities/app_user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/login_use_case.dart';
@@ -42,7 +46,20 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // 1) Cerrar sesión en Supabase (servidor)
     await _logoutUseCase.execute();
+
+    // 2) Limpiar la base de datos local para que el siguiente usuario
+    //    no vea reportes/datos del anterior.
+    try {
+      await db.clearAllData();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Error limpiando la BD local al hacer logout: $e');
+      }
+    }
+
+    // 3) Limpiar usuario en memoria
     currentUser = null;
     notifyListeners();
   }
@@ -81,14 +98,14 @@ class AuthScope extends InheritedWidget {
 
   static AuthController watch(BuildContext context) {
     final scope =
-        context.dependOnInheritedWidgetOfExactType<AuthScope>();
+    context.dependOnInheritedWidgetOfExactType<AuthScope>();
     assert(scope != null, 'No se encontró AuthScope en el árbol de widgets');
     return scope!.controller;
   }
 
   static AuthController read(BuildContext context) {
     final element =
-        context.getElementForInheritedWidgetOfExactType<AuthScope>();
+    context.getElementForInheritedWidgetOfExactType<AuthScope>();
     assert(element != null, 'No se encontró AuthScope en el árbol de widgets');
     final scope = element!.widget as AuthScope;
     return scope.controller;

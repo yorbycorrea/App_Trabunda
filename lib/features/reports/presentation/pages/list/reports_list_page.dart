@@ -264,8 +264,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
       final filtered = isPlanillero
           ? resultados
           .where(
-            (r) =>
-        r.planillero.toLowerCase() ==
+            (r) => r.planillero.toLowerCase() ==
             planilleroFilter.toLowerCase(),
       )
           .toList()
@@ -313,7 +312,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
       }).toList();
 
       // 4) 🧹 QUITAR SOLO DUPLICADOS EXACTOS
-      //    (mismo reporteId, fecha, turno, planillero, personas, horas, kilos y áreas)
       final Map<String, ReportSummary> unique = {};
       for (final s in nonEmptySummaries) {
         final key = [
@@ -327,7 +325,6 @@ class _ReportsListPageState extends State<ReportsListPage> {
           s.areaNames.join('|'),
         ].join('::');
 
-        // Si ya existe un registro EXACTAMENTE igual, lo ignoramos
         unique.putIfAbsent(key, () => s);
       }
 
@@ -636,6 +633,7 @@ class _ReportsListPageState extends State<ReportsListPage> {
                     (r) => _ReportCard(
                   data: r,
                   primaryColor: primaryColor,
+                  isPlanillero: isPlanillero,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -707,11 +705,13 @@ class _AggregatedReport {
 class _ReportCard extends StatelessWidget {
   final ReportSummary data;
   final Color primaryColor;
+  final bool isPlanillero;
   final VoidCallback onTap;
 
   const _ReportCard({
     required this.data,
     required this.primaryColor,
+    required this.isPlanillero,
     required this.onTap,
   });
 
@@ -795,8 +795,9 @@ class _ReportCard extends StatelessWidget {
               const SizedBox(height: 12),
               _InfoRow(
                 icon: Icons.person_outline,
-                text:
-                data.planillero.isEmpty ? 'Sin planillero' : data.planillero,
+                text: data.planillero.isEmpty
+                    ? 'Sin planillero'
+                    : data.planillero,
               ),
               const SizedBox(height: 8),
               _InfoRow(
@@ -832,9 +833,79 @@ class _ReportCard extends StatelessWidget {
                   icon: Icons.scale_rounded,
                   text: '${data.kilos.toStringAsFixed(3)} kg (total)',
                 ),
+
+              // 👇 NUEVO: solo para planillero mostramos los 3 "modos"
+              if (isPlanillero) ...[
+                const SizedBox(height: 12),
+                const Divider(height: 20),
+                const Text(
+                  'Tipos de registro',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: const [
+                    _ModoChip(
+                      icon: Icons.more_time_rounded,
+                      label: 'Apoyos por horas',
+                    ),
+                    _ModoChip(
+                      icon: Icons.assignment_rounded,
+                      label: 'Trabajo por avance',
+                    ),
+                    _ModoChip(
+                      icon: Icons.people_alt_rounded,
+                      label: 'Conteo rápido',
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ModoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ModoChip({
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const color = _kPrimaryColor;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9EFEC),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

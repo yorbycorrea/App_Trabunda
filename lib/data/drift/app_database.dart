@@ -68,6 +68,31 @@ class Integrantes extends Table {
   TextColumn get labores => text().nullable()();
 }
 
+///
+/// 🔹 NUEVA TABLA: APOYOS POR HORAS
+///
+class ApoyosHoras extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Cada apoyo pertenece a un reporte (fecha + turno + planillero)
+  IntColumn get reporteId =>
+      integer().references(Reportes, #id, onDelete: KeyAction.cascade)();
+
+  /// Código del trabajador (el que está en la planilla física)
+  TextColumn get codigoTrabajador => text()();
+
+  /// Horas en formato texto HH:mm
+  TextColumn get horaInicio => text()(); // '18:00'
+  TextColumn get horaFin => text()(); // '23:30'
+
+  /// Cantidad de horas ya calculadas (ej. 5.5)
+  RealColumn get horas =>
+      real().withDefault(const Constant(0.0))(); // calculado en la app
+
+  /// Área de apoyo (APOYO LAVADO, APOYO ANILLAS, etc.)
+  TextColumn get areaApoyo => text()();
+}
+
 /// =======================
 /// CONEXIÓN
 /// =======================
@@ -87,15 +112,17 @@ LazyDatabase _openConnection() {
     ReporteAreaDesgloses,
     Cuadrillas,
     CuadrillaDesgloses,
-    Integrantes
+    Integrantes,
+    ApoyosHoras,
   ],
   daos: [ReportesDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// 👀 Aumentamos versión de 5 a 6 porque agregamos tabla nueva
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -118,6 +145,10 @@ class AppDatabase extends _$AppDatabase {
       if (from < 5) {
         await m.addColumn(reportes, reportes.supabaseId);
       }
+      if (from < 6) {
+        // Nueva tabla de apoyos por horas
+        await m.createTable(apoyosHoras);
+      }
     },
   );
 
@@ -133,6 +164,8 @@ class AppDatabase extends _$AppDatabase {
         b.deleteWhere(cuadrillas, (_) => const Constant(true));
         b.deleteWhere(reporteAreaDesgloses, (_) => const Constant(true));
         b.deleteWhere(reporteAreas, (_) => const Constant(true));
+        // ApoyosHoras depende de reportes, así que antes de borrar reportes
+        b.deleteWhere(apoyosHoras, (_) => const Constant(true));
         b.deleteWhere(reportes, (_) => const Constant(true));
       });
     });
@@ -150,7 +183,8 @@ class AppDatabase extends _$AppDatabase {
     ReporteAreaDesgloses,
     Cuadrillas,
     CuadrillaDesgloses,
-    Integrantes
+    Integrantes,
+    ApoyosHoras,
   ],
 )
 class ReportesDao extends DatabaseAccessor<AppDatabase>
@@ -168,6 +202,83 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     if (total is BigInt) return total > BigInt.zero;
     return false;
   }
+
+  /// =====================================================
+  /// APOYOS POR HORAS
+  /// =====================================================
+
+  Future<int> insertarApoyoHora({
+    required int reporteId,
+    required String codigoTrabajador,
+    required String horaInicio,
+    required String horaFin,
+    required double horas,
+    required String areaApoyo,
+  }) {
+    return into(apoyosHoras).insert(
+      ApoyosHorasCompanion.insert(
+        reporteId: reporteId,
+        codigoTrabajador: codigoTrabajador,
+        horaInicio: horaInicio,
+        horaFin: horaFin,
+        horas: Value(horas),        // <-- aquí el cambio
+        areaApoyo: areaApoyo,
+      ),
+    );
+  }
+
+
+  /// Lista todos los apoyos de un reporte (para mostrar en la pantalla)
+  Future<List<ApoyoHoraDetalle>> listarApoyosPorReporte(int reporteId) async {
+    final rows = await (select(apoyosHoras)
+      ..where((t) => t.reporteId.equals(reporteId))
+      ..orderBy([
+            (t) => OrderingTerm.asc(t.areaApoyo),
+            (t) => OrderingTerm.asc(t.codigoTrabajador),
+      ]))
+        .get();
+
+    return rows
+        .map(
+          (r) => ApoyoHoraDetalle(
+        id: r.id,
+        reporteId: r.reporteId,
+        codigoTrabajador: r.codigoTrabajador,
+        horaInicio: r.horaInicio,
+        horaFin: r.horaFin,
+        horas: r.horas,
+        areaApoyo: r.areaApoyo,
+      ),
+    )
+        .toList();
+  }
+
+  Future<void> eliminarApoyoHora(int id) async {
+    await (delete(apoyosHoras)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<void> actualizarApoyoHora({
+    required int id,
+    required String codigoTrabajador,
+    required String horaInicio,
+    required String horaFin,
+    required double horas,
+    required String areaApoyo,
+  }) async {
+    await (update(apoyosHoras)..where((t) => t.id.equals(id))).write(
+      ApoyosHorasCompanion(
+        codigoTrabajador: Value(codigoTrabajador),
+        horaInicio: Value(horaInicio),
+        horaFin: Value(horaFin),
+        horas: Value(horas),
+        areaApoyo: Value(areaApoyo),
+      ),
+    );
+  }
+
+  /// =====================================================
+  /// REPORTES (lo que ya tenías)
+  /// =====================================================
 
   /// Obtiene o crea un reporte (borrador) por fecha+turno+planillero.
   Future<int> getOrCreateReporte({
@@ -221,8 +332,8 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<int?> getReporteSupabaseId(int id) async {
-    final row = await (select(reportes)..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final row =
+    await (select(reportes)..where((t) => t.id.equals(id))).getSingleOrNull();
     return row?.supabaseId;
   }
 
@@ -1092,5 +1203,29 @@ class CategoriaDesglose {
     required this.categoria,
     this.personas = 0,
     this.kilos = 0,
+  });
+}
+
+/// =======================
+/// MODELO DE APOYOS (LECTURA)
+/// =======================
+
+class ApoyoHoraDetalle {
+  final int id;
+  final int reporteId;
+  final String codigoTrabajador;
+  final String horaInicio;
+  final String horaFin;
+  final double horas;
+  final String areaApoyo;
+
+  const ApoyoHoraDetalle({
+    required this.id,
+    required this.reporteId,
+    required this.codigoTrabajador,
+    required this.horaInicio,
+    required this.horaFin,
+    required this.horas,
+    required this.areaApoyo,
   });
 }

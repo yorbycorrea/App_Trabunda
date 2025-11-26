@@ -2390,6 +2390,476 @@ class IntegrantesCompanion extends UpdateCompanion<Integrante> {
   }
 }
 
+class $ApoyosHorasTable extends ApoyosHoras
+    with TableInfo<$ApoyosHorasTable, ApoyosHora> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ApoyosHorasTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _reporteIdMeta = const VerificationMeta(
+    'reporteId',
+  );
+  @override
+  late final GeneratedColumn<int> reporteId = GeneratedColumn<int>(
+    'reporte_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES reportes (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _codigoTrabajadorMeta = const VerificationMeta(
+    'codigoTrabajador',
+  );
+  @override
+  late final GeneratedColumn<String> codigoTrabajador = GeneratedColumn<String>(
+    'codigo_trabajador',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _horaInicioMeta = const VerificationMeta(
+    'horaInicio',
+  );
+  @override
+  late final GeneratedColumn<String> horaInicio = GeneratedColumn<String>(
+    'hora_inicio',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _horaFinMeta = const VerificationMeta(
+    'horaFin',
+  );
+  @override
+  late final GeneratedColumn<String> horaFin = GeneratedColumn<String>(
+    'hora_fin',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _horasMeta = const VerificationMeta('horas');
+  @override
+  late final GeneratedColumn<double> horas = GeneratedColumn<double>(
+    'horas',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _areaApoyoMeta = const VerificationMeta(
+    'areaApoyo',
+  );
+  @override
+  late final GeneratedColumn<String> areaApoyo = GeneratedColumn<String>(
+    'area_apoyo',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    reporteId,
+    codigoTrabajador,
+    horaInicio,
+    horaFin,
+    horas,
+    areaApoyo,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'apoyos_horas';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ApoyosHora> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('reporte_id')) {
+      context.handle(
+        _reporteIdMeta,
+        reporteId.isAcceptableOrUnknown(data['reporte_id']!, _reporteIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reporteIdMeta);
+    }
+    if (data.containsKey('codigo_trabajador')) {
+      context.handle(
+        _codigoTrabajadorMeta,
+        codigoTrabajador.isAcceptableOrUnknown(
+          data['codigo_trabajador']!,
+          _codigoTrabajadorMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_codigoTrabajadorMeta);
+    }
+    if (data.containsKey('hora_inicio')) {
+      context.handle(
+        _horaInicioMeta,
+        horaInicio.isAcceptableOrUnknown(data['hora_inicio']!, _horaInicioMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_horaInicioMeta);
+    }
+    if (data.containsKey('hora_fin')) {
+      context.handle(
+        _horaFinMeta,
+        horaFin.isAcceptableOrUnknown(data['hora_fin']!, _horaFinMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_horaFinMeta);
+    }
+    if (data.containsKey('horas')) {
+      context.handle(
+        _horasMeta,
+        horas.isAcceptableOrUnknown(data['horas']!, _horasMeta),
+      );
+    }
+    if (data.containsKey('area_apoyo')) {
+      context.handle(
+        _areaApoyoMeta,
+        areaApoyo.isAcceptableOrUnknown(data['area_apoyo']!, _areaApoyoMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_areaApoyoMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ApoyosHora map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ApoyosHora(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      reporteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}reporte_id'],
+      )!,
+      codigoTrabajador: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}codigo_trabajador'],
+      )!,
+      horaInicio: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hora_inicio'],
+      )!,
+      horaFin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hora_fin'],
+      )!,
+      horas: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}horas'],
+      )!,
+      areaApoyo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}area_apoyo'],
+      )!,
+    );
+  }
+
+  @override
+  $ApoyosHorasTable createAlias(String alias) {
+    return $ApoyosHorasTable(attachedDatabase, alias);
+  }
+}
+
+class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
+  final int id;
+
+  /// Cada apoyo pertenece a un reporte (fecha + turno + planillero)
+  final int reporteId;
+
+  /// Código del trabajador (el que está en la planilla física)
+  final String codigoTrabajador;
+
+  /// Horas en formato texto HH:mm
+  final String horaInicio;
+  final String horaFin;
+
+  /// Cantidad de horas ya calculadas (ej. 5.5)
+  final double horas;
+
+  /// Área de apoyo (APOYO LAVADO, APOYO ANILLAS, etc.)
+  final String areaApoyo;
+  const ApoyosHora({
+    required this.id,
+    required this.reporteId,
+    required this.codigoTrabajador,
+    required this.horaInicio,
+    required this.horaFin,
+    required this.horas,
+    required this.areaApoyo,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['reporte_id'] = Variable<int>(reporteId);
+    map['codigo_trabajador'] = Variable<String>(codigoTrabajador);
+    map['hora_inicio'] = Variable<String>(horaInicio);
+    map['hora_fin'] = Variable<String>(horaFin);
+    map['horas'] = Variable<double>(horas);
+    map['area_apoyo'] = Variable<String>(areaApoyo);
+    return map;
+  }
+
+  ApoyosHorasCompanion toCompanion(bool nullToAbsent) {
+    return ApoyosHorasCompanion(
+      id: Value(id),
+      reporteId: Value(reporteId),
+      codigoTrabajador: Value(codigoTrabajador),
+      horaInicio: Value(horaInicio),
+      horaFin: Value(horaFin),
+      horas: Value(horas),
+      areaApoyo: Value(areaApoyo),
+    );
+  }
+
+  factory ApoyosHora.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ApoyosHora(
+      id: serializer.fromJson<int>(json['id']),
+      reporteId: serializer.fromJson<int>(json['reporteId']),
+      codigoTrabajador: serializer.fromJson<String>(json['codigoTrabajador']),
+      horaInicio: serializer.fromJson<String>(json['horaInicio']),
+      horaFin: serializer.fromJson<String>(json['horaFin']),
+      horas: serializer.fromJson<double>(json['horas']),
+      areaApoyo: serializer.fromJson<String>(json['areaApoyo']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'reporteId': serializer.toJson<int>(reporteId),
+      'codigoTrabajador': serializer.toJson<String>(codigoTrabajador),
+      'horaInicio': serializer.toJson<String>(horaInicio),
+      'horaFin': serializer.toJson<String>(horaFin),
+      'horas': serializer.toJson<double>(horas),
+      'areaApoyo': serializer.toJson<String>(areaApoyo),
+    };
+  }
+
+  ApoyosHora copyWith({
+    int? id,
+    int? reporteId,
+    String? codigoTrabajador,
+    String? horaInicio,
+    String? horaFin,
+    double? horas,
+    String? areaApoyo,
+  }) => ApoyosHora(
+    id: id ?? this.id,
+    reporteId: reporteId ?? this.reporteId,
+    codigoTrabajador: codigoTrabajador ?? this.codigoTrabajador,
+    horaInicio: horaInicio ?? this.horaInicio,
+    horaFin: horaFin ?? this.horaFin,
+    horas: horas ?? this.horas,
+    areaApoyo: areaApoyo ?? this.areaApoyo,
+  );
+  ApoyosHora copyWithCompanion(ApoyosHorasCompanion data) {
+    return ApoyosHora(
+      id: data.id.present ? data.id.value : this.id,
+      reporteId: data.reporteId.present ? data.reporteId.value : this.reporteId,
+      codigoTrabajador: data.codigoTrabajador.present
+          ? data.codigoTrabajador.value
+          : this.codigoTrabajador,
+      horaInicio: data.horaInicio.present
+          ? data.horaInicio.value
+          : this.horaInicio,
+      horaFin: data.horaFin.present ? data.horaFin.value : this.horaFin,
+      horas: data.horas.present ? data.horas.value : this.horas,
+      areaApoyo: data.areaApoyo.present ? data.areaApoyo.value : this.areaApoyo,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ApoyosHora(')
+          ..write('id: $id, ')
+          ..write('reporteId: $reporteId, ')
+          ..write('codigoTrabajador: $codigoTrabajador, ')
+          ..write('horaInicio: $horaInicio, ')
+          ..write('horaFin: $horaFin, ')
+          ..write('horas: $horas, ')
+          ..write('areaApoyo: $areaApoyo')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    reporteId,
+    codigoTrabajador,
+    horaInicio,
+    horaFin,
+    horas,
+    areaApoyo,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ApoyosHora &&
+          other.id == this.id &&
+          other.reporteId == this.reporteId &&
+          other.codigoTrabajador == this.codigoTrabajador &&
+          other.horaInicio == this.horaInicio &&
+          other.horaFin == this.horaFin &&
+          other.horas == this.horas &&
+          other.areaApoyo == this.areaApoyo);
+}
+
+class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
+  final Value<int> id;
+  final Value<int> reporteId;
+  final Value<String> codigoTrabajador;
+  final Value<String> horaInicio;
+  final Value<String> horaFin;
+  final Value<double> horas;
+  final Value<String> areaApoyo;
+  const ApoyosHorasCompanion({
+    this.id = const Value.absent(),
+    this.reporteId = const Value.absent(),
+    this.codigoTrabajador = const Value.absent(),
+    this.horaInicio = const Value.absent(),
+    this.horaFin = const Value.absent(),
+    this.horas = const Value.absent(),
+    this.areaApoyo = const Value.absent(),
+  });
+  ApoyosHorasCompanion.insert({
+    this.id = const Value.absent(),
+    required int reporteId,
+    required String codigoTrabajador,
+    required String horaInicio,
+    required String horaFin,
+    this.horas = const Value.absent(),
+    required String areaApoyo,
+  }) : reporteId = Value(reporteId),
+       codigoTrabajador = Value(codigoTrabajador),
+       horaInicio = Value(horaInicio),
+       horaFin = Value(horaFin),
+       areaApoyo = Value(areaApoyo);
+  static Insertable<ApoyosHora> custom({
+    Expression<int>? id,
+    Expression<int>? reporteId,
+    Expression<String>? codigoTrabajador,
+    Expression<String>? horaInicio,
+    Expression<String>? horaFin,
+    Expression<double>? horas,
+    Expression<String>? areaApoyo,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (reporteId != null) 'reporte_id': reporteId,
+      if (codigoTrabajador != null) 'codigo_trabajador': codigoTrabajador,
+      if (horaInicio != null) 'hora_inicio': horaInicio,
+      if (horaFin != null) 'hora_fin': horaFin,
+      if (horas != null) 'horas': horas,
+      if (areaApoyo != null) 'area_apoyo': areaApoyo,
+    });
+  }
+
+  ApoyosHorasCompanion copyWith({
+    Value<int>? id,
+    Value<int>? reporteId,
+    Value<String>? codigoTrabajador,
+    Value<String>? horaInicio,
+    Value<String>? horaFin,
+    Value<double>? horas,
+    Value<String>? areaApoyo,
+  }) {
+    return ApoyosHorasCompanion(
+      id: id ?? this.id,
+      reporteId: reporteId ?? this.reporteId,
+      codigoTrabajador: codigoTrabajador ?? this.codigoTrabajador,
+      horaInicio: horaInicio ?? this.horaInicio,
+      horaFin: horaFin ?? this.horaFin,
+      horas: horas ?? this.horas,
+      areaApoyo: areaApoyo ?? this.areaApoyo,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (reporteId.present) {
+      map['reporte_id'] = Variable<int>(reporteId.value);
+    }
+    if (codigoTrabajador.present) {
+      map['codigo_trabajador'] = Variable<String>(codigoTrabajador.value);
+    }
+    if (horaInicio.present) {
+      map['hora_inicio'] = Variable<String>(horaInicio.value);
+    }
+    if (horaFin.present) {
+      map['hora_fin'] = Variable<String>(horaFin.value);
+    }
+    if (horas.present) {
+      map['horas'] = Variable<double>(horas.value);
+    }
+    if (areaApoyo.present) {
+      map['area_apoyo'] = Variable<String>(areaApoyo.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ApoyosHorasCompanion(')
+          ..write('id: $id, ')
+          ..write('reporteId: $reporteId, ')
+          ..write('codigoTrabajador: $codigoTrabajador, ')
+          ..write('horaInicio: $horaInicio, ')
+          ..write('horaFin: $horaFin, ')
+          ..write('horas: $horas, ')
+          ..write('areaApoyo: $areaApoyo')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2401,6 +2871,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CuadrillaDesglosesTable cuadrillaDesgloses =
       $CuadrillaDesglosesTable(this);
   late final $IntegrantesTable integrantes = $IntegrantesTable(this);
+  late final $ApoyosHorasTable apoyosHoras = $ApoyosHorasTable(this);
   late final ReportesDao reportesDao = ReportesDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -2413,6 +2884,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     cuadrillas,
     cuadrillaDesgloses,
     integrantes,
+    apoyosHoras,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2429,6 +2901,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('cuadrilla_desgloses', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'reportes',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('apoyos_horas', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -2467,6 +2946,24 @@ final class $$ReportesTableReferences
     ).filter((f) => f.reporteId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_reporteAreasRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ApoyosHorasTable, List<ApoyosHora>>
+  _apoyosHorasRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.apoyosHoras,
+    aliasName: $_aliasNameGenerator(db.reportes.id, db.apoyosHoras.reporteId),
+  );
+
+  $$ApoyosHorasTableProcessedTableManager get apoyosHorasRefs {
+    final manager = $$ApoyosHorasTableTableManager(
+      $_db,
+      $_db.apoyosHoras,
+    ).filter((f) => f.reporteId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_apoyosHorasRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -2523,6 +3020,31 @@ class $$ReportesTableFilterComposer
           }) => $$ReporteAreasTableFilterComposer(
             $db: $db,
             $table: $db.reporteAreas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> apoyosHorasRefs(
+    Expression<bool> Function($$ApoyosHorasTableFilterComposer f) f,
+  ) {
+    final $$ApoyosHorasTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.apoyosHoras,
+      getReferencedColumn: (t) => t.reporteId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ApoyosHorasTableFilterComposer(
+            $db: $db,
+            $table: $db.apoyosHoras,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2620,6 +3142,31 @@ class $$ReportesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> apoyosHorasRefs<T extends Object>(
+    Expression<T> Function($$ApoyosHorasTableAnnotationComposer a) f,
+  ) {
+    final $$ApoyosHorasTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.apoyosHoras,
+      getReferencedColumn: (t) => t.reporteId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ApoyosHorasTableAnnotationComposer(
+            $db: $db,
+            $table: $db.apoyosHoras,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ReportesTableTableManager
@@ -2635,7 +3182,7 @@ class $$ReportesTableTableManager
           $$ReportesTableUpdateCompanionBuilder,
           (Reporte, $$ReportesTableReferences),
           Reporte,
-          PrefetchHooks Function({bool reporteAreasRefs})
+          PrefetchHooks Function({bool reporteAreasRefs, bool apoyosHorasRefs})
         > {
   $$ReportesTableTableManager(_$AppDatabase db, $ReportesTable table)
     : super(
@@ -2684,35 +3231,63 @@ class $$ReportesTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({reporteAreasRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (reporteAreasRefs) db.reporteAreas],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (reporteAreasRefs)
-                    await $_getPrefetchedData<
-                      Reporte,
-                      $ReportesTable,
-                      ReporteArea
-                    >(
-                      currentTable: table,
-                      referencedTable: $$ReportesTableReferences
-                          ._reporteAreasRefsTable(db),
-                      managerFromTypedResult: (p0) => $$ReportesTableReferences(
-                        db,
-                        table,
-                        p0,
-                      ).reporteAreasRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.reporteId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({reporteAreasRefs = false, apoyosHorasRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (reporteAreasRefs) db.reporteAreas,
+                    if (apoyosHorasRefs) db.apoyosHoras,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (reporteAreasRefs)
+                        await $_getPrefetchedData<
+                          Reporte,
+                          $ReportesTable,
+                          ReporteArea
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ReportesTableReferences
+                              ._reporteAreasRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ReportesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).reporteAreasRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.reporteId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (apoyosHorasRefs)
+                        await $_getPrefetchedData<
+                          Reporte,
+                          $ReportesTable,
+                          ApoyosHora
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ReportesTableReferences
+                              ._apoyosHorasRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ReportesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).apoyosHorasRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.reporteId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -2729,7 +3304,7 @@ typedef $$ReportesTableProcessedTableManager =
       $$ReportesTableUpdateCompanionBuilder,
       (Reporte, $$ReportesTableReferences),
       Reporte,
-      PrefetchHooks Function({bool reporteAreasRefs})
+      PrefetchHooks Function({bool reporteAreasRefs, bool apoyosHorasRefs})
     >;
 typedef $$ReporteAreasTableCreateCompanionBuilder =
     ReporteAreasCompanion Function({
@@ -4857,6 +5432,361 @@ typedef $$IntegrantesTableProcessedTableManager =
       Integrante,
       PrefetchHooks Function({bool cuadrillaId})
     >;
+typedef $$ApoyosHorasTableCreateCompanionBuilder =
+    ApoyosHorasCompanion Function({
+      Value<int> id,
+      required int reporteId,
+      required String codigoTrabajador,
+      required String horaInicio,
+      required String horaFin,
+      Value<double> horas,
+      required String areaApoyo,
+    });
+typedef $$ApoyosHorasTableUpdateCompanionBuilder =
+    ApoyosHorasCompanion Function({
+      Value<int> id,
+      Value<int> reporteId,
+      Value<String> codigoTrabajador,
+      Value<String> horaInicio,
+      Value<String> horaFin,
+      Value<double> horas,
+      Value<String> areaApoyo,
+    });
+
+final class $$ApoyosHorasTableReferences
+    extends BaseReferences<_$AppDatabase, $ApoyosHorasTable, ApoyosHora> {
+  $$ApoyosHorasTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ReportesTable _reporteIdTable(_$AppDatabase db) =>
+      db.reportes.createAlias(
+        $_aliasNameGenerator(db.apoyosHoras.reporteId, db.reportes.id),
+      );
+
+  $$ReportesTableProcessedTableManager get reporteId {
+    final $_column = $_itemColumn<int>('reporte_id')!;
+
+    final manager = $$ReportesTableTableManager(
+      $_db,
+      $_db.reportes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_reporteIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ApoyosHorasTableFilterComposer
+    extends Composer<_$AppDatabase, $ApoyosHorasTable> {
+  $$ApoyosHorasTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get codigoTrabajador => $composableBuilder(
+    column: $table.codigoTrabajador,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get horaInicio => $composableBuilder(
+    column: $table.horaInicio,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get horaFin => $composableBuilder(
+    column: $table.horaFin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get horas => $composableBuilder(
+    column: $table.horas,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get areaApoyo => $composableBuilder(
+    column: $table.areaApoyo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ReportesTableFilterComposer get reporteId {
+    final $$ReportesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.reporteId,
+      referencedTable: $db.reportes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReportesTableFilterComposer(
+            $db: $db,
+            $table: $db.reportes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ApoyosHorasTableOrderingComposer
+    extends Composer<_$AppDatabase, $ApoyosHorasTable> {
+  $$ApoyosHorasTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get codigoTrabajador => $composableBuilder(
+    column: $table.codigoTrabajador,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get horaInicio => $composableBuilder(
+    column: $table.horaInicio,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get horaFin => $composableBuilder(
+    column: $table.horaFin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get horas => $composableBuilder(
+    column: $table.horas,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get areaApoyo => $composableBuilder(
+    column: $table.areaApoyo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ReportesTableOrderingComposer get reporteId {
+    final $$ReportesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.reporteId,
+      referencedTable: $db.reportes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReportesTableOrderingComposer(
+            $db: $db,
+            $table: $db.reportes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ApoyosHorasTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ApoyosHorasTable> {
+  $$ApoyosHorasTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get codigoTrabajador => $composableBuilder(
+    column: $table.codigoTrabajador,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get horaInicio => $composableBuilder(
+    column: $table.horaInicio,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get horaFin =>
+      $composableBuilder(column: $table.horaFin, builder: (column) => column);
+
+  GeneratedColumn<double> get horas =>
+      $composableBuilder(column: $table.horas, builder: (column) => column);
+
+  GeneratedColumn<String> get areaApoyo =>
+      $composableBuilder(column: $table.areaApoyo, builder: (column) => column);
+
+  $$ReportesTableAnnotationComposer get reporteId {
+    final $$ReportesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.reporteId,
+      referencedTable: $db.reportes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ReportesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.reportes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ApoyosHorasTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ApoyosHorasTable,
+          ApoyosHora,
+          $$ApoyosHorasTableFilterComposer,
+          $$ApoyosHorasTableOrderingComposer,
+          $$ApoyosHorasTableAnnotationComposer,
+          $$ApoyosHorasTableCreateCompanionBuilder,
+          $$ApoyosHorasTableUpdateCompanionBuilder,
+          (ApoyosHora, $$ApoyosHorasTableReferences),
+          ApoyosHora,
+          PrefetchHooks Function({bool reporteId})
+        > {
+  $$ApoyosHorasTableTableManager(_$AppDatabase db, $ApoyosHorasTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ApoyosHorasTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ApoyosHorasTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ApoyosHorasTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> reporteId = const Value.absent(),
+                Value<String> codigoTrabajador = const Value.absent(),
+                Value<String> horaInicio = const Value.absent(),
+                Value<String> horaFin = const Value.absent(),
+                Value<double> horas = const Value.absent(),
+                Value<String> areaApoyo = const Value.absent(),
+              }) => ApoyosHorasCompanion(
+                id: id,
+                reporteId: reporteId,
+                codigoTrabajador: codigoTrabajador,
+                horaInicio: horaInicio,
+                horaFin: horaFin,
+                horas: horas,
+                areaApoyo: areaApoyo,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int reporteId,
+                required String codigoTrabajador,
+                required String horaInicio,
+                required String horaFin,
+                Value<double> horas = const Value.absent(),
+                required String areaApoyo,
+              }) => ApoyosHorasCompanion.insert(
+                id: id,
+                reporteId: reporteId,
+                codigoTrabajador: codigoTrabajador,
+                horaInicio: horaInicio,
+                horaFin: horaFin,
+                horas: horas,
+                areaApoyo: areaApoyo,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ApoyosHorasTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({reporteId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (reporteId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.reporteId,
+                                referencedTable: $$ApoyosHorasTableReferences
+                                    ._reporteIdTable(db),
+                                referencedColumn: $$ApoyosHorasTableReferences
+                                    ._reporteIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ApoyosHorasTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ApoyosHorasTable,
+      ApoyosHora,
+      $$ApoyosHorasTableFilterComposer,
+      $$ApoyosHorasTableOrderingComposer,
+      $$ApoyosHorasTableAnnotationComposer,
+      $$ApoyosHorasTableCreateCompanionBuilder,
+      $$ApoyosHorasTableUpdateCompanionBuilder,
+      (ApoyosHora, $$ApoyosHorasTableReferences),
+      ApoyosHora,
+      PrefetchHooks Function({bool reporteId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4873,6 +5803,8 @@ class $AppDatabaseManager {
       $$CuadrillaDesglosesTableTableManager(_db, _db.cuadrillaDesgloses);
   $$IntegrantesTableTableManager get integrantes =>
       $$IntegrantesTableTableManager(_db, _db.integrantes);
+  $$ApoyosHorasTableTableManager get apoyosHoras =>
+      $$ApoyosHorasTableTableManager(_db, _db.apoyosHoras);
 }
 
 mixin _$ReportesDaoMixin on DatabaseAccessor<AppDatabase> {
@@ -4884,4 +5816,5 @@ mixin _$ReportesDaoMixin on DatabaseAccessor<AppDatabase> {
   $CuadrillaDesglosesTable get cuadrillaDesgloses =>
       attachedDatabase.cuadrillaDesgloses;
   $IntegrantesTable get integrantes => attachedDatabase.integrantes;
+  $ApoyosHorasTable get apoyosHoras => attachedDatabase.apoyosHoras;
 }

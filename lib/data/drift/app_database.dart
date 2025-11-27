@@ -312,18 +312,34 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     double? horas,
     required String areaApoyo,
   }) async {
+    final codigoTrabajadorTrim = codigoTrabajador.trim();
+    final horaInicioTrim = horaInicio.trim();
+    final horaFinTrim = horaFin?.trim();
+    final areaApoyoTrim = areaApoyo.trim();
+
+    if (codigoTrabajadorTrim.isEmpty ||
+        horaInicioTrim.isEmpty ||
+        areaApoyoTrim.isEmpty) {
+      final mensaje =
+          'insertarApoyoHora: campos requeridos vacíos (codigoTrabajador=$codigoTrabajador, horaInicio=$horaInicio, areaApoyo=$areaApoyo)';
+      debugPrint(mensaje);
+      assert(false, mensaje);
+      throw ArgumentError(mensaje);
+    }
+
     final horasCalculadas = horas ??
-        (horaFin != null ? _calcularHorasDesdeTextos(horaInicio, horaFin) : 0.0);
+        (horaFinTrim != null && horaFinTrim.isNotEmpty
+            ? _calcularHorasDesdeTextos(horaInicioTrim, horaFinTrim)
+            : 0.0);
 
     return into(apoyosHoras).insert(
       ApoyosHorasCompanion.insert(
         reporteId: reporteId,
-        codigoTrabajador: codigoTrabajador,
-        horaInicio: horaInicio,
-        horaFin: Value(horaFin),
+        codigoTrabajador: codigoTrabajadorTrim,
+        horaInicio: horaInicioTrim,
+        horaFin: Value(horaFinTrim),
         horas: Value(horasCalculadas),
-        areaApoyo: areaApoyo,
-        createdAt: Value(DateTime.now()),
+        areaApoyo: areaApoyoTrim,
       ),
     );
   }
@@ -398,24 +414,40 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     final actual =
     await (select(apoyosHoras)..where((t) => t.id.equals(id))).getSingle();
 
-    final horaInicioResult = horaInicio;
-    final horaFinResult = horaFin ?? actual.horaFin;
+    final codigoTrabajadorTrim = codigoTrabajador.trim();
+    final horaInicioTrim = horaInicio.trim();
+    final horaFinTrim = horaFin?.trim();
+    final areaApoyoTrim = areaApoyo.trim();
 
-    double? horasCalculadas = horas;
-    if (horaFinResult != null) {
-      horasCalculadas ??=
-          _calcularHorasDesdeTextos(horaInicioResult, horaFinResult);
+    if (codigoTrabajadorTrim.isEmpty ||
+        horaInicioTrim.isEmpty ||
+        areaApoyoTrim.isEmpty) {
+      final mensaje =
+          'actualizarApoyoHora: campos requeridos vacíos (codigoTrabajador=$codigoTrabajador, horaInicio=$horaInicio, areaApoyo=$areaApoyo)';
+      debugPrint(mensaje);
+      assert(false, mensaje);
+      throw ArgumentError(mensaje);
     }
+
+    final horaInicioResult = horaInicioTrim;
+    final horaFinResult = (horaFinTrim != null && horaFinTrim.isNotEmpty)
+        ? horaFinTrim
+        : actual.horaFin;
+
+    final horasCalculadas = horaFinResult != null
+        ? _calcularHorasDesdeTextos(horaInicioResult, horaFinResult)
+        : (horas ?? actual.horas);
 
     await (update(apoyosHoras)..where((t) => t.id.equals(id))).write(
       ApoyosHorasCompanion(
-        codigoTrabajador: Value(codigoTrabajador),
+        codigoTrabajador: Value(codigoTrabajadorTrim),
         horaInicio: Value(horaInicioResult),
-        horaFin: Value(horaFinResult),
+        horaFin:
+            horaFinResult != null ? Value(horaFinResult) : const Value.absent(),
         horas: horasCalculadas != null
             ? Value(horasCalculadas)
             : const Value.absent(),
-        areaApoyo: Value(areaApoyo),
+        areaApoyo: Value(areaApoyoTrim),
       ),
     );
   }

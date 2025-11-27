@@ -2449,7 +2449,7 @@ class $ApoyosHorasTable extends ApoyosHoras
     'horaFin',
   );
   @override
-  late final GeneratedColumn<String?> horaFin = GeneratedColumn<String?>(
+  late final GeneratedColumn<String> horaFin = GeneratedColumn<String>(
     'hora_fin',
     aliasedName,
     true,
@@ -2636,13 +2636,15 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
 
   /// Área de apoyo (APOYO LAVADO, APOYO ANILLAS, etc.)
   final String areaApoyo;
+
+  /// Fecha de creación para controlar la vigencia de 24h cuando está pendiente
   final DateTime createdAt;
   const ApoyosHora({
     required this.id,
     required this.reporteId,
     required this.codigoTrabajador,
     required this.horaInicio,
-    required this.horaFin,
+    this.horaFin,
     required this.horas,
     required this.areaApoyo,
     required this.createdAt,
@@ -2669,8 +2671,9 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       reporteId: Value(reporteId),
       codigoTrabajador: Value(codigoTrabajador),
       horaInicio: Value(horaInicio),
-      horaFin:
-          horaFin == null && nullToAbsent ? const Value.absent() : Value(horaFin),
+      horaFin: horaFin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horaFin),
       horas: Value(horas),
       areaApoyo: Value(areaApoyo),
       createdAt: Value(createdAt),
@@ -2713,7 +2716,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     int? reporteId,
     String? codigoTrabajador,
     String? horaInicio,
-    String? horaFin,
+    Value<String?> horaFin = const Value.absent(),
     double? horas,
     String? areaApoyo,
     DateTime? createdAt,
@@ -2722,7 +2725,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     reporteId: reporteId ?? this.reporteId,
     codigoTrabajador: codigoTrabajador ?? this.codigoTrabajador,
     horaInicio: horaInicio ?? this.horaInicio,
-    horaFin: horaFin ?? this.horaFin,
+    horaFin: horaFin.present ? horaFin.value : this.horaFin,
     horas: horas ?? this.horas,
     areaApoyo: areaApoyo ?? this.areaApoyo,
     createdAt: createdAt ?? this.createdAt,
@@ -5484,9 +5487,10 @@ typedef $$ApoyosHorasTableCreateCompanionBuilder =
       required int reporteId,
       required String codigoTrabajador,
       required String horaInicio,
-      required String horaFin,
+      Value<String?> horaFin,
       Value<double> horas,
       required String areaApoyo,
+      Value<DateTime> createdAt,
     });
 typedef $$ApoyosHorasTableUpdateCompanionBuilder =
     ApoyosHorasCompanion Function({
@@ -5494,9 +5498,10 @@ typedef $$ApoyosHorasTableUpdateCompanionBuilder =
       Value<int> reporteId,
       Value<String> codigoTrabajador,
       Value<String> horaInicio,
-      Value<String> horaFin,
+      Value<String?> horaFin,
       Value<double> horas,
       Value<String> areaApoyo,
+      Value<DateTime> createdAt,
     });
 
 final class $$ApoyosHorasTableReferences
@@ -5559,6 +5564,11 @@ class $$ApoyosHorasTableFilterComposer
 
   ColumnFilters<String> get areaApoyo => $composableBuilder(
     column: $table.areaApoyo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5625,6 +5635,11 @@ class $$ApoyosHorasTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ReportesTableOrderingComposer get reporteId {
     final $$ReportesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -5679,6 +5694,9 @@ class $$ApoyosHorasTableAnnotationComposer
 
   GeneratedColumn<String> get areaApoyo =>
       $composableBuilder(column: $table.areaApoyo, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
   $$ReportesTableAnnotationComposer get reporteId {
     final $$ReportesTableAnnotationComposer composer = $composerBuilder(
@@ -5736,9 +5754,10 @@ class $$ApoyosHorasTableTableManager
                 Value<int> reporteId = const Value.absent(),
                 Value<String> codigoTrabajador = const Value.absent(),
                 Value<String> horaInicio = const Value.absent(),
-                Value<String> horaFin = const Value.absent(),
+                Value<String?> horaFin = const Value.absent(),
                 Value<double> horas = const Value.absent(),
                 Value<String> areaApoyo = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
               }) => ApoyosHorasCompanion(
                 id: id,
                 reporteId: reporteId,
@@ -5747,6 +5766,7 @@ class $$ApoyosHorasTableTableManager
                 horaFin: horaFin,
                 horas: horas,
                 areaApoyo: areaApoyo,
+                createdAt: createdAt,
               ),
           createCompanionCallback:
               ({
@@ -5754,9 +5774,10 @@ class $$ApoyosHorasTableTableManager
                 required int reporteId,
                 required String codigoTrabajador,
                 required String horaInicio,
-                required String horaFin,
+                Value<String?> horaFin = const Value.absent(),
                 Value<double> horas = const Value.absent(),
                 required String areaApoyo,
+                Value<DateTime> createdAt = const Value.absent(),
               }) => ApoyosHorasCompanion.insert(
                 id: id,
                 reporteId: reporteId,
@@ -5765,6 +5786,7 @@ class $$ApoyosHorasTableTableManager
                 horaFin: horaFin,
                 horas: horas,
                 areaApoyo: areaApoyo,
+                createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(

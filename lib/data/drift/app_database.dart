@@ -207,6 +207,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   /// APOYOS POR HORAS
   /// =====================================================
 
+  /// Inserta un nuevo apoyo por horas para un reporte
   Future<int> insertarApoyoHora({
     required int reporteId,
     required String codigoTrabajador,
@@ -221,12 +222,11 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         codigoTrabajador: codigoTrabajador,
         horaInicio: horaInicio,
         horaFin: horaFin,
-        horas: Value(horas),        // <-- aquí el cambio
+        horas: Value(horas),
         areaApoyo: areaApoyo,
       ),
     );
   }
-
 
   /// Lista todos los apoyos de un reporte (para mostrar en la pantalla)
   Future<List<ApoyoHoraDetalle>> listarApoyosPorReporte(int reporteId) async {

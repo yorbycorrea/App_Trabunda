@@ -130,7 +130,7 @@ class _ReportCreatePlanilleroPageState
       if (currentUser != null) {
         try {
           final ReporteDetalle? detalle =
-          await db.reportesDao.fetchReporteDetalle(_reporteId!);
+              await db.reportesDao.fetchReporteDetalle(_reporteId!);
 
           if (detalle == null) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -142,11 +142,32 @@ class _ReportCreatePlanilleroPageState
             return false;
           }
 
+          final apoyos =
+              await db.reportesDao.listarApoyosPorReporte(_reporteId!);
+          final areasCount = detalle.areas.length;
+          final cuadrillasCount = detalle.areas
+              .fold<int>(0, (sum, area) => sum + area.cuadrillas.length);
+          final apoyosCompletos = apoyos.completos.length;
+
+          debugPrint(
+            '[ReportCreatePlanilleroPage] Preparando envío de reporte local '
+            'id=$_reporteId user=${currentUser.id} '
+            'areas=$areasCount cuadrillas=$cuadrillasCount '
+            'apoyosCompletos=$apoyosCompletos',
+          );
+
           final supabaseId = await ReportesSupabaseService.instance
               .enviarReporteCompletoDesdeLocal(
             reporte: detalle,
             userId: currentUser.id,
             observaciones: null,
+          );
+
+          debugPrint(
+            '[ReportCreatePlanilleroPage] Envío exitoso de reporte local '
+            'id=$_reporteId supabaseId=$supabaseId user=${currentUser.id} '
+            'areas=$areasCount cuadrillas=$cuadrillasCount '
+            'apoyosCompletos=$apoyosCompletos',
           );
 
           await db.reportesDao.saveReporteSupabaseId(
@@ -155,13 +176,17 @@ class _ReportCreatePlanilleroPageState
           );
 
           setState(() => _enviadoASupabase = true);
-        } catch (e) {
+        } catch (e, st) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
                 'No se pudo enviar a Supabase: ${e.toString()}',
               ),
             ),
+          );
+          debugPrint(
+            '[ReportCreatePlanilleroPage][ERROR] Falló envío a Supabase: '
+            '$e\n$st',
           );
           return false;
         }

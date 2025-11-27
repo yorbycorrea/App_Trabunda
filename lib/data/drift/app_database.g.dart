@@ -559,7 +559,7 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
       map['hora_inicio'] = Variable<String>(horaInicio);
     }
     if (!nullToAbsent || horaFin != null) {
-      map['hora_fin'] = Variable<String>(horaFin);
+      map['hora_fin'] = Variable<String?>(horaFin);
     }
     return map;
   }
@@ -2669,8 +2669,11 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       reporteId: Value(reporteId),
       codigoTrabajador: Value(codigoTrabajador),
       horaInicio: Value(horaInicio),
-      horaFin:
-          horaFin == null && nullToAbsent ? const Value.absent() : Value(horaFin),
+
+      horaFin: horaFin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horaFin),
+
       horas: Value(horas),
       areaApoyo: Value(areaApoyo),
       createdAt: Value(createdAt),
@@ -2821,7 +2824,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     Expression<int>? reporteId,
     Expression<String>? codigoTrabajador,
     Expression<String>? horaInicio,
-    Expression<String>? horaFin,
+    Expression<String?>? horaFin,
     Expression<double>? horas,
     Expression<String>? areaApoyo,
     Expression<DateTime>? createdAt,
@@ -2876,7 +2879,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
       map['hora_inicio'] = Variable<String>(horaInicio.value);
     }
     if (horaFin.present) {
-      map['hora_fin'] = Variable<String>(horaFin.value);
+      map['hora_fin'] = Variable<String?>(horaFin.value);
     }
     if (horas.present) {
       map['horas'] = Variable<double>(horas.value);

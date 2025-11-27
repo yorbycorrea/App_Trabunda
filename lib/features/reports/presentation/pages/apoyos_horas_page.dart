@@ -4,7 +4,7 @@ import 'package:scanner_trabunda/core/widgets/qr_scanner.dart';
 import 'package:scanner_trabunda/data/drift/app_database.dart';
 import 'package:scanner_trabunda/data/drift/db.dart';
 
-// 👇 NUEVOS IMPORTS PARA SUPABASE
+// 🔹 Supabase y servicio remoto
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:scanner_trabunda/features/reports/data/datasources/reportes_supabase_service.dart';
 
@@ -125,7 +125,6 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                 if (pendientes.isEmpty && completos.isEmpty) {
                   return _ApoyosHorasInlineForm(
                     reporteId: widget.reporteId,
-                    // 👇 Pasamos también estos datos para Supabase
                     fecha: widget.fecha,
                     turno: widget.turno,
                     planillero: widget.planillero,
@@ -168,6 +167,9 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                       reporteId: widget.reporteId,
                                       apoyo: a,
                                       soloCapturaHoraFin: true,
+                                      fecha: widget.fecha,
+                                      turno: widget.turno,
+                                      planillero: widget.planillero,
                                     ),
                                   ),
                                 );
@@ -227,6 +229,9 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                     builder: (_) => ApoyoHoraFormPage(
                                       reporteId: widget.reporteId,
                                       apoyo: a,
+                                      fecha: widget.fecha,
+                                      turno: widget.turno,
+                                      planillero: widget.planillero,
                                     ),
                                   ),
                                 );
@@ -375,8 +380,7 @@ class _ApoyosHorasInlineForm extends StatefulWidget {
   final String planillero;
 
   @override
-  State<_ApoyosHorasInlineForm> createState() =>
-      _ApoyosHorasInlineFormState();
+  State<_ApoyosHorasInlineForm> createState() => _ApoyosHorasInlineFormState();
 }
 
 class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
@@ -471,15 +475,16 @@ class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
       }
     }
 
-    final user = Supabase.instance.client.auth.currentUser;
+    final client = Supabase.instance.client;
+    final userId = client.auth.currentUser?.id;
 
+    // Insertar en BD local + Supabase (solo si tiene hora fin)
     for (final m in _trabajadores) {
-      final horas =
-      (m.fin != null) ? _calcHoras(m.inicio!, m.fin!) : 0.0;
+      final horas = (m.fin != null) ? _calcHoras(m.inicio!, m.fin!) : 0.0;
+
       final horaInicioStr = _formatTime(m.inicio!);
       final horaFinStr = m.fin != null ? _formatTime(m.fin!) : null;
 
-      // 1) Guardar en BD local (Drift)
       final idLocal = await db.reportesDao.insertarApoyoHora(
         reporteId: widget.reporteId,
         codigoTrabajador: m.codigoCtrl.text.trim(),
@@ -490,46 +495,37 @@ class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
       );
 
       debugPrint(
-        '[ApoyosHoras][LOCAL] insertarApoyoHora OK '
-            '(idLocal=$idLocal, reporteId=${widget.reporteId}, '
-            'codigo=${m.codigoCtrl.text.trim()}, '
-            'horaInicio=$horaInicioStr, horaFin=$horaFinStr, '
-            'horas=$horas, area=${m.area})',
+        '[INSERT LOCAL] Apoyo guardado en Drift (ID $idLocal): '
+            'reporteId=${widget.reporteId}, codigo=${m.codigoCtrl.text.trim()}, '
+            'horaInicio=$horaInicioStr, horaFin=$horaFinStr, horas=$horas, area=${m.area}',
       );
 
-      // 2) Enviar a Supabase (si hay usuario logueado)
-      if (user == null) {
-        debugPrint(
-          '[ApoyosHoras][REMOTE] No hay usuario logueado, '
-              'no se envía a Supabase.',
-        );
-      } else {
+      // 🔹 Solo mandamos a Supabase cuando ya tiene hora fin (registro completo)
+      if (userId != null && m.fin != null) {
         try {
           await ReportesSupabaseService.instance.insertarApoyoHoraRemoto(
             reporteIdLocal: widget.reporteId,
+            fecha: widget.fecha,
+            turno: widget.turno,
+            planillero: widget.planillero,
+            userId: userId,
             codigoTrabajador: m.codigoCtrl.text.trim(),
             horaInicio: horaInicioStr,
             horaFin: horaFinStr,
             horas: horas,
             area: m.area!,
-            fecha: widget.fecha,
-            turno: widget.turno,
-            planillero: widget.planillero,
-            userId: user.id,
-          );
-
-          debugPrint(
-            '[ApoyosHoras][REMOTE] insertarApoyoHoraRemoto OK '
-                '(reporteId=${widget.reporteId}, codigo=${m.codigoCtrl.text.trim()}, '
-                'area=${m.area}, fecha=${widget.fecha}, turno=${widget.turno}, '
-                'planillero=${widget.planillero})',
           );
         } catch (e, st) {
           debugPrint(
-            '[ApoyosHoras][REMOTE][ERROR] Error al enviar apoyo a Supabase: '
+            '[ApoyosHoras][REMOTE][ERROR] Error al enviar apoyo inicial a Supabase: '
                 '$e\n$st',
           );
         }
+      } else {
+        debugPrint(
+          '[ApoyosHoras][REMOTE] Apoyo pendiente solo local '
+              '(userId=$userId, fin=${m.fin}). No se envía a Supabase todavía.',
+        );
       }
     }
 
@@ -857,11 +853,17 @@ class ApoyoHoraFormPage extends StatefulWidget {
   const ApoyoHoraFormPage({
     super.key,
     required this.reporteId,
+    required this.fecha,
+    required this.turno,
+    required this.planillero,
     this.apoyo,
     this.soloCapturaHoraFin = false,
   });
 
   final int reporteId;
+  final DateTime fecha;
+  final String turno;
+  final String planillero;
   final ApoyoHoraDetalle? apoyo;
   final bool soloCapturaHoraFin;
 
@@ -965,11 +967,13 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
       return;
     }
 
-    final horas =
-    (_inicio != null && _fin != null) ? _calcularHoras(_inicio!, _fin!) : 0.0;
+    final horas = (_inicio != null && _fin != null)
+        ? _calcularHoras(_inicio!, _fin!)
+        : 0.0;
     final horaInicioStr = _formatTime(_inicio!);
     final horaFinStr = _fin != null ? _formatTime(_fin!) : null;
 
+    // 🔹 Actualizar/insertar en BD local
     if (widget.apoyo == null) {
       await db.reportesDao.insertarApoyoHora(
         reporteId: widget.reporteId,
@@ -990,7 +994,39 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
       );
     }
 
-    Navigator.pop(context);
+    // 🔹 Enviar/actualizar en Supabase
+    final client = Supabase.instance.client;
+    final userId = client.auth.currentUser?.id;
+
+    if (userId != null) {
+      try {
+        await ReportesSupabaseService.instance.insertarApoyoHoraRemoto(
+          reporteIdLocal: widget.reporteId,
+          fecha: widget.fecha,
+          turno: widget.turno,
+          planillero: widget.planillero,
+          userId: userId,
+          codigoTrabajador: _codigoCtrl.text.trim(),
+          horaInicio: horaInicioStr,
+          horaFin: horaFinStr,
+          horas: horas,
+          area: _area!,
+        );
+      } catch (e, st) {
+        debugPrint(
+          '[ApoyosHoras][REMOTE][ERROR] Error al actualizar apoyo en Supabase: '
+              '$e\n$st',
+        );
+      }
+    } else {
+      debugPrint(
+        '[ApoyosHoras][REMOTE] userId null, no se envía a Supabase.',
+      );
+    }
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   Widget _buildHoraBox({
@@ -1151,7 +1187,8 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                   child: FilledButton.icon(
                     onPressed: _guardar,
                     icon: const Icon(Icons.save_outlined),
-                    label: Text(editando ? 'Guardar cambios' : 'Guardar'),
+                    label:
+                    Text(editando ? 'Guardar cambios' : 'Guardar'),
                   ),
                 ),
               ],

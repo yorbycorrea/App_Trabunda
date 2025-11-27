@@ -69,6 +69,17 @@ class Integrantes extends Table {
 }
 
 /// 🔹 NUEVA TABLA: APOYOS POR HORAS
+class UnixDateTimeConverter extends TypeConverter<DateTime, int> {
+  const UnixDateTimeConverter();
+
+  @override
+  DateTime fromSql(int fromDb) =>
+      DateTime.fromMillisecondsSinceEpoch(fromDb * 1000, isUtc: false);
+
+  @override
+  int toSql(DateTime value) => value.toUtc().millisecondsSinceEpoch ~/ 1000;
+}
+
 class ApoyosHoras extends Table {
   IntColumn get id => integer().autoIncrement()();
 
@@ -91,7 +102,9 @@ class ApoyosHoras extends Table {
   TextColumn get areaApoyo => text()();
 
   /// Fecha de creación para controlar la vigencia de 24h cuando está pendiente
-  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get createdAt => integer()
+      .map(const UnixDateTimeConverter())
+      .withDefault(currentDateAndTime)();
 }
 
 /// =======================
@@ -150,17 +163,52 @@ class AppDatabase extends _$AppDatabase {
         // Nueva tabla de apoyos por horas
         await m.createTable(apoyosHoras);
       }
-      if (from < 7) {
+      if (from >= 6 && from < 7) {
         await _migrarApoyosHorasV7(m);
       }
     },
   );
 
   Future<void> _migrarApoyosHorasV7(Migrator m) async {
-    // En versiones nuevas de Drift se usa customStatement en vez de execute
+    await m.database.customStatement('''
+CREATE TABLE IF NOT EXISTS apoyos_horas_temp (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reporte_id INTEGER NOT NULL REFERENCES reportes(id) ON DELETE CASCADE,
+  codigo_trabajador TEXT NOT NULL,
+  hora_inicio TEXT NOT NULL,
+  hora_fin TEXT,
+  horas REAL NOT NULL DEFAULT 0.0,
+  area_apoyo TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+''');
 
+    await m.database.customStatement('''
+INSERT INTO apoyos_horas_temp (
+  id, reporte_id, codigo_trabajador, hora_inicio, hora_fin, horas,
+  area_apoyo, created_at
+)
+SELECT
+  id,
+  reporte_id,
+  codigo_trabajador,
+  hora_inicio,
+  hora_fin,
+  horas,
+  area_apoyo,
+  CASE
+    WHEN typeof(created_at) = 'integer' THEN created_at
+    WHEN typeof(created_at) = 'real' THEN CAST(created_at AS INTEGER)
+    WHEN created_at IS NULL THEN CAST(strftime('%s', 'now') AS INTEGER)
+    ELSE CAST(strftime('%s', created_at) AS INTEGER)
+  END AS created_at_epoch
+FROM apoyos_horas;
+''');
 
+    await m.deleteTable('apoyos_horas');
 
+    await m.database.customStatement(
+        'ALTER TABLE apoyos_horas_temp RENAME TO apoyos_horas;');
   }
 
   /// =====================================================

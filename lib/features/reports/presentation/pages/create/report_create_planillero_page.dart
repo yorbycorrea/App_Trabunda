@@ -5,8 +5,15 @@ import 'package:scanner_trabunda/data/drift/app_database.dart';
 import 'package:scanner_trabunda/data/drift/db.dart';
 import 'package:scanner_trabunda/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:scanner_trabunda/features/reports/data/datasources/reportes_supabase_service.dart';
-import 'package:scanner_trabunda/features/reports/presentation/pages/area/area_detalle_page.dart';
 import 'package:scanner_trabunda/features/reports/presentation/pages/apoyos_horas_page.dart';
+import 'package:scanner_trabunda/features/reports/presentation/pages/report_detail_page.dart';
+
+/// ===================================================================
+///  Crear reporte – VISTA PARA PLANILLEROS
+///  - Encabezado (fecha, turno, planillero)
+///  - 3 opciones: Apoyos por horas / Trabajo por avance / Conteo rápido
+///  - Mantiene la lógica de borrador y guardado/envío a Supabase
+/// ===================================================================
 
 class ReportCreatePlanilleroPage extends StatefulWidget {
   const ReportCreatePlanilleroPage({
@@ -21,41 +28,52 @@ class ReportCreatePlanilleroPage extends StatefulWidget {
       _ReportCreatePlanilleroPageState();
 }
 
-class _AreaRow {
-  final String nombre;
-  final TextEditingController cantidadCtrl;
-
-  _AreaRow(this.nombre, {int cantidad = 0})
-      : cantidadCtrl = TextEditingController(text: cantidad.toString());
-
-  int get cantidad =>
-      int.tryParse(cantidadCtrl.text.trim().replaceAll(',', '')) ?? 0;
-}
-
-class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage> {
+class _ReportCreatePlanilleroPageState
+    extends State<ReportCreatePlanilleroPage> {
   int? _reporteId;
   bool _enviadoASupabase = false;
+
   DateTime _fecha = DateTime.now();
   String _turno = 'Día';
+
   final TextEditingController _planilleroCtrl = TextEditingController();
 
-  late List<_AreaRow> _areas = [
-    _AreaRow('Fileteros'),
-    _AreaRow('Recepción'),
-    _AreaRow('Empaque'),
-    _AreaRow('Congelamiento de iqf'),
-  ];
+  @override
+  void initState() {
+    super.initState();
 
-  late List<String> _catalogoAreas = const [
-    'Fileteros',
-    'Recepción',
-    'Empaque',
-    'Congelamiento de iqf',
-    'Saneamiento',
-    'Máquinas orugas',
-    'IQF',
-  ];
+    // Si viene un nombre inicial lo usamos
+    final inicial = widget.planilleroInicial;
+    if (inicial != null && inicial.isNotEmpty) {
+      _planilleroCtrl.text = inicial;
+    }
+  }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Sincronizamos siempre el nombre del usuario logueado
+    final auth = AuthScope.read(context);
+    final user = auth.currentUser;
+
+    if (user != null) {
+      // Para planillero, siempre el nombre de su sesión
+      if (user.isPlanillero) {
+        _planilleroCtrl.text = user.name;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _planilleroCtrl.dispose();
+    super.dispose();
+  }
+
+  // ==========================================================
+  //  BORRADOR
+  // ==========================================================
   Future<void> _ensureDraft() async {
     final plan = _planilleroCtrl.text.trim();
     if (plan.isEmpty) return;
@@ -66,7 +84,9 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
       turno: _turno,
       planillero: plan,
     );
+
     final supabaseId = await db.reportesDao.getReporteSupabaseId(id);
+
     if (!mounted) return;
     setState(() {
       _reporteId = id;
@@ -74,116 +94,9 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
     });
   }
 
-  @override
-  void dispose() {
-    _planilleroCtrl.dispose();
-    for (final a in _areas) {
-      a.cantidadCtrl.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    final inicial = widget.planilleroInicial;
-    if (inicial != null && inicial.isNotEmpty) {
-      _planilleroCtrl.text = inicial;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _ensureDraft();
-        }
-      });
-    }
-  }
-
-  int get _totalPersonal => _areas.fold<int>(0, (acc, a) => acc + a.cantidad);
-
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      firstDate: DateTime(2023, 1, 1),
-      lastDate: DateTime(2100, 12, 31),
-      initialDate: _fecha,
-    );
-    if (picked != null && mounted) {
-      setState(() => _fecha = picked);
-    }
-  }
-
-  Future<void> _showAgregarAreaSheet() async {
-    final ya = _areas.map((e) => e.nombre.toLowerCase()).toSet();
-    final opciones =
-        _catalogoAreas.where((n) => !ya.contains(n.toLowerCase())).toList();
-
-    if (opciones.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay más áreas para agregar')),
-      );
-      return;
-    }
-
-    final seleccion = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(
-              title: Text('Agregar área'),
-              subtitle: Text('Selecciona un área para añadir a la lista'),
-            ),
-            for (final op in opciones)
-              ListTile(
-                title: Text(op),
-                onTap: () => Navigator.pop(ctx, op),
-              ),
-          ],
-        ),
-      ),
-    );
-
-    if (seleccion != null && mounted) {
-      setState(() => _areas.add(_AreaRow(seleccion)));
-    }
-  }
-
-  Future<void> _abrirApoyosPorHoras() async {
-    final plan = _planilleroCtrl.text.trim();
-    if (plan.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Primero verifica el responsable del reporte.'),
-        ),
-      );
-      return;
-    }
-
-    if (_reporteId == null) {
-      await _ensureDraft();
-    }
-    if (_reporteId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo crear el borrador del reporte.'),
-        ),
-      );
-      return;
-    }
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ApoyosHorasPage(
-          reporteId: _reporteId!,
-          fecha: _fecha,
-          turno: _turno,
-          planillero: plan,
-        ),
-      ),
-    );
-  }
-
+  // ==========================================================
+  //  GUARDAR (sin cambiar la lógica original)
+  // ==========================================================
   Future<bool> _guardar() async {
     final plan = _planilleroCtrl.text.trim();
     if (plan.isEmpty) {
@@ -195,11 +108,13 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
 
     final bool esNuevoReporte = !_enviadoASupabase;
 
+    // Asegurar borrador
     if (_reporteId == null) {
       await _ensureDraft();
     }
     if (_reporteId == null) return false;
 
+    // 1) Actualizar cabecera en BD local
     await db.reportesDao.updateReporteHeader(
       _reporteId!,
       fecha: _fecha,
@@ -207,6 +122,7 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
       planillero: plan,
     );
 
+    // 2) Si aún no se envió a Supabase => enviar reporte completo
     if (esNuevoReporte) {
       final auth = AuthScope.read(context);
       final currentUser = auth.currentUser;
@@ -214,12 +130,13 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
       if (currentUser != null) {
         try {
           final ReporteDetalle? detalle =
-              await db.reportesDao.fetchReporteDetalle(_reporteId!);
+          await db.reportesDao.fetchReporteDetalle(_reporteId!);
 
           if (detalle == null) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('No se pudo cargar el detalle del reporte local.'),
+                content: Text(
+                    'No se pudo cargar el detalle del reporte local.'),
               ),
             );
             return false;
@@ -258,37 +175,11 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
     return true;
   }
 
+  // ==========================================================
+  //  FLUJO DEL BOTÓN GUARDAR
+  // ==========================================================
   Future<void> _onGuardarPressed() async {
-    if (_totalPersonal == 0) {
-      await showCupertinoDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) {
-          return CupertinoAlertDialog(
-            title: const Text(
-              'Registro inválido',
-              textAlign: TextAlign.center,
-            ),
-            content: const Padding(
-              padding: EdgeInsets.only(top: 8.0),
-              child: Text(
-                'Debes registrar al menos 1 persona en alguna área antes de guardar el reporte.',
-                textAlign: TextAlign.center,
-              ),
-            ),
-            actions: [
-              CupertinoDialogAction(
-                isDefaultAction: true,
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-      return;
-    }
-
+    // Diálogo de confirmación
     final bool? shouldSave = await showCupertinoDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -302,23 +193,19 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
             padding: EdgeInsets.only(top: 8.0),
             child: Text(
               '¿Estás seguro de guardar este reporte?\n'
-              'Esta acción no se puede deshacer.',
+                  'Esta acción no se puede deshacer.',
               textAlign: TextAlign.center,
             ),
           ),
           actions: [
             CupertinoDialogAction(
               isDestructiveAction: true,
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
+              onPressed: () => Navigator.of(context).pop(false),
               child: const Text('NO'),
             ),
             CupertinoDialogAction(
               isDefaultAction: true,
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
+              onPressed: () => Navigator.of(context).pop(true),
               child: const Text('SÍ'),
             ),
           ],
@@ -351,7 +238,7 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
             CupertinoDialogAction(
               isDefaultAction: true,
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.of(context).pop(); // cierra diálogo
                 Navigator.of(context).popUntil((route) => route.isFirst);
               },
               child: const Text('OK'),
@@ -362,50 +249,81 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
     );
   }
 
-  Future<void> _abrirDetallesArea(_AreaRow areaRow) async {
-    if (_reporteId == null) {
+  // ==========================================================
+  //  NAVEGACIÓN A LAS OPCIONES
+  // ==========================================================
+  Future<void> _goToApoyosHoras() async {
+    final plan = _planilleroCtrl.text.trim();
+    if (plan.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primero guarda el reporte')),
+        const SnackBar(content: Text('Primero completa el planillero.')),
       );
       return;
     }
 
-    final reporteAreaId =
-        await db.reportesDao.getOrCreateReporteAreaId(_reporteId!, areaRow.nombre);
+    await _ensureDraft();
+    if (_reporteId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo crear el borrador.')),
+      );
+      return;
+    }
 
-    final result = await Navigator.push<Map<String, dynamic>>(
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AreaDetallePage(
-          areaName: areaRow.nombre,
-          reporteAreaId: reporteAreaId,
+        builder: (_) => ApoyosHorasPage(
+          reporteId: _reporteId!,
+          fecha: _fecha,
+          turno: _turno,
+          planillero: plan,
         ),
       ),
     );
-
-    if (result != null && mounted) {
-      final personas = (result['personas'] ?? 0) as int;
-      final horaInicio = result['horaInicio'] as String?;
-      final horaFin = result['horaFin'] as String?;
-      final desglose =
-          (result['desglose'] as List?)?.cast<Map<String, dynamic>>();
-      setState(() => areaRow.cantidadCtrl.text = '$personas');
-      await db.reportesDao.saveReporteAreaDatos(
-        reporteAreaId: reporteAreaId,
-        cantidad: personas,
-        horaInicio: horaInicio,
-        horaFin: horaFin,
-        desglose: desglose,
-      );
-    }
   }
 
+  Future<void> _goToTrabajoPorAvance() async {
+    final plan = _planilleroCtrl.text.trim();
+    if (plan.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Primero completa el planillero.')),
+      );
+      return;
+    }
+
+    await _ensureDraft();
+    if (_reporteId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo crear el borrador.')),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReportDetailPage(
+          reporteId: _reporteId!,
+        ),
+      ),
+    );
+  }
+
+  void _showEnConstruccion(String titulo) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$titulo aún está en desarrollo')),
+    );
+  }
+
+  // ==========================================================
+  //  UI
+  // ==========================================================
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final user = AuthScope.watch(context).currentUser;
-    final isAdmin = user?.isAdmin ?? false;
-    final bool isPlanillero = user?.isPlanillero ?? false;
+    final auth = AuthScope.watch(context);
+    final user = auth.currentUser;
+    final bool isAdmin = user?.isAdmin ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ingresar información')),
@@ -413,6 +331,7 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // ===== ENCABEZADO =====
             Card(
               elevation: 0,
               color: cs.surfaceVariant.withOpacity(.4),
@@ -425,10 +344,21 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
                   children: [
                     Row(
                       children: [
+                        // Fecha
                         Expanded(
                           child: TextFormField(
                             readOnly: true,
-                            onTap: _pickDate,
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                firstDate: DateTime(2023, 1, 1),
+                                lastDate: DateTime(2100, 12, 31),
+                                initialDate: _fecha,
+                              );
+                              if (picked != null && mounted) {
+                                setState(() => _fecha = picked);
+                              }
+                            },
                             decoration: const InputDecoration(
                               labelText: 'Fecha',
                               border: OutlineInputBorder(),
@@ -444,12 +374,19 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
                           ),
                         ),
                         const SizedBox(width: 12),
+                        // Turno
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             value: _turno,
                             items: const [
-                              DropdownMenuItem(value: 'Día', child: Text('Día')),
-                              DropdownMenuItem(value: 'Noche', child: Text('Noche')),
+                              DropdownMenuItem(
+                                value: 'Día',
+                                child: Text('Día'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'Noche',
+                                child: Text('Noche'),
+                              ),
                             ],
                             decoration: const InputDecoration(
                               labelText: 'Turno',
@@ -461,21 +398,22 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 12),
                     TextField(
                       controller: _planilleroCtrl,
                       readOnly: !isAdmin,
                       enabled: isAdmin || _planilleroCtrl.text.isNotEmpty,
                       decoration: InputDecoration(
-                        labelText: user?.role ?? 'Responsable',
+                        labelText: 'planillero',
                         border: const OutlineInputBorder(),
                         prefixIcon: const Icon(Icons.badge_outlined),
                       ).copyWith(
-                        suffixIcon:
-                            isAdmin ? null : const Icon(Icons.lock_outline, size: 18),
-                        helperText:
-                            isAdmin ? null : 'Asignado automáticamente por tu sesión',
+                        suffixIcon: isAdmin
+                            ? null
+                            : const Icon(Icons.lock_outline, size: 18),
+                        helperText: isAdmin
+                            ? null
+                            : 'Asignado automáticamente por tu sesión',
                       ),
                       onChanged: isAdmin ? (_) => _ensureDraft() : null,
                     ),
@@ -483,132 +421,45 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
                 ),
               ),
             ),
-
-            if (isPlanillero) ...[
-              const SizedBox(height: 16),
-              _ApoyosHorasCard(onTap: _abrirApoyosPorHoras),
-            ],
-
             const SizedBox(height: 16),
 
-            Row(
-              children: [
-                const Text(
-                  'Personal por área',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.tune),
-                  tooltip: 'Opciones',
-                ),
-                TextButton.icon(
-                  onPressed: _showAgregarAreaSheet,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Agregar área'),
-                ),
-              ],
+            // ===== OPCIONES (Apoyos / Trabajo / Conteo) =====
+            _OptionCard(
+              icon: Icons.access_time_rounded,
+              title: 'Apoyos por horas',
+              subtitle:
+              'Registrar personal de apoyo pagado por horas trabajadas',
+              onTap: _goToApoyosHoras,
             ),
             const SizedBox(height: 8),
-
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: cs.outlineVariant),
-              ),
+            _OptionCard(
+              icon: Icons.groups_2_rounded,
+              title: 'Trabajo por avance',
+              subtitle: 'Registrar cuadrillas y áreas de trabajo',
+              onTap: _goToTrabajoPorAvance,
+            ),
+            const SizedBox(height: 8),
+            _OptionCard(
+              icon: Icons.groups_rounded,
+              title: 'Conteo rápido de personal',
+              subtitle: 'Registrar personal presente rápidamente',
+              onTap: () => _showEnConstruccion('Conteo rápido de personal'),
             ),
 
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(color: cs.outlineVariant),
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: cs.surfaceVariant.withOpacity(.6),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    child: Row(
-                      children: const [
-                        Expanded(
-                          child: Text('Área',
-                              style: TextStyle(fontWeight: FontWeight.w700)),
-                        ),
-                        SizedBox(width: 8),
-                        SizedBox(
-                          width: 95,
-                          child: Text(
-                            'Cantidad',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        SizedBox(width: 32),
-                      ],
-                    ),
-                  ),
-
-                  for (int i = 0; i < _areas.length; i++)
-                    _AreaRowTile(
-                      area: _areas[i],
-                      onChanged: (_) => setState(() {}),
-                      onRemove: () {
-                        setState(() {
-                          _areas[i].cantidadCtrl.dispose();
-                          _areas.removeAt(i);
-                        });
-                      },
-                      onDetalles: () => _abrirDetallesArea(_areas[i]),
-                    ),
-
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(
-                          color: cs.outlineVariant,
-                          width: .8,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Total personal',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        Text(
-                          '$_totalPersonal',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 72),
+            const SizedBox(height: 80),
           ],
         ),
       ),
-
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: SizedBox(
         width: 180,
         height: 48,
         child: FilledButton.icon(
           style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
           onPressed: _onGuardarPressed,
           icon: const Icon(Icons.save_outlined),
           label: const Text('Guardar'),
@@ -618,67 +469,22 @@ class _ReportCreatePlanilleroPageState extends State<ReportCreatePlanilleroPage>
   }
 }
 
-class _AreaRowTile extends StatelessWidget {
-  final _AreaRow area;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onRemove;
-  final VoidCallback onDetalles;
+// ===================================================================
+//  Tarjeta reutilizable para las 3 opciones
+// ===================================================================
 
-  const _AreaRowTile({
-    required this.area,
-    required this.onChanged,
-    required this.onRemove,
-    required this.onDetalles,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: cs.outlineVariant.withOpacity(.7)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: Text(area.nombre)),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 95,
-            child: TextField(
-              controller: area.cantidadCtrl,
-              textAlign: TextAlign.center,
-              keyboardType:
-                  const TextInputType.numberWithOptions(signed: false, decimal: false),
-              readOnly: true,
-              showCursor: false,
-              enableInteractiveSelection: false,
-              decoration: const InputDecoration(
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: onChanged,
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.arrow_forward_ios_rounded),
-            onPressed: onDetalles,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ApoyosHorasCard extends StatelessWidget {
+class _OptionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
-  const _ApoyosHorasCard({required this.onTap});
+  const _OptionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -686,47 +492,43 @@ class _ApoyosHorasCard extends StatelessWidget {
 
     return Card(
       elevation: 0,
-      color: cs.surfaceVariant.withOpacity(.4),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(.1),
+                  color: cs.primary.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  Icons.access_time_rounded,
-                  color: cs.primary,
-                  size: 26,
-                ),
+                child: Icon(icon, color: cs.primary),
               ),
-              const SizedBox(width: 14),
-              const Expanded(
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Apoyos por horas',
-                      style: TextStyle(
-                        fontSize: 16,
+                      title,
+                      style: const TextStyle(
                         fontWeight: FontWeight.w700,
+                        fontSize: 15,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      'Registrar personal de apoyo pagado por horas trabajadas.',
-                      style: TextStyle(
+                      subtitle,
+                      style: const TextStyle(
                         fontSize: 13,
-                        color: Colors.black87,
+                        color: Colors.black54,
                       ),
                     ),
                   ],

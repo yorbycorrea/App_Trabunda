@@ -559,7 +559,7 @@ class ReporteArea extends DataClass implements Insertable<ReporteArea> {
       map['hora_inicio'] = Variable<String>(horaInicio);
     }
     if (!nullToAbsent || horaFin != null) {
-      map['hora_fin'] = Variable<String>(horaFin);
+      map['hora_fin'] = Variable<String?>(horaFin);
     }
     return map;
   }
@@ -2449,12 +2449,12 @@ class $ApoyosHorasTable extends ApoyosHoras
     'horaFin',
   );
   @override
-  late final GeneratedColumn<String> horaFin = GeneratedColumn<String>(
+  late final GeneratedColumn<String?> horaFin = GeneratedColumn<String?>(
     'hora_fin',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _horasMeta = const VerificationMeta('horas');
   @override
@@ -2534,8 +2534,6 @@ class $ApoyosHorasTable extends ApoyosHoras
         _horaFinMeta,
         horaFin.isAcceptableOrUnknown(data['hora_fin']!, _horaFinMeta),
       );
-    } else if (isInserting) {
-      context.missing(_horaFinMeta);
     }
     if (data.containsKey('horas')) {
       context.handle(
@@ -2579,7 +2577,7 @@ class $ApoyosHorasTable extends ApoyosHoras
       horaFin: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}hora_fin'],
-      )!,
+      ),
       horas: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}horas'],
@@ -2608,7 +2606,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
 
   /// Horas en formato texto HH:mm
   final String horaInicio;
-  final String horaFin;
+  final String? horaFin;
 
   /// Cantidad de horas ya calculadas (ej. 5.5)
   final double horas;
@@ -2631,7 +2629,9 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     map['reporte_id'] = Variable<int>(reporteId);
     map['codigo_trabajador'] = Variable<String>(codigoTrabajador);
     map['hora_inicio'] = Variable<String>(horaInicio);
-    map['hora_fin'] = Variable<String>(horaFin);
+    if (!nullToAbsent || horaFin != null) {
+      map['hora_fin'] = Variable<String>(horaFin);
+    }
     map['horas'] = Variable<double>(horas);
     map['area_apoyo'] = Variable<String>(areaApoyo);
     return map;
@@ -2643,7 +2643,9 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       reporteId: Value(reporteId),
       codigoTrabajador: Value(codigoTrabajador),
       horaInicio: Value(horaInicio),
-      horaFin: Value(horaFin),
+      horaFin: horaFin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(horaFin),
       horas: Value(horas),
       areaApoyo: Value(areaApoyo),
     );
@@ -2659,7 +2661,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       reporteId: serializer.fromJson<int>(json['reporteId']),
       codigoTrabajador: serializer.fromJson<String>(json['codigoTrabajador']),
       horaInicio: serializer.fromJson<String>(json['horaInicio']),
-      horaFin: serializer.fromJson<String>(json['horaFin']),
+      horaFin: serializer.fromJson<String?>(json['horaFin']),
       horas: serializer.fromJson<double>(json['horas']),
       areaApoyo: serializer.fromJson<String>(json['areaApoyo']),
     );
@@ -2672,7 +2674,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       'reporteId': serializer.toJson<int>(reporteId),
       'codigoTrabajador': serializer.toJson<String>(codigoTrabajador),
       'horaInicio': serializer.toJson<String>(horaInicio),
-      'horaFin': serializer.toJson<String>(horaFin),
+      'horaFin': serializer.toJson<String?>(horaFin),
       'horas': serializer.toJson<double>(horas),
       'areaApoyo': serializer.toJson<String>(areaApoyo),
     };
@@ -2753,7 +2755,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
   final Value<int> reporteId;
   final Value<String> codigoTrabajador;
   final Value<String> horaInicio;
-  final Value<String> horaFin;
+  final Value<String?> horaFin;
   final Value<double> horas;
   final Value<String> areaApoyo;
   const ApoyosHorasCompanion({
@@ -2770,20 +2772,19 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     required int reporteId,
     required String codigoTrabajador,
     required String horaInicio,
-    required String horaFin,
+    this.horaFin = const Value.absent(),
     this.horas = const Value.absent(),
     required String areaApoyo,
   }) : reporteId = Value(reporteId),
        codigoTrabajador = Value(codigoTrabajador),
        horaInicio = Value(horaInicio),
-       horaFin = Value(horaFin),
        areaApoyo = Value(areaApoyo);
   static Insertable<ApoyosHora> custom({
     Expression<int>? id,
     Expression<int>? reporteId,
     Expression<String>? codigoTrabajador,
     Expression<String>? horaInicio,
-    Expression<String>? horaFin,
+    Expression<String?>? horaFin,
     Expression<double>? horas,
     Expression<String>? areaApoyo,
   }) {
@@ -2803,7 +2804,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     Value<int>? reporteId,
     Value<String>? codigoTrabajador,
     Value<String>? horaInicio,
-    Value<String>? horaFin,
+    Value<String?>? horaFin,
     Value<double>? horas,
     Value<String>? areaApoyo,
   }) {
@@ -2834,7 +2835,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
       map['hora_inicio'] = Variable<String>(horaInicio.value);
     }
     if (horaFin.present) {
-      map['hora_fin'] = Variable<String>(horaFin.value);
+      map['hora_fin'] = Variable<String?>(horaFin.value);
     }
     if (horas.present) {
       map['horas'] = Variable<double>(horas.value);

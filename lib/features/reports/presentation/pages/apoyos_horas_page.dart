@@ -56,7 +56,7 @@ class ApoyosHorasPage extends StatefulWidget {
 }
 
 class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
-  late Future<List<ApoyoHoraDetalle>> _future;
+  late Future<ApoyosHorasListado> _future;
 
   @override
   void initState() {
@@ -101,7 +101,7 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
           ),
           const Divider(height: 0),
           Expanded(
-            child: FutureBuilder<List<ApoyoHoraDetalle>>(
+            child: FutureBuilder<ApoyosHorasListado>(
               future: _future,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -113,69 +113,151 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                   );
                 }
 
-                final apoyos = snapshot.data ?? [];
+                final data = snapshot.data ?? const ApoyosHorasListado();
+                final pendientes = data.pendientes;
+                final completos = data.completos;
 
                 // 🔹 Si NO hay apoyos → mostramos formulario inline tipo Saneamiento
-                if (apoyos.isEmpty) {
+                if (pendientes.isEmpty && completos.isEmpty) {
                   return _ApoyosHorasInlineForm(
                     reporteId: widget.reporteId,
                   );
                 }
 
-                // 🔹 Si hay apoyos → lista + edición
-                return ListView.separated(
-                  itemCount: apoyos.length,
-                  separatorBuilder: (_, __) => const Divider(height: 0),
-                  itemBuilder: (context, index) {
-                    final a = apoyos[index];
-                    return ListTile(
-                      title: Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
-                      subtitle: Text(
-                        'De ${a.horaInicio} a ${a.horaFin}  →  ${a.horas.toStringAsFixed(2)} h',
+                Widget _buildSectionTitle(String text) {
+                  return Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Text(
+                      text,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
                       ),
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ApoyoHoraFormPage(
-                              reporteId: widget.reporteId,
-                              apoyo: a,
+                    ),
+                  );
+                }
+
+                return ListView(
+                  children: [
+                    if (pendientes.isNotEmpty) ...[
+                      _buildSectionTitle('Reportes en espera (24h)'),
+                      const Divider(height: 0),
+                      ...pendientes.map(
+                        (a) => Column(
+                          children: [
+                            ListTile(
+                              title: Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
+                              subtitle: Text(
+                                'De ${a.horaInicio} a --:--  →  Pendiente',
+                              ),
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ApoyoHoraFormPage(
+                                      reporteId: widget.reporteId,
+                                      apoyo: a,
+                                      soloCapturaHoraFin: true,
+                                    ),
+                                  ),
+                                );
+                                _reload();
+                              },
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () async {
+                                  final ok = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: const Text('Eliminar apoyo'),
+                                          content: const Text(
+                                              '¿Seguro que deseas eliminar este registro?'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, false),
+                                              child: const Text('Cancelar'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, true),
+                                              child: const Text('Eliminar'),
+                                            ),
+                                          ],
+                                        ),
+                                      ) ??
+                                      false;
+                                  if (ok) {
+                                    await _borrar(a.id);
+                                  }
+                                },
+                              ),
                             ),
-                          ),
-                        );
-                        _reload();
-                      },
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete),
-                        onPressed: () async {
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Eliminar apoyo'),
-                              content: const Text(
-                                  '¿Seguro que deseas eliminar este registro?'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  child: const Text('Cancelar'),
-                                ),
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, true),
-                                  child: const Text('Eliminar'),
-                                ),
-                              ],
-                            ),
-                          ) ??
-                              false;
-                          if (ok) {
-                            await _borrar(a.id);
-                          }
-                        },
+                            const Divider(height: 0),
+                          ],
+                        ),
                       ),
-                    );
-                  },
+                    ],
+                    if (completos.isNotEmpty) ...[
+                      _buildSectionTitle('Apoyos registrados'),
+                      const Divider(height: 0),
+                      ...completos.map(
+                        (a) => Column(
+                          children: [
+                            ListTile(
+                              title: Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
+                              subtitle: Text(
+                                'De ${a.horaInicio} a ${a.horaFin ?? '--:--'}  →  ${a.horas.toStringAsFixed(2)} h',
+                              ),
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ApoyoHoraFormPage(
+                                      reporteId: widget.reporteId,
+                                      apoyo: a,
+                                    ),
+                                  ),
+                                );
+                                _reload();
+                              },
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete),
+                                onPressed: () async {
+                                  final ok = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: const Text('Eliminar apoyo'),
+                                          content: const Text(
+                                              '¿Seguro que deseas eliminar este registro?'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, false),
+                                              child: const Text('Cancelar'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, true),
+                                              child: const Text('Eliminar'),
+                                            ),
+                                          ],
+                                        ),
+                                      ) ??
+                                      false;
+                                  if (ok) {
+                                    await _borrar(a.id);
+                                  }
+                                },
+                              ),
+                            ),
+                            const Divider(height: 0),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 );
               },
             ),
@@ -283,13 +365,13 @@ class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Validar que horas y área sean obligatorias
+    // Validar que hora inicio, área y código sean obligatorios
     for (final m in _trabajadores) {
-      if (m.inicio == null || m.fin == null || m.area == null) {
+      if (m.inicio == null || m.area == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content:
-            Text('Completa hora de inicio, fin y área de apoyo para todos.'),
+            Text('Completa hora de inicio y área de apoyo para todos.'),
           ),
         );
         return;
@@ -298,12 +380,13 @@ class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
 
     // Insertar en BD
     for (final m in _trabajadores) {
-      final horas = _calcHoras(m.inicio!, m.fin!);
+      final horas =
+          (m.fin != null) ? _calcHoras(m.inicio!, m.fin!) : 0.0;
       await db.reportesDao.insertarApoyoHora(
         reporteId: widget.reporteId,
         codigoTrabajador: m.codigoCtrl.text.trim(),
         horaInicio: _formatTime(m.inicio!),
-        horaFin: _formatTime(m.fin!),
+        horaFin: m.fin != null ? _formatTime(m.fin!) : null,
         horas: horas,
         areaApoyo: m.area!,
       );
@@ -476,7 +559,7 @@ class _TrabajadorCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _HoraBox(
-                    label: 'Hora fin',
+                    label: 'Hora fin (opcional)',
                     value: _horaToText(model.fin),
                     onTap: onPickHoraFin,
                   ),
@@ -562,7 +645,7 @@ class _TrabajadorCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'Total horas: ${model.horas.toStringAsFixed(2)}',
+                'Total horas: ${model.fin == null ? '--' : model.horas.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                 ),
@@ -584,7 +667,7 @@ class _HoraBox extends StatelessWidget {
 
   final String label;
   final String value;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -634,10 +717,12 @@ class ApoyoHoraFormPage extends StatefulWidget {
     super.key,
     required this.reporteId,
     this.apoyo,
+    this.soloCapturaHoraFin = false,
   });
 
   final int reporteId;
   final ApoyoHoraDetalle? apoyo;
+  final bool soloCapturaHoraFin;
 
   @override
   State<ApoyoHoraFormPage> createState() => _ApoyoHoraFormPageState();
@@ -659,7 +744,9 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
       final a = widget.apoyo!;
       _codigoCtrl.text = a.codigoTrabajador;
       _inicio = _parseTime(a.horaInicio);
-      _fin = _parseTime(a.horaFin);
+      if (a.horaFin != null && a.horaFin!.isNotEmpty) {
+        _fin = _parseTime(a.horaFin!);
+      }
       _area = a.areaApoyo;
       _horasCalculadas = a.horas;
     }
@@ -718,16 +805,27 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_inicio == null || _fin == null || _area == null) {
+    final allowGuardarSinHoraFin =
+        widget.apoyo == null && !widget.soloCapturaHoraFin;
+
+    if (_inicio == null || _area == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Completa horas y el área de apoyo')),
+        const SnackBar(content: Text('Completa hora inicio y área de apoyo')),
       );
       return;
     }
 
-    final horas = _calcularHoras(_inicio!, _fin!);
+    if (_fin == null && !allowGuardarSinHoraFin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Captura la hora fin para continuar')),
+      );
+      return;
+    }
+
+    final horas =
+        (_inicio != null && _fin != null) ? _calcularHoras(_inicio!, _fin!) : 0.0;
     final horaInicioStr = _formatTime(_inicio!);
-    final horaFinStr = _formatTime(_fin!);
+    final horaFinStr = _fin != null ? _formatTime(_fin!) : null;
 
     if (widget.apoyo == null) {
       await db.reportesDao.insertarApoyoHora(
@@ -755,7 +853,7 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
   Widget _buildHoraBox({
     required String label,
     required TimeOfDay? value,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     final text = value == null ? '--:--' : value.format(context);
     return Expanded(
@@ -801,6 +899,7 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final editando = widget.apoyo != null;
+    final soloCapturaFin = widget.soloCapturaHoraFin;
 
     return Scaffold(
       appBar: AppBar(
@@ -837,11 +936,12 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                             _buildHoraBox(
                               label: 'Hora inicio',
                               value: _inicio,
-                              onTap: _pickHoraInicio,
+                              onTap: soloCapturaFin ? null : _pickHoraInicio,
                             ),
                             const SizedBox(width: 12),
                             _buildHoraBox(
-                              label: 'Hora fin',
+                              label:
+                                  soloCapturaFin ? 'Hora fin (completar)' : 'Hora fin',
                               value: _fin,
                               onTap: _pickHoraFin,
                             ),
@@ -851,6 +951,7 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                         TextFormField(
                           controller: _codigoCtrl,
                           keyboardType: TextInputType.number,
+                          readOnly: soloCapturaFin,
                           decoration: const InputDecoration(
                             labelText: 'Código del trabajador',
                             prefixIcon:
@@ -875,7 +976,9 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                             ),
                           )
                               .toList(),
-                          onChanged: (v) => setState(() => _area = v),
+                          onChanged: soloCapturaFin
+                              ? null
+                              : (v) => setState(() => _area = v),
                           decoration: const InputDecoration(
                             labelText: 'Área de apoyo',
                             border: OutlineInputBorder(),
@@ -887,7 +990,7 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: Text(
-                            'Total horas: ${_horasCalculadas.toStringAsFixed(2)}',
+                            'Total horas: ${_fin == null ? '--' : _horasCalculadas.toStringAsFixed(2)}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                             ),

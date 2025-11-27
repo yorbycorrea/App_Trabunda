@@ -102,9 +102,9 @@ class ApoyosHoras extends Table {
   TextColumn get areaApoyo => text()();
 
   /// Fecha de creación para controlar la vigencia de 24h cuando está pendiente
-  IntColumn get createdAt => integer()
-      .map(const UnixDateTimeConverter())
-      .withDefault(currentDateAndTime)();
+  /// Fecha de creación para controlar la vigencia de 24h cuando está pendiente
+  DateTimeColumn get createdAt =>
+      dateTime().withDefault(currentDateAndTime)();
 }
 
 /// =======================
@@ -341,7 +341,15 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         horas: Value(horasCalculadas),
         areaApoyo: areaApoyoTrim,
       ),
-    );
+    )..then((id) {
+      debugPrint(
+          '[INSERT LOCAL] Apoyo guardado en Drift (ID $id): '
+              'reporteId=$reporteId, codigo=$codigoTrabajadorTrim, '
+              'horaInicio=$horaInicioTrim, horaFin=$horaFinTrim, '
+              'horas=$horasCalculadas, area=$areaApoyoTrim'
+      );
+    });
+
   }
 
   /// Lista y separa apoyos pendientes (24h sin horaFin) y completos.

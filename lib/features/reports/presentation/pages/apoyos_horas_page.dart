@@ -4,6 +4,10 @@ import 'package:scanner_trabunda/core/widgets/qr_scanner.dart';
 import 'package:scanner_trabunda/data/drift/app_database.dart';
 import 'package:scanner_trabunda/data/drift/db.dart';
 
+// 👇 NUEVOS IMPORTS PARA SUPABASE
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:scanner_trabunda/features/reports/data/datasources/reportes_supabase_service.dart';
+
 /// Lista única de áreas de apoyo (la de tu Excel)
 const List<String> kAreasApoyo = [
   'APOYO ANILLAS',
@@ -56,9 +60,7 @@ class ApoyosHorasPage extends StatefulWidget {
 }
 
 class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
-
   late Future<ApoyosHorasListado> _future;
-
 
   @override
   void initState() {
@@ -103,11 +105,7 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
           ),
           const Divider(height: 0),
           Expanded(
-
             child: FutureBuilder<ApoyosHorasListado>(
-
-            
-
               future: _future,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -119,24 +117,25 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                   );
                 }
 
-
                 final data = snapshot.data ?? const ApoyosHorasListado();
                 final pendientes = data.pendientes;
                 final completos = data.completos;
 
                 // 🔹 Si NO hay apoyos → mostramos formulario inline tipo Saneamiento
                 if (pendientes.isEmpty && completos.isEmpty) {
-
                   return _ApoyosHorasInlineForm(
                     reporteId: widget.reporteId,
+                    // 👇 Pasamos también estos datos para Supabase
+                    fecha: widget.fecha,
+                    turno: widget.turno,
+                    planillero: widget.planillero,
                   );
                 }
-
 
                 Widget _buildSectionTitle(String text) {
                   return Padding(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     child: Text(
                       text,
                       style: const TextStyle(
@@ -153,12 +152,13 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                       _buildSectionTitle('Reportes en espera (24h)'),
                       const Divider(height: 0),
                       ...pendientes.map(
-                        (a) => Column(
+                            (a) => Column(
                           children: [
                             ListTile(
-                              title: Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
-                              subtitle: Text(
-                                'De ${a.horaInicio} a --:--  →  Pendiente',
+                              title:
+                              Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
+                              subtitle: const Text(
+                                'De 06:00 a --:--  →  Pendiente',
                               ),
                               onTap: () async {
                                 await Navigator.push(
@@ -177,25 +177,25 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                 icon: const Icon(Icons.delete_outline),
                                 onPressed: () async {
                                   final ok = await showDialog<bool>(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          title: const Text('Eliminar apoyo'),
-                                          content: const Text(
-                                              '¿Seguro que deseas eliminar este registro?'),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context, false),
-                                              child: const Text('Cancelar'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context, true),
-                                              child: const Text('Eliminar'),
-                                            ),
-                                          ],
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Eliminar apoyo'),
+                                      content: const Text(
+                                          '¿Seguro que deseas eliminar este registro?'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: const Text('Cancelar'),
                                         ),
-                                      ) ??
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          child: const Text('Eliminar'),
+                                        ),
+                                      ],
+                                    ),
+                                  ) ??
                                       false;
                                   if (ok) {
                                     await _borrar(a.id);
@@ -212,10 +212,11 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                       _buildSectionTitle('Apoyos registrados'),
                       const Divider(height: 0),
                       ...completos.map(
-                        (a) => Column(
+                            (a) => Column(
                           children: [
                             ListTile(
-                              title: Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
+                              title:
+                              Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
                               subtitle: Text(
                                 'De ${a.horaInicio} a ${a.horaFin ?? '--:--'}  →  ${a.horas.toStringAsFixed(2)} h',
                               ),
@@ -235,25 +236,25 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                 icon: const Icon(Icons.delete),
                                 onPressed: () async {
                                   final ok = await showDialog<bool>(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          title: const Text('Eliminar apoyo'),
-                                          content: const Text(
-                                              '¿Seguro que deseas eliminar este registro?'),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context, false),
-                                              child: const Text('Cancelar'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context, true),
-                                              child: const Text('Eliminar'),
-                                            ),
-                                          ],
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Eliminar apoyo'),
+                                      content: const Text(
+                                          '¿Seguro que deseas eliminar este registro?'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: const Text('Cancelar'),
                                         ),
-                                      ) ??
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          child: const Text('Eliminar'),
+                                        ),
+                                      ],
+                                    ),
+                                  ) ??
                                       false;
                                   if (ok) {
                                     await _borrar(a.id);
@@ -266,7 +267,6 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                         ),
                       ),
                     ],
-
                   ],
                 );
               },
@@ -324,23 +324,23 @@ class _ApoyoSection extends StatelessWidget {
                   icon: const Icon(Icons.delete),
                   onPressed: () async {
                     final ok = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Eliminar apoyo'),
-                            content: const Text(
-                                '¿Seguro que deseas eliminar este registro?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: const Text('Cancelar'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: const Text('Eliminar'),
-                              ),
-                            ],
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Eliminar apoyo'),
+                        content: const Text(
+                            '¿Seguro que deseas eliminar este registro?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancelar'),
                           ),
-                        ) ??
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Eliminar'),
+                          ),
+                        ],
+                      ),
+                    ) ??
                         false;
                     if (ok) {
                       await onDelete(a.id);
@@ -364,9 +364,15 @@ class _ApoyoSection extends StatelessWidget {
 class _ApoyosHorasInlineForm extends StatefulWidget {
   const _ApoyosHorasInlineForm({
     required this.reporteId,
+    required this.fecha,
+    required this.turno,
+    required this.planillero,
   });
 
   final int reporteId;
+  final DateTime fecha;
+  final String turno;
+  final String planillero;
 
   @override
   State<_ApoyosHorasInlineForm> createState() =>
@@ -449,7 +455,6 @@ class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
     });
   }
 
-
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -466,18 +471,66 @@ class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
       }
     }
 
-    // Insertar en BD
+    final user = Supabase.instance.client.auth.currentUser;
+
     for (final m in _trabajadores) {
       final horas =
-          (m.fin != null) ? _calcHoras(m.inicio!, m.fin!) : 0.0;
-      await db.reportesDao.insertarApoyoHora(
+      (m.fin != null) ? _calcHoras(m.inicio!, m.fin!) : 0.0;
+      final horaInicioStr = _formatTime(m.inicio!);
+      final horaFinStr = m.fin != null ? _formatTime(m.fin!) : null;
+
+      // 1) Guardar en BD local (Drift)
+      final idLocal = await db.reportesDao.insertarApoyoHora(
         reporteId: widget.reporteId,
         codigoTrabajador: m.codigoCtrl.text.trim(),
-        horaInicio: _formatTime(m.inicio!),
-        horaFin: m.fin != null ? _formatTime(m.fin!) : null,
+        horaInicio: horaInicioStr,
+        horaFin: horaFinStr,
         horas: horas,
         areaApoyo: m.area!,
       );
+
+      debugPrint(
+        '[ApoyosHoras][LOCAL] insertarApoyoHora OK '
+            '(idLocal=$idLocal, reporteId=${widget.reporteId}, '
+            'codigo=${m.codigoCtrl.text.trim()}, '
+            'horaInicio=$horaInicioStr, horaFin=$horaFinStr, '
+            'horas=$horas, area=${m.area})',
+      );
+
+      // 2) Enviar a Supabase (si hay usuario logueado)
+      if (user == null) {
+        debugPrint(
+          '[ApoyosHoras][REMOTE] No hay usuario logueado, '
+              'no se envía a Supabase.',
+        );
+      } else {
+        try {
+          await ReportesSupabaseService.instance.insertarApoyoHoraRemoto(
+            reporteIdLocal: widget.reporteId,
+            codigoTrabajador: m.codigoCtrl.text.trim(),
+            horaInicio: horaInicioStr,
+            horaFin: horaFinStr,
+            horas: horas,
+            area: m.area!,
+            fecha: widget.fecha,
+            turno: widget.turno,
+            planillero: widget.planillero,
+            userId: user.id,
+          );
+
+          debugPrint(
+            '[ApoyosHoras][REMOTE] insertarApoyoHoraRemoto OK '
+                '(reporteId=${widget.reporteId}, codigo=${m.codigoCtrl.text.trim()}, '
+                'area=${m.area}, fecha=${widget.fecha}, turno=${widget.turno}, '
+                'planillero=${widget.planillero})',
+          );
+        } catch (e, st) {
+          debugPrint(
+            '[ApoyosHoras][REMOTE][ERROR] Error al enviar apoyo a Supabase: '
+                '$e\n$st',
+          );
+        }
+      }
     }
 
     if (mounted) {
@@ -908,17 +961,14 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
     if (_fin == null && !allowGuardarSinHoraFin) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Captura la hora fin para continuar')),
-
       );
       return;
     }
 
-
     final horas =
-        (_inicio != null && _fin != null) ? _calcularHoras(_inicio!, _fin!) : 0.0;
+    (_inicio != null && _fin != null) ? _calcularHoras(_inicio!, _fin!) : 0.0;
     final horaInicioStr = _formatTime(_inicio!);
     final horaFinStr = _fin != null ? _formatTime(_fin!) : null;
-
 
     if (widget.apoyo == null) {
       await db.reportesDao.insertarApoyoHora(
@@ -1033,8 +1083,9 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                             ),
                             const SizedBox(width: 12),
                             _buildHoraBox(
-                              label:
-                                  soloCapturaFin ? 'Hora fin (completar)' : 'Hora fin',
+                              label: soloCapturaFin
+                                  ? 'Hora fin (completar)'
+                                  : 'Hora fin',
                               value: _fin,
                               onTap: _pickHoraFin,
                             ),

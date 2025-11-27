@@ -111,7 +111,8 @@ class ReportesSupabaseService {
       );
       rethrow;
     } catch (e, st) {
-      debugPrint('[Supabase][ERROR] Error inesperado al listar reportes: $e\n$st');
+      debugPrint(
+          '[Supabase][ERROR] Error inesperado al listar reportes: $e\n$st');
       rethrow;
     }
   }
@@ -135,11 +136,8 @@ class ReportesSupabaseService {
         'observaciones': observaciones,
       };
 
-      final result = await _client
-          .from('reportes')
-          .insert(data)
-          .select('id')
-          .single();
+      final result =
+      await _client.from('reportes').insert(data).select('id').single();
 
       final id = result['id'] as int?;
       debugPrint('[Supabase][OUT] Reporte insertado con id=$id');
@@ -156,10 +154,12 @@ class ReportesSupabaseService {
       );
       rethrow;
     } catch (e, st) {
-      debugPrint('[Supabase][ERROR] Error inesperado al insertar reporte: $e\n$st');
+      debugPrint(
+          '[Supabase][ERROR] Error inesperado al insertar reporte: $e\n$st');
       rethrow;
     }
   }
+
   // =========================================================
   //  NUEVO: enviar reporte COMPLETO desde la BD local
   // =========================================================
@@ -252,7 +252,8 @@ class ReportesSupabaseService {
             };
 
             debugPrint(
-              '[Supabase][OUT] enviarReporteCompletoDesdeLocal → OK (id=$reporteId)',);
+              '[Supabase][OUT] enviarReporteCompletoDesdeLocal → OK (id=$reporteId)',
+            );
             await _insertarIntegrante(
               cuadrillaId: cuadrillaId,
               integrante: integ,
@@ -273,6 +274,74 @@ class ReportesSupabaseService {
     }
   }
 
+  // =========================================================
+  //  HELPERS PARA APOYOS POR HORAS
+  // =========================================================
+  Future<int> _getOrCreateReporteParaApoyos({
+    required DateTime fecha,
+    required String turno,
+    required String planillero,
+    required String userId,
+  }) async {
+    final fechaStr =
+        '${fecha.year.toString().padLeft(4, '0')}-'
+        '${fecha.month.toString().padLeft(2, '0')}-'
+        '${fecha.day.toString().padLeft(2, '0')}';
+
+    try {
+      debugPrint(
+        '[Supabase][Apoyos] Buscando reporte existente para '
+            'user=$userId, fecha=$fechaStr, turno=$turno, planillero=$planillero',
+      );
+
+      final existing = await _client
+          .from('reportes')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('fecha', fechaStr)
+          .eq('turno', turno)
+          .eq('planillero', planillero)
+          .maybeSingle();
+
+      if (existing != null && existing['id'] != null) {
+        final id = existing['id'] as int;
+        debugPrint(
+          '[Supabase][Apoyos] Reporte existente encontrado: id=$id',
+        );
+        return id;
+      }
+
+      debugPrint(
+        '[Supabase][Apoyos] No se encontró reporte, se creará uno nuevo.',
+      );
+
+      final nuevoId = await insertarReporte(
+        fecha: fecha,
+        turno: turno,
+        planillero: planillero,
+        userId: userId,
+        observaciones: null,
+      );
+
+      debugPrint(
+        '[Supabase][Apoyos] Reporte creado para apoyos: id=$nuevoId',
+      );
+
+      return nuevoId;
+    } on PostgrestException catch (e, st) {
+      debugPrint(
+        '[Supabase][Apoyos][ERROR] Error al buscar/crear reporte para apoyos: '
+            '${e.message} (${e.code})\n$st',
+      );
+      rethrow;
+    } catch (e, st) {
+      debugPrint(
+        '[Supabase][Apoyos][ERROR] Error inesperado al buscar/crear reporte: '
+            '$e\n$st',
+      );
+      rethrow;
+    }
+  }
 
   // =========================================================
   //  HELPERS PRIVADOS (área / cuadrilla / integrante)
@@ -293,14 +362,10 @@ class ReportesSupabaseService {
       };
       debugPrint('[Supabase][OUT] Insert reporte_areas payload → $data');
 
-      final res = await _client
-          .from('reporte_areas')
-          .insert(data)
-          .select()
-          .single();
+      final res =
+      await _client.from('reporte_areas').insert(data).select().single();
 
-      debugPrint(
-          '[Supabase][IN ] Insert reporte_areas response → $res');
+      debugPrint('[Supabase][IN ] Insert reporte_areas response → $res');
 
       final id = res['id'] as int?;
       if (id == null) {
@@ -342,11 +407,8 @@ class ReportesSupabaseService {
 
       debugPrint('[Supabase][OUT] Insert cuadrillas payload → $data');
 
-      final res = await _client
-          .from('cuadrillas')
-          .insert(data)
-          .select()
-          .single();
+      final res =
+      await _client.from('cuadrillas').insert(data).select().single();
 
       debugPrint('[Supabase][IN ] Insert cuadrillas response → $res');
 
@@ -357,7 +419,8 @@ class ReportesSupabaseService {
         );
       }
 
-      debugPrint('[Supabase][OUT] _insertarCuadrilla → id=$id (${cuadrilla.nombre})');
+      debugPrint(
+          '[Supabase][OUT] _insertarCuadrilla → id=$id (${cuadrilla.nombre})');
       return id;
     } on PostgrestException catch (e, st) {
       debugPrint(
@@ -390,7 +453,8 @@ class ReportesSupabaseService {
 
       debugPrint('[Supabase][OUT] Insert integrantes payload → $data');
 
-      final res = await _client.from('integrantes').insert(data).select().single();
+      final res =
+      await _client.from('integrantes').insert(data).select().single();
 
       debugPrint('[Supabase][IN ] Insert integrantes response → $res');
 
@@ -406,6 +470,95 @@ class ReportesSupabaseService {
     } catch (e, st) {
       debugPrint(
         '[Supabase][ERROR] Error inesperado al insertar integrante: $e\n$st',
+      );
+      rethrow;
+    }
+  }
+
+  // =========================================================
+  //  INSERTAR APOYO POR HORAS EN SUPABASE
+  // =========================================================
+  Future<void> insertarApoyoHoraRemoto({
+    required int reporteIdLocal, // solo para logs, NO es el id de Supabase
+    required DateTime fecha,
+    required String turno,
+    required String planillero,
+    required String userId,
+    required String codigoTrabajador,
+    required String horaInicio,
+    String? horaFin,
+    required double horas,
+    required String area,
+  }) async {
+    final fechaStr =
+        '${fecha.year.toString().padLeft(4, '0')}-'
+        '${fecha.month.toString().padLeft(2, '0')}-'
+        '${fecha.day.toString().padLeft(2, '0')}';
+
+    try {
+      // 1) Buscar o crear cabecera en `reportes`
+      final reporteIdSupabase = await _getOrCreateReporteParaApoyos(
+        fecha: fecha,
+        turno: turno,
+        planillero: planillero,
+        userId: userId,
+      );
+
+      // 2) Simular "update": borrar cualquier registro previo del mismo apoyo
+      final deleteFilter = {
+        'reporte_id': reporteIdSupabase,
+        'codigo_trabajador': codigoTrabajador,
+        'fecha': fechaStr,
+        'turno': turno,
+        'area': area,
+      };
+
+      debugPrint(
+        '[Supabase][OUT] insertarApoyoHoraRemoto DELETE match → $deleteFilter',
+      );
+
+      await _client.from('apoyos_horas').delete().match(deleteFilter);
+
+      // 3) Insertar el nuevo registro
+      final payload = {
+        'reporte_id': reporteIdSupabase,
+        'codigo_trabajador': codigoTrabajador,
+        'hora_inicio': horaInicio,
+        'hora_fin': horaFin ?? '',
+        'horas': horas,
+        'area': area,
+        'fecha': fechaStr, // columna DATE en Supabase
+        'turno': turno,
+        'planillero': planillero,
+        'user_id': userId,
+      };
+
+      debugPrint(
+        '[Supabase][OUT] insertarApoyoHoraRemoto INSERT payload → $payload '
+            '(reporteIdLocal=$reporteIdLocal, reporteIdSupabase=$reporteIdSupabase)',
+      );
+
+      final res =
+      await _client.from('apoyos_horas').insert(payload).select().single();
+
+      debugPrint(
+        '[Supabase][IN ] insertarApoyoHoraRemoto response → $res',
+      );
+      debugPrint(
+        '[ApoyosHoras][REMOTE] insertarApoyoHoraRemoto OK '
+            '(reporteIdLocal=$reporteIdLocal, codigo=$codigoTrabajador, '
+            'area=$area, fecha=$fechaStr, turno=$turno, planillero=$planillero)',
+      );
+    } on PostgrestException catch (e, st) {
+      debugPrint(
+        '[Supabase][Apoyos][REMOTE][ERROR] Error al enviar apoyo a Supabase: '
+            '$e\n$st',
+      );
+      rethrow;
+    } catch (e, st) {
+      debugPrint(
+        '[Supabase][Apoyos][REMOTE][ERROR] Error inesperado al insertar en apoyos_horas: '
+            '$e\n$st',
       );
       rethrow;
     }

@@ -2638,6 +2638,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
   final String areaApoyo;
 
   /// Fecha de creación para controlar la vigencia de 24h cuando está pendiente
+  /// Fecha de creación para controlar la vigencia de 24h cuando está pendiente
   final DateTime createdAt;
   const ApoyosHora({
     required this.id,

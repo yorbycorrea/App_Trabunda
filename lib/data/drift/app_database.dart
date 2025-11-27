@@ -83,7 +83,7 @@ class ApoyosHoras extends Table {
 
   /// Horas en formato texto HH:mm
   TextColumn get horaInicio => text()(); // '18:00'
-  TextColumn get horaFin => text()(); // '23:30'
+  TextColumn get horaFin => text().nullable()(); // '23:30'
 
   /// Cantidad de horas ya calculadas (ej. 5.5)
   RealColumn get horas =>
@@ -91,6 +91,9 @@ class ApoyosHoras extends Table {
 
   /// Área de apoyo (APOYO LAVADO, APOYO ANILLAS, etc.)
   TextColumn get areaApoyo => text()();
+
+  /// Fecha de creación para controlar la vigencia de 24h cuando está pendiente
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 /// =======================
@@ -120,9 +123,9 @@ LazyDatabase _openConnection() {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
-  /// 👀 Aumentamos versión de 5 a 6 porque agregamos tabla nueva
+  /// 👀 Aumentamos versión de 6 a 7 porque agregamos columnas nuevas
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -149,8 +152,38 @@ class AppDatabase extends _$AppDatabase {
         // Nueva tabla de apoyos por horas
         await m.createTable(apoyosHoras);
       }
+
+      if (from < 7) {
+        await _migrarApoyosHorasV7(m);
+      }
     },
   );
+
+  Future<void> _migrarApoyosHorasV7(Migrator m) async {
+    await m.execute('''
+CREATE TABLE IF NOT EXISTS apoyos_horas_nueva (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  reporte_id INTEGER NOT NULL REFERENCES reportes (id) ON DELETE CASCADE,
+  codigo_trabajador TEXT NOT NULL,
+  hora_inicio TEXT NOT NULL,
+  hora_fin TEXT NULL,
+  horas REAL NOT NULL DEFAULT 0.0,
+  area_apoyo TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+''');
+
+    await m.execute('''
+INSERT INTO apoyos_horas_nueva (
+  id, reporte_id, codigo_trabajador, hora_inicio, hora_fin, horas, area_apoyo, created_at
+) SELECT
+  id, reporte_id, codigo_trabajador, hora_inicio, hora_fin, horas, area_apoyo, CURRENT_TIMESTAMP
+FROM apoyos_horas;
+''');
+
+    await m.execute('DROP TABLE IF EXISTS apoyos_horas;');
+    await m.execute('ALTER TABLE apoyos_horas_nueva RENAME TO apoyos_horas;');
+  }
 
   /// =====================================================
   /// 🔹 Borrar todos los datos locales (para logout, debug)
@@ -191,6 +224,43 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     with _$ReportesDaoMixin {
   ReportesDao(AppDatabase db) : super(db);
 
+  static const Duration _kVigenciaPendiente = Duration(hours: 24);
+
+  Duration _horaTextoADuration(String hhmm) {
+    final parts = hhmm.split(':');
+    return Duration(
+      hours: int.parse(parts[0]),
+      minutes: int.parse(parts[1]),
+    );
+  }
+
+  double _calcularHorasDesdeTextos(String horaInicio, String horaFin) {
+    final inicio = _horaTextoADuration(horaInicio);
+    final fin = _horaTextoADuration(horaFin);
+    return (fin - inicio).inMinutes / 60.0;
+  }
+
+  ApoyoHoraDetalle _mapRowToDetalle(ApoyosHora row) {
+    return ApoyoHoraDetalle(
+      id: row.id,
+      reporteId: row.reporteId,
+      codigoTrabajador: row.codigoTrabajador,
+      horaInicio: row.horaInicio,
+      horaFin: row.horaFin,
+      horas: row.horas,
+      areaApoyo: row.areaApoyo,
+      createdAt: row.createdAt,
+    );
+  }
+
+  Future<void> _limpiarApoyosPendientesExpirados() async {
+    final limite = DateTime.now().subtract(_kVigenciaPendiente);
+    await (delete(apoyosHoras)
+          ..where((t) => t.horaFin.isNull())
+          ..where((t) => t.createdAt.isSmallerThanValue(limite)))
+        .go();
+  }
+
   Future<bool> hasReportes() async {
     final row = await customSelect(
       'SELECT COUNT(*) AS total FROM reportes',
@@ -212,45 +282,56 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     required int reporteId,
     required String codigoTrabajador,
     required String horaInicio,
-    required String horaFin,
-    required double horas,
+    String? horaFin,
+    double? horas,
     required String areaApoyo,
-  }) {
+  }) async {
+    final horasCalculadas = horas ??
+        (horaFin != null ? _calcularHorasDesdeTextos(horaInicio, horaFin) : 0.0);
+
     return into(apoyosHoras).insert(
       ApoyosHorasCompanion.insert(
         reporteId: reporteId,
         codigoTrabajador: codigoTrabajador,
         horaInicio: horaInicio,
-        horaFin: horaFin,
-        horas: Value(horas),
+        horaFin: Value(horaFin),
+        horas: Value(horasCalculadas),
         areaApoyo: areaApoyo,
+        createdAt: Value(DateTime.now()),
       ),
     );
   }
 
   /// Lista todos los apoyos de un reporte (para mostrar en la pantalla)
-  Future<List<ApoyoHoraDetalle>> listarApoyosPorReporte(int reporteId) async {
-    final rows = await (select(apoyosHoras)
+  Future<ApoyosPorReporte> listarApoyosPorReporte(int reporteId) async {
+    await _limpiarApoyosPendientesExpirados();
+
+    final completos = await _listarApoyos(reporteId, soloCompletos: true);
+    final pendientes = await _listarApoyos(reporteId, soloCompletos: false);
+
+    return ApoyosPorReporte(
+      completos: completos,
+      pendientes: pendientes,
+    );
+  }
+
+  Future<List<ApoyoHoraDetalle>> _listarApoyos(int reporteId,
+      {required bool soloCompletos}) async {
+    final q = select(apoyosHoras)
       ..where((t) => t.reporteId.equals(reporteId))
       ..orderBy([
-            (t) => OrderingTerm.asc(t.areaApoyo),
-            (t) => OrderingTerm.asc(t.codigoTrabajador),
-      ]))
-        .get();
+        (t) => OrderingTerm.asc(t.areaApoyo),
+        (t) => OrderingTerm.asc(t.codigoTrabajador),
+      ]);
 
-    return rows
-        .map(
-          (r) => ApoyoHoraDetalle(
-        id: r.id,
-        reporteId: r.reporteId,
-        codigoTrabajador: r.codigoTrabajador,
-        horaInicio: r.horaInicio,
-        horaFin: r.horaFin,
-        horas: r.horas,
-        areaApoyo: r.areaApoyo,
-      ),
-    )
-        .toList();
+    if (soloCompletos) {
+      q.where((t) => t.horaFin.isNotNull());
+    } else {
+      q.where((t) => t.horaFin.isNull());
+    }
+
+    final rows = await q.get();
+    return rows.map(_mapRowToDetalle).toList();
   }
 
   Future<void> eliminarApoyoHora(int id) async {
@@ -259,19 +340,38 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
 
   Future<void> actualizarApoyoHora({
     required int id,
-    required String codigoTrabajador,
-    required String horaInicio,
-    required String horaFin,
-    required double horas,
-    required String areaApoyo,
+    String? codigoTrabajador,
+    String? horaInicio,
+    String? horaFin,
+    double? horas,
+    String? areaApoyo,
   }) async {
+    final actual =
+        await (select(apoyosHoras)..where((t) => t.id.equals(id))).getSingle();
+
+    final horaInicioResult = horaInicio ?? actual.horaInicio;
+    final horaFinResult = horaFin ?? actual.horaFin;
+
+    double? horasCalculadas = horas;
+    if (horaFinResult != null) {
+      horasCalculadas ??=
+          _calcularHorasDesdeTextos(horaInicioResult, horaFinResult);
+    }
+
     await (update(apoyosHoras)..where((t) => t.id.equals(id))).write(
       ApoyosHorasCompanion(
-        codigoTrabajador: Value(codigoTrabajador),
-        horaInicio: Value(horaInicio),
-        horaFin: Value(horaFin),
-        horas: Value(horas),
-        areaApoyo: Value(areaApoyo),
+        codigoTrabajador: codigoTrabajador != null
+            ? Value(codigoTrabajador)
+            : const Value.absent(),
+        horaInicio:
+            horaInicio != null ? Value(horaInicio) : const Value.absent(),
+        horaFin: horaFin != null ? Value(horaFinResult) : const Value.absent(),
+        horas: horasCalculadas != null
+            ? Value(horasCalculadas)
+            : const Value.absent(),
+        areaApoyo: areaApoyo != null
+            ? Value(areaApoyo)
+            : const Value.absent(),
       ),
     );
   }
@@ -1215,9 +1315,10 @@ class ApoyoHoraDetalle {
   final int reporteId;
   final String codigoTrabajador;
   final String horaInicio;
-  final String horaFin;
+  final String? horaFin;
   final double horas;
   final String areaApoyo;
+  final DateTime createdAt;
 
   const ApoyoHoraDetalle({
     required this.id,
@@ -1227,5 +1328,18 @@ class ApoyoHoraDetalle {
     required this.horaFin,
     required this.horas,
     required this.areaApoyo,
+    required this.createdAt,
   });
+}
+
+class ApoyosPorReporte {
+  final List<ApoyoHoraDetalle> completos;
+  final List<ApoyoHoraDetalle> pendientes;
+
+  const ApoyosPorReporte({
+    this.completos = const [],
+    this.pendientes = const [],
+  });
+
+  bool get estaVacio => completos.isEmpty && pendientes.isEmpty;
 }

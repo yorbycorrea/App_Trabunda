@@ -2449,12 +2449,12 @@ class $ApoyosHorasTable extends ApoyosHoras
     'horaFin',
   );
   @override
-  late final GeneratedColumn<String> horaFin = GeneratedColumn<String>(
+  late final GeneratedColumn<String?> horaFin = GeneratedColumn<String?>(
     'hora_fin',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _horasMeta = const VerificationMeta('horas');
   @override
@@ -2477,6 +2477,18 @@ class $ApoyosHorasTable extends ApoyosHoras
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2486,6 +2498,7 @@ class $ApoyosHorasTable extends ApoyosHoras
     horaFin,
     horas,
     areaApoyo,
+    createdAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2534,8 +2547,6 @@ class $ApoyosHorasTable extends ApoyosHoras
         _horaFinMeta,
         horaFin.isAcceptableOrUnknown(data['hora_fin']!, _horaFinMeta),
       );
-    } else if (isInserting) {
-      context.missing(_horaFinMeta);
     }
     if (data.containsKey('horas')) {
       context.handle(
@@ -2550,6 +2561,12 @@ class $ApoyosHorasTable extends ApoyosHoras
       );
     } else if (isInserting) {
       context.missing(_areaApoyoMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
     }
     return context;
   }
@@ -2579,7 +2596,7 @@ class $ApoyosHorasTable extends ApoyosHoras
       horaFin: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}hora_fin'],
-      )!,
+      ),
       horas: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}horas'],
@@ -2587,6 +2604,10 @@ class $ApoyosHorasTable extends ApoyosHoras
       areaApoyo: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}area_apoyo'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
       )!,
     );
   }
@@ -2608,13 +2629,14 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
 
   /// Horas en formato texto HH:mm
   final String horaInicio;
-  final String horaFin;
+  final String? horaFin;
 
   /// Cantidad de horas ya calculadas (ej. 5.5)
   final double horas;
 
   /// Área de apoyo (APOYO LAVADO, APOYO ANILLAS, etc.)
   final String areaApoyo;
+  final DateTime createdAt;
   const ApoyosHora({
     required this.id,
     required this.reporteId,
@@ -2623,6 +2645,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     required this.horaFin,
     required this.horas,
     required this.areaApoyo,
+    required this.createdAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2631,9 +2654,12 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     map['reporte_id'] = Variable<int>(reporteId);
     map['codigo_trabajador'] = Variable<String>(codigoTrabajador);
     map['hora_inicio'] = Variable<String>(horaInicio);
-    map['hora_fin'] = Variable<String>(horaFin);
+    if (!nullToAbsent || horaFin != null) {
+      map['hora_fin'] = Variable<String>(horaFin);
+    }
     map['horas'] = Variable<double>(horas);
     map['area_apoyo'] = Variable<String>(areaApoyo);
+    map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
 
@@ -2643,9 +2669,11 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       reporteId: Value(reporteId),
       codigoTrabajador: Value(codigoTrabajador),
       horaInicio: Value(horaInicio),
-      horaFin: Value(horaFin),
+      horaFin:
+          horaFin == null && nullToAbsent ? const Value.absent() : Value(horaFin),
       horas: Value(horas),
       areaApoyo: Value(areaApoyo),
+      createdAt: Value(createdAt),
     );
   }
 
@@ -2659,9 +2687,10 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       reporteId: serializer.fromJson<int>(json['reporteId']),
       codigoTrabajador: serializer.fromJson<String>(json['codigoTrabajador']),
       horaInicio: serializer.fromJson<String>(json['horaInicio']),
-      horaFin: serializer.fromJson<String>(json['horaFin']),
+      horaFin: serializer.fromJson<String?>(json['horaFin']),
       horas: serializer.fromJson<double>(json['horas']),
       areaApoyo: serializer.fromJson<String>(json['areaApoyo']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
   @override
@@ -2672,9 +2701,10 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       'reporteId': serializer.toJson<int>(reporteId),
       'codigoTrabajador': serializer.toJson<String>(codigoTrabajador),
       'horaInicio': serializer.toJson<String>(horaInicio),
-      'horaFin': serializer.toJson<String>(horaFin),
+      'horaFin': serializer.toJson<String?>(horaFin),
       'horas': serializer.toJson<double>(horas),
       'areaApoyo': serializer.toJson<String>(areaApoyo),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
 
@@ -2686,6 +2716,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     String? horaFin,
     double? horas,
     String? areaApoyo,
+    DateTime? createdAt,
   }) => ApoyosHora(
     id: id ?? this.id,
     reporteId: reporteId ?? this.reporteId,
@@ -2694,6 +2725,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     horaFin: horaFin ?? this.horaFin,
     horas: horas ?? this.horas,
     areaApoyo: areaApoyo ?? this.areaApoyo,
+    createdAt: createdAt ?? this.createdAt,
   );
   ApoyosHora copyWithCompanion(ApoyosHorasCompanion data) {
     return ApoyosHora(
@@ -2708,6 +2740,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       horaFin: data.horaFin.present ? data.horaFin.value : this.horaFin,
       horas: data.horas.present ? data.horas.value : this.horas,
       areaApoyo: data.areaApoyo.present ? data.areaApoyo.value : this.areaApoyo,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
 
@@ -2720,7 +2753,8 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
           ..write('horaInicio: $horaInicio, ')
           ..write('horaFin: $horaFin, ')
           ..write('horas: $horas, ')
-          ..write('areaApoyo: $areaApoyo')
+          ..write('areaApoyo: $areaApoyo, ')
+          ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
@@ -2734,6 +2768,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     horaFin,
     horas,
     areaApoyo,
+    createdAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -2745,7 +2780,8 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
           other.horaInicio == this.horaInicio &&
           other.horaFin == this.horaFin &&
           other.horas == this.horas &&
-          other.areaApoyo == this.areaApoyo);
+          other.areaApoyo == this.areaApoyo &&
+          other.createdAt == this.createdAt);
 }
 
 class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
@@ -2753,9 +2789,10 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
   final Value<int> reporteId;
   final Value<String> codigoTrabajador;
   final Value<String> horaInicio;
-  final Value<String> horaFin;
+  final Value<String?> horaFin;
   final Value<double> horas;
   final Value<String> areaApoyo;
+  final Value<DateTime> createdAt;
   const ApoyosHorasCompanion({
     this.id = const Value.absent(),
     this.reporteId = const Value.absent(),
@@ -2764,19 +2801,20 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     this.horaFin = const Value.absent(),
     this.horas = const Value.absent(),
     this.areaApoyo = const Value.absent(),
+    this.createdAt = const Value.absent(),
   });
   ApoyosHorasCompanion.insert({
     this.id = const Value.absent(),
     required int reporteId,
     required String codigoTrabajador,
     required String horaInicio,
-    required String horaFin,
+    this.horaFin = const Value.absent(),
     this.horas = const Value.absent(),
     required String areaApoyo,
+    this.createdAt = const Value.absent(),
   }) : reporteId = Value(reporteId),
        codigoTrabajador = Value(codigoTrabajador),
        horaInicio = Value(horaInicio),
-       horaFin = Value(horaFin),
        areaApoyo = Value(areaApoyo);
   static Insertable<ApoyosHora> custom({
     Expression<int>? id,
@@ -2786,6 +2824,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     Expression<String>? horaFin,
     Expression<double>? horas,
     Expression<String>? areaApoyo,
+    Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2795,6 +2834,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
       if (horaFin != null) 'hora_fin': horaFin,
       if (horas != null) 'horas': horas,
       if (areaApoyo != null) 'area_apoyo': areaApoyo,
+      if (createdAt != null) 'created_at': createdAt,
     });
   }
 
@@ -2803,9 +2843,10 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     Value<int>? reporteId,
     Value<String>? codigoTrabajador,
     Value<String>? horaInicio,
-    Value<String>? horaFin,
+    Value<String?>? horaFin,
     Value<double>? horas,
     Value<String>? areaApoyo,
+    Value<DateTime>? createdAt,
   }) {
     return ApoyosHorasCompanion(
       id: id ?? this.id,
@@ -2815,6 +2856,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
       horaFin: horaFin ?? this.horaFin,
       horas: horas ?? this.horas,
       areaApoyo: areaApoyo ?? this.areaApoyo,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -2842,6 +2884,9 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     if (areaApoyo.present) {
       map['area_apoyo'] = Variable<String>(areaApoyo.value);
     }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
     return map;
   }
 
@@ -2854,7 +2899,8 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
           ..write('horaInicio: $horaInicio, ')
           ..write('horaFin: $horaFin, ')
           ..write('horas: $horas, ')
-          ..write('areaApoyo: $areaApoyo')
+          ..write('areaApoyo: $areaApoyo, ')
+          ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }

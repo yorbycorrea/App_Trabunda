@@ -68,9 +68,7 @@ class Integrantes extends Table {
   TextColumn get labores => text().nullable()();
 }
 
-///
 /// 🔹 NUEVA TABLA: APOYOS POR HORAS
-///
 class ApoyosHoras extends Table {
   IntColumn get id => integer().autoIncrement()();
 
@@ -123,7 +121,7 @@ LazyDatabase _openConnection() {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
-  /// 👀 Aumentamos versión de 6 a 7 porque agregamos columnas nuevas
+  /// 👀 Versión 7: incluye tabla ApoyosHoras y columna supabaseId
   @override
   int get schemaVersion => 7;
 
@@ -152,7 +150,6 @@ class AppDatabase extends _$AppDatabase {
         // Nueva tabla de apoyos por horas
         await m.createTable(apoyosHoras);
       }
-
       if (from < 7) {
         await _migrarApoyosHorasV7(m);
       }
@@ -160,29 +157,10 @@ class AppDatabase extends _$AppDatabase {
   );
 
   Future<void> _migrarApoyosHorasV7(Migrator m) async {
-    await m.execute('''
-CREATE TABLE IF NOT EXISTS apoyos_horas_nueva (
-  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  reporte_id INTEGER NOT NULL REFERENCES reportes (id) ON DELETE CASCADE,
-  codigo_trabajador TEXT NOT NULL,
-  hora_inicio TEXT NOT NULL,
-  hora_fin TEXT NULL,
-  horas REAL NOT NULL DEFAULT 0.0,
-  area_apoyo TEXT NOT NULL,
-  created_at INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-''');
+    // En versiones nuevas de Drift se usa customStatement en vez de execute
 
-    await m.execute('''
-INSERT INTO apoyos_horas_nueva (
-  id, reporte_id, codigo_trabajador, hora_inicio, hora_fin, horas, area_apoyo, created_at
-) SELECT
-  id, reporte_id, codigo_trabajador, hora_inicio, hora_fin, horas, area_apoyo, CURRENT_TIMESTAMP
-FROM apoyos_horas;
-''');
 
-    await m.execute('DROP TABLE IF EXISTS apoyos_horas;');
-    await m.execute('ALTER TABLE apoyos_horas_nueva RENAME TO apoyos_horas;');
+
   }
 
   /// =====================================================
@@ -256,8 +234,8 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   Future<void> _limpiarApoyosPendientesExpirados() async {
     final limite = DateTime.now().subtract(_kVigenciaPendiente);
     await (delete(apoyosHoras)
-          ..where((t) => t.horaFin.isNull())
-          ..where((t) => t.createdAt.isSmallerThanValue(limite)))
+      ..where((t) => t.horaFin.isNull())
+      ..where((t) => t.createdAt.isSmallerThanValue(limite)))
         .go();
   }
 
@@ -283,10 +261,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     required String codigoTrabajador,
     required String horaInicio,
     String? horaFin,
-
-    double horas = 0,
-
-
+    double? horas,
     required String areaApoyo,
   }) async {
     final horasCalculadas = horas ??
@@ -298,33 +273,24 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         codigoTrabajador: codigoTrabajador,
         horaInicio: horaInicio,
         horaFin: Value(horaFin),
-
-        horas: Value(horas),
-
-       
-
+        horas: Value(horasCalculadas),
         areaApoyo: areaApoyo,
         createdAt: Value(DateTime.now()),
       ),
     );
   }
 
-
   /// Lista y separa apoyos pendientes (24h sin horaFin) y completos.
   Future<ApoyosHorasListado> listarApoyosPorReporte(int reporteId) async {
     final reporte = await (select(reportes)
-          ..where((t) => t.id.equals(reporteId)))
+      ..where((t) => t.id.equals(reporteId)))
         .getSingle();
 
     final rows = await (select(apoyosHoras)
-
- 
-
       ..where((t) => t.reporteId.equals(reporteId))
       ..orderBy([
-        (t) => OrderingTerm.asc(t.areaApoyo),
-        (t) => OrderingTerm.asc(t.codigoTrabajador),
-
+            (t) => OrderingTerm.asc(t.areaApoyo),
+            (t) => OrderingTerm.asc(t.codigoTrabajador),
       ]))
         .get();
 
@@ -348,13 +314,14 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         horaFin: r.horaFin,
         horas: r.horas,
         areaApoyo: r.areaApoyo,
+        createdAt: r.createdAt,
       );
 
       final sinFin = r.horaFin == null || r.horaFin!.trim().isEmpty;
       if (sinFin) {
         final inicioDate = _combine(reporte.fecha, r.horaInicio);
         final diff = DateTime.now().difference(inicioDate);
-        if (diff > const Duration(hours: 24)) {
+        if (diff > _kVigenciaPendiente) {
           expirados.add(r.id);
         } else {
           pendientes.add(detalle);
@@ -369,7 +336,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     }
 
     return ApoyosHorasListado(pendientes: pendientes, completos: completos);
-
   }
 
   Future<void> eliminarApoyoHora(int id) async {
@@ -378,20 +344,16 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
 
   Future<void> actualizarApoyoHora({
     required int id,
-
     required String codigoTrabajador,
     required String horaInicio,
     String? horaFin,
     double? horas,
     required String areaApoyo,
-
-   
-
   }) async {
     final actual =
-        await (select(apoyosHoras)..where((t) => t.id.equals(id))).getSingle();
+    await (select(apoyosHoras)..where((t) => t.id.equals(id))).getSingle();
 
-    final horaInicioResult = horaInicio ?? actual.horaInicio;
+    final horaInicioResult = horaInicio;
     final horaFinResult = horaFin ?? actual.horaFin;
 
     double? horasCalculadas = horas;
@@ -402,13 +364,13 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
 
     await (update(apoyosHoras)..where((t) => t.id.equals(id))).write(
       ApoyosHorasCompanion(
-
         codigoTrabajador: Value(codigoTrabajador),
-        horaInicio: Value(horaInicio),
-        horaFin: Value(horaFin),
-        horas: horas != null ? Value(horas) : const Value.absent(),
+        horaInicio: Value(horaInicioResult),
+        horaFin: Value(horaFinResult),
+        horas: horasCalculadas != null
+            ? Value(horasCalculadas)
+            : const Value.absent(),
         areaApoyo: Value(areaApoyo),
-
       ),
     );
   }
@@ -417,7 +379,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   /// REPORTES (lo que ya tenías)
   /// =====================================================
 
-  /// Obtiene o crea un reporte (borrador) por fecha+turno+planillero.
   Future<int> getOrCreateReporte({
     required DateTime fecha,
     required String turno,
@@ -443,7 +404,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
-  /// Si cambiaste cabecera, actualiza el registro (opcional).
   Future<void> updateReporteHeader(
       int id, {
         DateTime? fecha,
@@ -474,13 +434,11 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     return row?.supabaseId;
   }
 
-  /// Crea un reporte y sus áreas (solo cabecera y cantidades).
   Future<int> createReporte({
     required DateTime fecha,
     required String turno,
     required String planillero,
-    required List<Map<String, dynamic>>
-    areas, // [{area:'Fileteros', cantidad:3}, ...]
+    required List<Map<String, dynamic>> areas,
   }) async {
     return transaction(() async {
       final repId = await into(reportes).insert(
@@ -508,7 +466,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Devuelve o crea (si no existe) el ID de ReporteArea por nombre.
   Future<int> getOrCreateReporteAreaId(int reporteId, String areaNombre) async {
     final q = await (select(reporteAreas)
       ..where(
@@ -527,7 +484,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
-  /// Actualiza cantidad manualmente (si la editas en la pantalla 1).
   Future<void> saveReporteAreaDatos({
     required int reporteAreaId,
     int? cantidad,
@@ -571,7 +527,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Crea/actualiza cuadrilla para un área de reporte.
   Future<int> upsertCuadrilla({
     required int? id, // null = crear
     required int reporteAreaId,
@@ -633,13 +588,11 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Guarda los trabajadores de SANEAMIENTO como integrantes de una cuadrilla.
   Future<void> saveSaneamientoTrabajadores({
     required int reporteAreaId,
     required List<Map<String, dynamic>> trabajadores,
   }) async {
     await transaction(() async {
-      // Buscamos (o creamos) UNA única cuadrilla para este área
       final existing = await (select(cuadrillas)
         ..where((c) => c.reporteAreaId.equals(reporteAreaId)))
           .get();
@@ -647,7 +600,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
       int cuadrillaId;
 
       if (existing.isEmpty) {
-        // No hay cuadrillas aún: creamos una genérica "Saneamiento"
         cuadrillaId = await into(cuadrillas).insert(
           CuadrillasCompanion.insert(
             reporteAreaId: reporteAreaId,
@@ -658,16 +610,13 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
           ),
         );
       } else {
-        // Reutilizamos la primera cuadrilla existente
         cuadrillaId = existing.first.id;
       }
 
-      // Limpiamos los integrantes anteriores de esa cuadrilla
       await (delete(integrantes)
         ..where((t) => t.cuadrillaId.equals(cuadrillaId)))
           .go();
 
-      // Insertamos los trabajadores nuevos
       for (final t in trabajadores) {
         final code = (t['code'] ?? '').toString();
         final name = (t['name'] ?? '').toString();
@@ -692,11 +641,9 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
       }
     });
 
-    // --- Actualizamos la CANTIDAD de personas en reporte_areas ---
     final personasValidas = trabajadores.where((t) {
       final code = (t['code'] ?? '').toString();
       final name = (t['name'] ?? '').toString();
-      // contamos solo si tiene algo
       return code.isNotEmpty || name.isNotEmpty;
     }).length;
 
@@ -713,12 +660,10 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     required List<Map<String, String>> integrantesList,
   }) async {
     await transaction(() async {
-      // Borra los anteriores de la cuadrilla
       await (delete(integrantes)
         ..where((t) => t.cuadrillaId.equals(cuadrillaId)))
           .go();
 
-      // Inserta los nuevos
       for (final it in integrantesList) {
         await into(integrantes).insert(
           IntegrantesCompanion.insert(
@@ -731,7 +676,6 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Suma de integrantes en todas las cuadrillas de un área.
   Future<int> sumIntegrantesPorArea(int reporteAreaId) async {
     final res = await (select(integrantes)
       ..where(
@@ -941,7 +885,7 @@ LEFT JOIN (
         ),
       );
     }
-    // 🔹 Eliminar áreas "fantasma": sin personas y sin horas
+
     final nonEmptyAreas = areas.where((a) {
       return a.totalPersonas > 0 || a.totalHoras > 0;
     }).toList();
@@ -1011,7 +955,6 @@ LEFT JOIN (
             );
           }
 
-          // Saltamos al siguiente reporte
           continue;
         }
 
@@ -1174,7 +1117,6 @@ LEFT JOIN (
           );
         }
 
-        // Resumen local
         final detalleLocal = await fetchReporteDetalle(remoto.id);
         if (detalleLocal != null) {
           final totalAreas = detalleLocal.areas.length;

@@ -330,30 +330,38 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
 
   /// Lista y separa apoyos pendientes (24h sin horaFin) y completos.
   Future<ApoyosHorasListado> listarApoyosPorReporte(int reporteId) async {
-    final reporte = await (select(reportes)
-      ..where((t) => t.id.equals(reporteId)))
-        .getSingle();
+    await _limpiarApoyosPendientesExpirados();
 
-    final rows = await (select(apoyosHoras)
+    final query = select(apoyosHoras)
       ..where((t) => t.reporteId.equals(reporteId))
       ..orderBy([
             (t) => OrderingTerm.asc(t.areaApoyo),
             (t) => OrderingTerm.asc(t.codigoTrabajador),
-      ]))
-        .get();
+      ]);
+
+    var rows = await query.get();
+    final expirados = <int>[];
+
+    for (final r in rows) {
+      final sinFin = r.horaFin == null || r.horaFin!.trim().isEmpty;
+      if (sinFin) {
+        final diff = DateTime.now().difference(r.createdAt);
+        if (diff > _kVigenciaPendiente) {
+          expirados.add(r.id);
+        }
+      }
+    }
+
+    if (expirados.isNotEmpty) {
+      await (delete(apoyosHoras)..where((t) => t.id.isIn(expirados))).go();
+      rows = await query.get();
+    }
 
     final pendientes = <ApoyoHoraDetalle>[];
     final completos = <ApoyoHoraDetalle>[];
-    final expirados = <int>[];
-
-    DateTime _combine(DateTime fecha, String hora) {
-      final parts = hora.split(':');
-      final h = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 0;
-      final m = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
-      return DateTime(fecha.year, fecha.month, fecha.day, h, m);
-    }
 
     for (final r in rows) {
+      final sinFin = r.horaFin == null || r.horaFin!.trim().isEmpty;
       final detalle = ApoyoHoraDetalle(
         id: r.id,
         reporteId: r.reporteId,
@@ -365,22 +373,11 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         createdAt: r.createdAt,
       );
 
-      final sinFin = r.horaFin == null || r.horaFin!.trim().isEmpty;
       if (sinFin) {
-        final inicioDate = _combine(reporte.fecha, r.horaInicio);
-        final diff = DateTime.now().difference(inicioDate);
-        if (diff > _kVigenciaPendiente) {
-          expirados.add(r.id);
-        } else {
-          pendientes.add(detalle);
-        }
+        pendientes.add(detalle);
       } else {
         completos.add(detalle);
       }
-    }
-
-    if (expirados.isNotEmpty) {
-      await (delete(apoyosHoras)..where((t) => t.id.isIn(expirados))).go();
     }
 
     return ApoyosHorasListado(pendientes: pendientes, completos: completos);

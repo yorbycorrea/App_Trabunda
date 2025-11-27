@@ -56,7 +56,9 @@ class ApoyosHorasPage extends StatefulWidget {
 }
 
 class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
+
   late Future<ApoyosHorasListado> _future;
+
 
   @override
   void initState() {
@@ -101,7 +103,11 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
           ),
           const Divider(height: 0),
           Expanded(
+
             child: FutureBuilder<ApoyosHorasListado>(
+
+            
+
               future: _future,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -113,16 +119,19 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                   );
                 }
 
+
                 final data = snapshot.data ?? const ApoyosHorasListado();
                 final pendientes = data.pendientes;
                 final completos = data.completos;
 
                 // 🔹 Si NO hay apoyos → mostramos formulario inline tipo Saneamiento
                 if (pendientes.isEmpty && completos.isEmpty) {
+
                   return _ApoyosHorasInlineForm(
                     reporteId: widget.reporteId,
                   );
                 }
+
 
                 Widget _buildSectionTitle(String text) {
                   return Padding(
@@ -257,6 +266,7 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                         ),
                       ),
                     ],
+
                   ],
                 );
               },
@@ -265,6 +275,84 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
         ],
       ),
       // 👉 Sin botón flotante “+”, todo se maneja con el botón “Agregar trabajador”
+    );
+  }
+}
+
+class _ApoyoSection extends StatelessWidget {
+  const _ApoyoSection({
+    required this.titulo,
+    required this.apoyos,
+    required this.onDelete,
+    required this.onEdit,
+    required this.mostrarHoras,
+  });
+
+  final String titulo;
+  final List<ApoyoHoraDetalle> apoyos;
+  final Future<void> Function(int id) onDelete;
+  final Future<void> Function(ApoyoHoraDetalle apoyo) onEdit;
+  final bool mostrarHoras;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+          child: Text(
+            titulo,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        ...List.generate(apoyos.length, (index) {
+          final a = apoyos[index];
+          final detalleHoras = mostrarHoras && a.horaFin != null
+              ? 'De ${a.horaInicio} a ${a.horaFin}  →  ${a.horas.toStringAsFixed(2)} h'
+              : 'Desde ${a.horaInicio} • Pendiente de hora fin';
+
+          return Column(
+            children: [
+              ListTile(
+                title: Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
+                subtitle: Text(detalleHoras),
+                onTap: () async {
+                  await onEdit(a);
+                },
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: () async {
+                    final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Eliminar apoyo'),
+                            content: const Text(
+                                '¿Seguro que deseas eliminar este registro?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancelar'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Eliminar'),
+                              ),
+                            ],
+                          ),
+                        ) ??
+                        false;
+                    if (ok) {
+                      await onDelete(a.id);
+                    }
+                  },
+                ),
+              ),
+              if (index != apoyos.length - 1) const Divider(height: 0),
+            ],
+          );
+        }),
+      ],
     );
   }
 }
@@ -752,7 +840,8 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
     }
   }
 
-  TimeOfDay _parseTime(String hhmm) {
+  TimeOfDay? _parseTime(String? hhmm) {
+    if (hhmm == null) return null;
     final parts = hhmm.split(':');
     return TimeOfDay(
       hour: int.parse(parts[0]),
@@ -805,6 +894,7 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
+
     final allowGuardarSinHoraFin =
         widget.apoyo == null && !widget.soloCapturaHoraFin;
 
@@ -818,14 +908,17 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
     if (_fin == null && !allowGuardarSinHoraFin) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Captura la hora fin para continuar')),
+
       );
       return;
     }
+
 
     final horas =
         (_inicio != null && _fin != null) ? _calcularHoras(_inicio!, _fin!) : 0.0;
     final horaInicioStr = _formatTime(_inicio!);
     final horaFinStr = _fin != null ? _formatTime(_fin!) : null;
+
 
     if (widget.apoyo == null) {
       await db.reportesDao.insertarApoyoHora(

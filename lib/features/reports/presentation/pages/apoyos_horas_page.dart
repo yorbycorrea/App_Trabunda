@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:scanner_trabunda/core/widgets/qr_scanner.dart';
+import 'package:scanner_trabunda/features/reports/presentation/pages/report_detail_page.dart';
 
 import 'package:scanner_trabunda/data/drift/app_database.dart';
 import 'package:scanner_trabunda/data/drift/db.dart';
@@ -246,70 +247,95 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                     ],
 
                     if (completos.isNotEmpty) ...[
-                      _buildSectionTitle('Apoyos registrados'),
-                      const Divider(height: 0),
-                      ...completos.map(
-                            (a) => Column(
-                          children: [
-                            ListTile(
-                              title: Text(
-                                '${a.codigoTrabajador} • ${a.areaApoyo}',
-                              ),
-                              subtitle: Text(
-                                'De ${a.horaInicio} a ${a.horaFin ?? '--:--'}  →  ${a.horas.toStringAsFixed(2)} h',
-                              ),
-                              onTap: () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ApoyoHoraFormPage(
-                                      reporteId: _reporteIdReal,
-                                      apoyo: a,
-                                      fecha: widget.fecha,
-                                      turno: widget.turno,
-                                      planillero: widget.planillero,
-                                    ),
+                      // 👉 Si ya NO hay pendientes, mostramos tarjeta VERDE de completado
+                      if (pendientes.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: _CompletadosResumenCard(
+                            completos: completos,
+                            onVerReporte: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ReportDetailPage(
+                                    reporteId: _reporteIdReal,   // el id real del reporte
                                   ),
-                                );
-                                _reload();
-                              },
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () async {
-                                  final ok = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Eliminar apoyo'),
-                                      content: const Text(
-                                        '¿Seguro que deseas eliminar este registro?',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(
-                                              context, false),
-                                          child: const Text('Cancelar'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(
-                                              context, true),
-                                          child: const Text('Eliminar'),
-                                        ),
-                                      ],
-                                    ),
-                                  ) ??
-                                      false;
-                                  if (ok) {
-                                    await _borrar(a.id);
-                                  }
-                                },
-                              ),
-                            ),
-                            const Divider(height: 0),
-                          ],
+                                ),
+                              );
+                            },
+
+                          ),
                         ),
-                      ),
+                      if (pendientes.isNotEmpty) ...[
+                        _buildSectionTitle('Apoyos registrados'),
+                        const Divider(height: 0),
+                        ...completos.map(
+                              (a) => Column(
+                            children: [
+                              ListTile(
+                                title: Text(
+                                  '${a.codigoTrabajador} • ${a.areaApoyo}',
+                                ),
+                                subtitle: Text(
+                                  'De ${a.horaInicio} a ${a.horaFin ?? '--:--'}  →  ${a.horas.toStringAsFixed(2)} h',
+                                ),
+                                onTap: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ApoyoHoraFormPage(
+                                        reporteId: _reporteIdReal,
+                                        apoyo: a,
+                                        fecha: widget.fecha,
+                                        turno: widget.turno,
+                                        planillero: widget.planillero,
+                                      ),
+                                    ),
+                                  );
+                                  _reload();
+                                },
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  onPressed: () async {
+                                    final ok = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title:
+                                        const Text('Eliminar apoyo'),
+                                        content: const Text(
+                                          '¿Seguro que deseas eliminar este registro?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(
+                                                    context, false),
+                                            child: const Text('Cancelar'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(
+                                                    context, true),
+                                            child: const Text('Eliminar'),
+                                          ),
+                                        ],
+                                      ),
+                                    ) ??
+                                        false;
+                                    if (ok) {
+                                      await _borrar(a.id);
+                                    }
+                                  },
+                                ),
+                              ),
+                              const Divider(height: 0),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                    ],
+
                 );
               },
             ),
@@ -440,6 +466,130 @@ class _PendientesResumenCard extends StatelessWidget {
     );
   }
 }
+
+class _CompletadosResumenCard extends StatelessWidget {
+  const _CompletadosResumenCard({
+    required this.completos,
+    required this.onVerReporte,
+  });
+
+  final List<ApoyoHoraDetalle> completos;
+  final VoidCallback onVerReporte;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalTrabajadores = completos.length;
+    final uniqueAreas = completos.map((e) => e.areaApoyo).toSet().toList();
+
+    final String resumenAreas = uniqueAreas.isEmpty
+        ? 'Sin áreas registradas'
+        : (uniqueAreas.length == 1
+        ? uniqueAreas.first
+        : '${uniqueAreas.length} áreas de apoyo');
+
+    return Card(
+      elevation: 0,
+      // 💚 AQUÍ defines el COLOR VERDE de la tarjeta
+      color: Colors.green.shade50,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Colors.green.shade700, // 💚 borde verde
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(
+                  Icons.check_circle,
+                  size: 18,
+                  color: Colors.green.shade700, // 💚 icono verde
+                ),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'Apoyos completados',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.green),
+                  ),
+                  child: Text(
+                    '$totalTrabajadores apoyo(s)',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                const Icon(Icons.groups_2_outlined, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '$totalTrabajadores trabajador(es) registrados',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            Row(
+              children: [
+                const Icon(Icons.work_outline, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    resumenAreas,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+            const Text(
+              'Todos los apoyos de este turno ya tienen hora fin.',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onVerReporte,
+                icon: const Icon(Icons.visibility_outlined),
+                label: const Text('Ver reporte'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 /// ===============================================================
 ///  FORMULARIO INLINE (cuando NO hay apoyos) – estilo Saneamiento

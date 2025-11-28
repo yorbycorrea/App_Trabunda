@@ -274,9 +274,6 @@ class ReportesSupabaseService {
     }
   }
 
-  // =========================================================
-  //  HELPERS PARA APOYOS POR HORAS
-  // =========================================================
   Future<int> _getOrCreateReporteParaApoyos({
     required DateTime fecha,
     required String turno,
@@ -294,6 +291,8 @@ class ReportesSupabaseService {
             'user=$userId, fecha=$fechaStr, turno=$turno, planillero=$planillero',
       );
 
+      // 👇 CAMBIO IMPORTANTE:
+      // limit(1) + order por id desc para que SIEMPRE devuelva 1 fila
       final existing = await _client
           .from('reportes')
           .select('id')
@@ -301,6 +300,8 @@ class ReportesSupabaseService {
           .eq('fecha', fechaStr)
           .eq('turno', turno)
           .eq('planillero', planillero)
+          .order('id', ascending: false)
+          .limit(1)
           .maybeSingle();
 
       if (existing != null && existing['id'] != null) {
@@ -342,6 +343,7 @@ class ReportesSupabaseService {
       rethrow;
     }
   }
+
 
   // =========================================================
   //  HELPERS PRIVADOS (área / cuadrilla / integrante)
@@ -485,6 +487,7 @@ class ReportesSupabaseService {
     required String planillero,
     required String userId,
     required String codigoTrabajador,
+    String? nombreTrabajador,
     required String horaInicio,
     String? horaFin,
     required double horas,
@@ -523,6 +526,7 @@ class ReportesSupabaseService {
       final payload = {
         'reporte_id': reporteIdSupabase,
         'codigo_trabajador': codigoTrabajador,
+        'nombre_trabajador': nombreTrabajador,
         'hora_inicio': horaInicio,
         'hora_fin': horaFin ?? '',
         'horas': horas,

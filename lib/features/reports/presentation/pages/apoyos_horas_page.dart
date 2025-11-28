@@ -3,7 +3,6 @@ import 'package:scanner_trabunda/core/widgets/qr_scanner.dart';
 
 import 'package:scanner_trabunda/data/drift/app_database.dart';
 import 'package:scanner_trabunda/data/drift/db.dart';
-
 // 🔹 Supabase y servicio remoto
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:scanner_trabunda/features/reports/data/datasources/reportes_supabase_service.dart';
@@ -133,8 +132,10 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
 
                 Widget _buildSectionTitle(String text) {
                   return Padding(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     child: Text(
                       text,
                       style: const TextStyle(
@@ -154,8 +155,9 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                             (a) => Column(
                           children: [
                             ListTile(
-                              title:
-                              Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
+                              title: Text(
+                                '${a.codigoTrabajador} • ${a.areaApoyo}',
+                              ),
                               subtitle: const Text(
                                 'De 06:00 a --:--  →  Pendiente',
                               ),
@@ -183,16 +185,19 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                     builder: (context) => AlertDialog(
                                       title: const Text('Eliminar apoyo'),
                                       content: const Text(
-                                          '¿Seguro que deseas eliminar este registro?'),
+                                        '¿Seguro que deseas eliminar este registro?',
+                                      ),
                                       actions: [
                                         TextButton(
                                           onPressed: () =>
-                                              Navigator.pop(context, false),
+                                              Navigator.pop(
+                                                  context, false),
                                           child: const Text('Cancelar'),
                                         ),
                                         TextButton(
                                           onPressed: () =>
-                                              Navigator.pop(context, true),
+                                              Navigator.pop(
+                                                  context, true),
                                           child: const Text('Eliminar'),
                                         ),
                                       ],
@@ -217,8 +222,9 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                             (a) => Column(
                           children: [
                             ListTile(
-                              title:
-                              Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
+                              title: Text(
+                                '${a.codigoTrabajador} • ${a.areaApoyo}',
+                              ),
                               subtitle: Text(
                                 'De ${a.horaInicio} a ${a.horaFin ?? '--:--'}  →  ${a.horas.toStringAsFixed(2)} h',
                               ),
@@ -245,16 +251,19 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                     builder: (context) => AlertDialog(
                                       title: const Text('Eliminar apoyo'),
                                       content: const Text(
-                                          '¿Seguro que deseas eliminar este registro?'),
+                                        '¿Seguro que deseas eliminar este registro?',
+                                      ),
                                       actions: [
                                         TextButton(
                                           onPressed: () =>
-                                              Navigator.pop(context, false),
+                                              Navigator.pop(
+                                                  context, false),
                                           child: const Text('Cancelar'),
                                         ),
                                         TextButton(
                                           onPressed: () =>
-                                              Navigator.pop(context, true),
+                                              Navigator.pop(
+                                                  context, true),
                                           child: const Text('Eliminar'),
                                         ),
                                       ],
@@ -333,14 +342,17 @@ class _ApoyoSection extends StatelessWidget {
                       builder: (context) => AlertDialog(
                         title: const Text('Eliminar apoyo'),
                         content: const Text(
-                            '¿Seguro que deseas eliminar este registro?'),
+                          '¿Seguro que deseas eliminar este registro?',
+                        ),
                         actions: [
                           TextButton(
-                            onPressed: () => Navigator.pop(context, false),
+                            onPressed: () =>
+                                Navigator.pop(context, false),
                             child: const Text('Cancelar'),
                           ),
                           TextButton(
-                            onPressed: () => Navigator.pop(context, true),
+                            onPressed: () =>
+                                Navigator.pop(context, true),
                             child: const Text('Eliminar'),
                           ),
                         ],
@@ -380,7 +392,8 @@ class _ApoyosHorasInlineForm extends StatefulWidget {
   final String planillero;
 
   @override
-  State<_ApoyosHorasInlineForm> createState() => _ApoyosHorasInlineFormState();
+  State<_ApoyosHorasInlineForm> createState() =>
+      _ApoyosHorasInlineFormState();
 }
 
 class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
@@ -488,6 +501,9 @@ class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
       final idLocal = await db.reportesDao.insertarApoyoHora(
         reporteId: widget.reporteId,
         codigoTrabajador: m.codigoCtrl.text.trim(),
+        nombreTrabajador: m.nombreCtrl.text.trim().isEmpty
+            ? null
+            : m.nombreCtrl.text.trim(),
         horaInicio: horaInicioStr,
         horaFin: horaFinStr,
         horas: horas,
@@ -510,6 +526,9 @@ class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
             planillero: widget.planillero,
             userId: userId,
             codigoTrabajador: m.codigoCtrl.text.trim(),
+            nombreTrabajador: m.nombreCtrl.text.trim().isEmpty
+                ? null
+                : m.nombreCtrl.text.trim(),
             horaInicio: horaInicioStr,
             horaFin: horaFinStr,
             horas: horas,
@@ -717,8 +736,10 @@ class _TrabajadorCard extends StatelessWidget {
                 labelText: 'Código del trabajador',
                 prefixIcon: const Icon(Icons.badge_outlined, size: 20),
                 border: const OutlineInputBorder(),
-                contentPadding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 12,
+                ),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.qr_code_scanner),
                   onPressed: () async {
@@ -822,8 +843,10 @@ class _HoraBox extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style: const TextStyle(fontSize: 12, color: Colors.black54)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
             const SizedBox(height: 4),
             Row(
               children: [
@@ -874,6 +897,7 @@ class ApoyoHoraFormPage extends StatefulWidget {
 class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _codigoCtrl = TextEditingController();
+  final _nombreCtrl = TextEditingController();
 
   TimeOfDay? _inicio;
   TimeOfDay? _fin;
@@ -892,7 +916,15 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
       }
       _area = a.areaApoyo;
       _horasCalculadas = a.horas;
+      _nombreCtrl.text = a.nombreTrabajador ?? '';
     }
+  }
+
+  @override
+  void dispose() {
+    _codigoCtrl.dispose();
+    _nombreCtrl.dispose();
+    super.dispose();
   }
 
   TimeOfDay? _parseTime(String? hhmm) {
@@ -967,9 +999,8 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
       return;
     }
 
-    final horas = (_inicio != null && _fin != null)
-        ? _calcularHoras(_inicio!, _fin!)
-        : 0.0;
+    final horas =
+    (_inicio != null && _fin != null) ? _calcularHoras(_inicio!, _fin!) : 0.0;
     final horaInicioStr = _formatTime(_inicio!);
     final horaFinStr = _fin != null ? _formatTime(_fin!) : null;
 
@@ -978,6 +1009,9 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
       await db.reportesDao.insertarApoyoHora(
         reporteId: widget.reporteId,
         codigoTrabajador: _codigoCtrl.text.trim(),
+        nombreTrabajador: _nombreCtrl.text.trim().isEmpty
+            ? null
+            : _nombreCtrl.text.trim(),
         horaInicio: horaInicioStr,
         horaFin: horaFinStr,
         horas: horas,
@@ -987,6 +1021,9 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
       await db.reportesDao.actualizarApoyoHora(
         id: widget.apoyo!.id,
         codigoTrabajador: _codigoCtrl.text.trim(),
+        nombreTrabajador: _nombreCtrl.text.trim().isEmpty
+            ? null
+            : _nombreCtrl.text.trim(),
         horaInicio: horaInicioStr,
         horaFin: horaFinStr,
         horas: horas,
@@ -998,8 +1035,10 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
     final client = Supabase.instance.client;
     final userId = client.auth.currentUser?.id;
 
-    if (userId != null) {
+    // Solo enviamos a Supabase cuando YA tiene hora fin
+    if (userId != null && _fin != null) {
       try {
+        final nombreTrim = _nombreCtrl.text.trim();
         await ReportesSupabaseService.instance.insertarApoyoHoraRemoto(
           reporteIdLocal: widget.reporteId,
           fecha: widget.fecha,
@@ -1007,6 +1046,10 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
           planillero: widget.planillero,
           userId: userId,
           codigoTrabajador: _codigoCtrl.text.trim(),
+          nombreTrabajador: _nombreCtrl.text.trim().isEmpty
+              ? null
+              : _nombreCtrl.text.trim(),
+
           horaInicio: horaInicioStr,
           horaFin: horaFinStr,
           horas: horas,
@@ -1020,7 +1063,7 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
       }
     } else {
       debugPrint(
-        '[ApoyosHoras][REMOTE] userId null, no se envía a Supabase.',
+        '[ApoyosHoras][REMOTE] userId=$userId, fin=$_fin → no se envía a Supabase todavía.',
       );
     }
 
@@ -1050,9 +1093,11 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style:
-                  const TextStyle(fontSize: 12, color: Colors.black54)),
+              Text(
+                label,
+                style:
+                const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
               const SizedBox(height: 4),
               Row(
                 children: [
@@ -1146,13 +1191,30 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                           },
                         ),
                         const SizedBox(height: 16),
+                        // 👇 Nombre del trabajador (opcional, se manda a Supabase si lo llenan)
+                        TextFormField(
+                          controller: _nombreCtrl,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre del trabajador ',
+                            prefixIcon:
+                            Icon(Icons.person_outline, size: 20),
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
                           value: _area,
+                          isExpanded: true,
                           items: kAreasApoyo
                               .map(
                                 (a) => DropdownMenuItem(
                               value: a,
-                              child: Text(a),
+                              child: Text(
+                                a,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
                             ),
                           )
                               .toList(),
@@ -1187,8 +1249,9 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                   child: FilledButton.icon(
                     onPressed: _guardar,
                     icon: const Icon(Icons.save_outlined),
-                    label:
-                    Text(editando ? 'Guardar cambios' : 'Guardar'),
+                    label: Text(
+                      editando ? 'Guardar cambios' : 'Guardar',
+                    ),
                   ),
                 ),
               ],

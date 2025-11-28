@@ -89,6 +89,7 @@ class ApoyosHoras extends Table {
 
   /// Código del trabajador (el que está en la planilla física)
   TextColumn get codigoTrabajador => text()();
+  TextColumn get nombreTrabajador => text().nullable()();
 
   /// Horas en formato texto HH:mm
   TextColumn get horaInicio => text()(); // '18:00'
@@ -271,6 +272,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
       id: row.id,
       reporteId: row.reporteId,
       codigoTrabajador: row.codigoTrabajador,
+      nombreTrabajador: row.nombreTrabajador,
       horaInicio: row.horaInicio,
       horaFin: row.horaFin,
       horas: row.horas,
@@ -307,6 +309,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   Future<int> insertarApoyoHora({
     required int reporteId,
     required String codigoTrabajador,
+    String? nombreTrabajador,
     required String horaInicio,
     String? horaFin,
     double? horas,
@@ -336,6 +339,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
       ApoyosHorasCompanion.insert(
         reporteId: reporteId,
         codigoTrabajador: codigoTrabajadorTrim,
+        nombreTrabajador: Value(nombreTrabajador),
         horaInicio: horaInicioTrim,
         horaFin: Value(horaFinTrim),
         horas: Value(horasCalculadas),
@@ -390,6 +394,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         id: r.id,
         reporteId: r.reporteId,
         codigoTrabajador: r.codigoTrabajador,
+        nombreTrabajador: r.nombreTrabajador,
         horaInicio: r.horaInicio,
         horaFin: r.horaFin,
         horas: r.horas,
@@ -414,6 +419,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   Future<void> actualizarApoyoHora({
     required int id,
     required String codigoTrabajador,
+    String? nombreTrabajador,
     required String horaInicio,
     String? horaFin,
     double? horas,
@@ -449,6 +455,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     await (update(apoyosHoras)..where((t) => t.id.equals(id))).write(
       ApoyosHorasCompanion(
         codigoTrabajador: Value(codigoTrabajadorTrim),
+        nombreTrabajador: Value(nombreTrabajador),
         horaInicio: Value(horaInicioResult),
         horaFin:
             horaFinResult != null ? Value(horaFinResult) : const Value.absent(),
@@ -1378,6 +1385,7 @@ class ApoyoHoraDetalle {
   final int id;
   final int reporteId;
   final String codigoTrabajador;
+  final String? nombreTrabajador;
   final String horaInicio;
   final String? horaFin;
   final double horas;
@@ -1388,6 +1396,7 @@ class ApoyoHoraDetalle {
     required this.id,
     required this.reporteId,
     required this.codigoTrabajador,
+    this.nombreTrabajador,
     required this.horaInicio,
     required this.horaFin,
     required this.horas,

@@ -2434,6 +2434,17 @@ class $ApoyosHorasTable extends ApoyosHoras
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _nombreTrabajadorMeta = const VerificationMeta(
+    'nombreTrabajador',
+  );
+  @override
+  late final GeneratedColumn<String> nombreTrabajador = GeneratedColumn<String>(
+    'nombre_trabajador',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _horaInicioMeta = const VerificationMeta(
     'horaInicio',
   );
@@ -2494,6 +2505,7 @@ class $ApoyosHorasTable extends ApoyosHoras
     id,
     reporteId,
     codigoTrabajador,
+    nombreTrabajador,
     horaInicio,
     horaFin,
     horas,
@@ -2533,6 +2545,15 @@ class $ApoyosHorasTable extends ApoyosHoras
       );
     } else if (isInserting) {
       context.missing(_codigoTrabajadorMeta);
+    }
+    if (data.containsKey('nombre_trabajador')) {
+      context.handle(
+        _nombreTrabajadorMeta,
+        nombreTrabajador.isAcceptableOrUnknown(
+          data['nombre_trabajador']!,
+          _nombreTrabajadorMeta,
+        ),
+      );
     }
     if (data.containsKey('hora_inicio')) {
       context.handle(
@@ -2589,6 +2610,10 @@ class $ApoyosHorasTable extends ApoyosHoras
         DriftSqlType.string,
         data['${effectivePrefix}codigo_trabajador'],
       )!,
+      nombreTrabajador: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}nombre_trabajador'],
+      ),
       horaInicio: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}hora_inicio'],
@@ -2626,6 +2651,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
 
   /// Código del trabajador (el que está en la planilla física)
   final String codigoTrabajador;
+  final String? nombreTrabajador;
 
   /// Horas en formato texto HH:mm
   final String horaInicio;
@@ -2644,6 +2670,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     required this.id,
     required this.reporteId,
     required this.codigoTrabajador,
+    this.nombreTrabajador,
     required this.horaInicio,
     this.horaFin,
     required this.horas,
@@ -2656,6 +2683,9 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     map['id'] = Variable<int>(id);
     map['reporte_id'] = Variable<int>(reporteId);
     map['codigo_trabajador'] = Variable<String>(codigoTrabajador);
+    if (!nullToAbsent || nombreTrabajador != null) {
+      map['nombre_trabajador'] = Variable<String>(nombreTrabajador);
+    }
     map['hora_inicio'] = Variable<String>(horaInicio);
     if (!nullToAbsent || horaFin != null) {
       map['hora_fin'] = Variable<String>(horaFin);
@@ -2671,6 +2701,9 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       id: Value(id),
       reporteId: Value(reporteId),
       codigoTrabajador: Value(codigoTrabajador),
+      nombreTrabajador: nombreTrabajador == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nombreTrabajador),
       horaInicio: Value(horaInicio),
       horaFin: horaFin == null && nullToAbsent
           ? const Value.absent()
@@ -2690,6 +2723,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       id: serializer.fromJson<int>(json['id']),
       reporteId: serializer.fromJson<int>(json['reporteId']),
       codigoTrabajador: serializer.fromJson<String>(json['codigoTrabajador']),
+      nombreTrabajador: serializer.fromJson<String?>(json['nombreTrabajador']),
       horaInicio: serializer.fromJson<String>(json['horaInicio']),
       horaFin: serializer.fromJson<String?>(json['horaFin']),
       horas: serializer.fromJson<double>(json['horas']),
@@ -2704,6 +2738,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       'id': serializer.toJson<int>(id),
       'reporteId': serializer.toJson<int>(reporteId),
       'codigoTrabajador': serializer.toJson<String>(codigoTrabajador),
+      'nombreTrabajador': serializer.toJson<String?>(nombreTrabajador),
       'horaInicio': serializer.toJson<String>(horaInicio),
       'horaFin': serializer.toJson<String?>(horaFin),
       'horas': serializer.toJson<double>(horas),
@@ -2716,6 +2751,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     int? id,
     int? reporteId,
     String? codigoTrabajador,
+    Value<String?> nombreTrabajador = const Value.absent(),
     String? horaInicio,
     Value<String?> horaFin = const Value.absent(),
     double? horas,
@@ -2725,6 +2761,9 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     id: id ?? this.id,
     reporteId: reporteId ?? this.reporteId,
     codigoTrabajador: codigoTrabajador ?? this.codigoTrabajador,
+    nombreTrabajador: nombreTrabajador.present
+        ? nombreTrabajador.value
+        : this.nombreTrabajador,
     horaInicio: horaInicio ?? this.horaInicio,
     horaFin: horaFin.present ? horaFin.value : this.horaFin,
     horas: horas ?? this.horas,
@@ -2738,6 +2777,9 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
       codigoTrabajador: data.codigoTrabajador.present
           ? data.codigoTrabajador.value
           : this.codigoTrabajador,
+      nombreTrabajador: data.nombreTrabajador.present
+          ? data.nombreTrabajador.value
+          : this.nombreTrabajador,
       horaInicio: data.horaInicio.present
           ? data.horaInicio.value
           : this.horaInicio,
@@ -2754,6 +2796,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
           ..write('id: $id, ')
           ..write('reporteId: $reporteId, ')
           ..write('codigoTrabajador: $codigoTrabajador, ')
+          ..write('nombreTrabajador: $nombreTrabajador, ')
           ..write('horaInicio: $horaInicio, ')
           ..write('horaFin: $horaFin, ')
           ..write('horas: $horas, ')
@@ -2768,6 +2811,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
     id,
     reporteId,
     codigoTrabajador,
+    nombreTrabajador,
     horaInicio,
     horaFin,
     horas,
@@ -2781,6 +2825,7 @@ class ApoyosHora extends DataClass implements Insertable<ApoyosHora> {
           other.id == this.id &&
           other.reporteId == this.reporteId &&
           other.codigoTrabajador == this.codigoTrabajador &&
+          other.nombreTrabajador == this.nombreTrabajador &&
           other.horaInicio == this.horaInicio &&
           other.horaFin == this.horaFin &&
           other.horas == this.horas &&
@@ -2792,6 +2837,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
   final Value<int> id;
   final Value<int> reporteId;
   final Value<String> codigoTrabajador;
+  final Value<String?> nombreTrabajador;
   final Value<String> horaInicio;
   final Value<String?> horaFin;
   final Value<double> horas;
@@ -2801,6 +2847,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     this.id = const Value.absent(),
     this.reporteId = const Value.absent(),
     this.codigoTrabajador = const Value.absent(),
+    this.nombreTrabajador = const Value.absent(),
     this.horaInicio = const Value.absent(),
     this.horaFin = const Value.absent(),
     this.horas = const Value.absent(),
@@ -2811,6 +2858,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     this.id = const Value.absent(),
     required int reporteId,
     required String codigoTrabajador,
+    this.nombreTrabajador = const Value.absent(),
     required String horaInicio,
     this.horaFin = const Value.absent(),
     this.horas = const Value.absent(),
@@ -2824,6 +2872,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     Expression<int>? id,
     Expression<int>? reporteId,
     Expression<String>? codigoTrabajador,
+    Expression<String>? nombreTrabajador,
     Expression<String>? horaInicio,
     Expression<String>? horaFin,
     Expression<double>? horas,
@@ -2834,6 +2883,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
       if (id != null) 'id': id,
       if (reporteId != null) 'reporte_id': reporteId,
       if (codigoTrabajador != null) 'codigo_trabajador': codigoTrabajador,
+      if (nombreTrabajador != null) 'nombre_trabajador': nombreTrabajador,
       if (horaInicio != null) 'hora_inicio': horaInicio,
       if (horaFin != null) 'hora_fin': horaFin,
       if (horas != null) 'horas': horas,
@@ -2846,6 +2896,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     Value<int>? id,
     Value<int>? reporteId,
     Value<String>? codigoTrabajador,
+    Value<String?>? nombreTrabajador,
     Value<String>? horaInicio,
     Value<String?>? horaFin,
     Value<double>? horas,
@@ -2856,6 +2907,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
       id: id ?? this.id,
       reporteId: reporteId ?? this.reporteId,
       codigoTrabajador: codigoTrabajador ?? this.codigoTrabajador,
+      nombreTrabajador: nombreTrabajador ?? this.nombreTrabajador,
       horaInicio: horaInicio ?? this.horaInicio,
       horaFin: horaFin ?? this.horaFin,
       horas: horas ?? this.horas,
@@ -2875,6 +2927,9 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
     }
     if (codigoTrabajador.present) {
       map['codigo_trabajador'] = Variable<String>(codigoTrabajador.value);
+    }
+    if (nombreTrabajador.present) {
+      map['nombre_trabajador'] = Variable<String>(nombreTrabajador.value);
     }
     if (horaInicio.present) {
       map['hora_inicio'] = Variable<String>(horaInicio.value);
@@ -2900,6 +2955,7 @@ class ApoyosHorasCompanion extends UpdateCompanion<ApoyosHora> {
           ..write('id: $id, ')
           ..write('reporteId: $reporteId, ')
           ..write('codigoTrabajador: $codigoTrabajador, ')
+          ..write('nombreTrabajador: $nombreTrabajador, ')
           ..write('horaInicio: $horaInicio, ')
           ..write('horaFin: $horaFin, ')
           ..write('horas: $horas, ')
@@ -5487,6 +5543,7 @@ typedef $$ApoyosHorasTableCreateCompanionBuilder =
       Value<int> id,
       required int reporteId,
       required String codigoTrabajador,
+      Value<String?> nombreTrabajador,
       required String horaInicio,
       Value<String?> horaFin,
       Value<double> horas,
@@ -5498,6 +5555,7 @@ typedef $$ApoyosHorasTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int> reporteId,
       Value<String> codigoTrabajador,
+      Value<String?> nombreTrabajador,
       Value<String> horaInicio,
       Value<String?> horaFin,
       Value<double> horas,
@@ -5545,6 +5603,11 @@ class $$ApoyosHorasTableFilterComposer
 
   ColumnFilters<String> get codigoTrabajador => $composableBuilder(
     column: $table.codigoTrabajador,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nombreTrabajador => $composableBuilder(
+    column: $table.nombreTrabajador,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5616,6 +5679,11 @@ class $$ApoyosHorasTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get nombreTrabajador => $composableBuilder(
+    column: $table.nombreTrabajador,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get horaInicio => $composableBuilder(
     column: $table.horaInicio,
     builder: (column) => ColumnOrderings(column),
@@ -5679,6 +5747,11 @@ class $$ApoyosHorasTableAnnotationComposer
 
   GeneratedColumn<String> get codigoTrabajador => $composableBuilder(
     column: $table.codigoTrabajador,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get nombreTrabajador => $composableBuilder(
+    column: $table.nombreTrabajador,
     builder: (column) => column,
   );
 
@@ -5754,6 +5827,7 @@ class $$ApoyosHorasTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> reporteId = const Value.absent(),
                 Value<String> codigoTrabajador = const Value.absent(),
+                Value<String?> nombreTrabajador = const Value.absent(),
                 Value<String> horaInicio = const Value.absent(),
                 Value<String?> horaFin = const Value.absent(),
                 Value<double> horas = const Value.absent(),
@@ -5763,6 +5837,7 @@ class $$ApoyosHorasTableTableManager
                 id: id,
                 reporteId: reporteId,
                 codigoTrabajador: codigoTrabajador,
+                nombreTrabajador: nombreTrabajador,
                 horaInicio: horaInicio,
                 horaFin: horaFin,
                 horas: horas,
@@ -5774,6 +5849,7 @@ class $$ApoyosHorasTableTableManager
                 Value<int> id = const Value.absent(),
                 required int reporteId,
                 required String codigoTrabajador,
+                Value<String?> nombreTrabajador = const Value.absent(),
                 required String horaInicio,
                 Value<String?> horaFin = const Value.absent(),
                 Value<double> horas = const Value.absent(),
@@ -5783,6 +5859,7 @@ class $$ApoyosHorasTableTableManager
                 id: id,
                 reporteId: reporteId,
                 codigoTrabajador: codigoTrabajador,
+                nombreTrabajador: nombreTrabajador,
                 horaInicio: horaInicio,
                 horaFin: horaFin,
                 horas: horas,

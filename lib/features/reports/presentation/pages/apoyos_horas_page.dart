@@ -6,7 +6,6 @@ import 'package:scanner_trabunda/data/drift/db.dart';
 // 🔹 Supabase y servicio remoto
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:scanner_trabunda/features/reports/data/datasources/reportes_supabase_service.dart';
-import 'package:scanner_trabunda/features/reports/presentation/pages/report_detail_page.dart';
 
 /// Lista única de áreas de apoyo (la de tu Excel)
 const List<String> kAreasApoyo = [
@@ -120,11 +119,9 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                 final data = snapshot.data ?? const ApoyosHorasListado();
                 final pendientes = data.pendientes;
                 final completos = data.completos;
-                final tienePendientes = pendientes.isNotEmpty;
-                final tieneCompletos = completos.isNotEmpty;
 
                 // 🔹 Si NO hay apoyos → mostramos formulario inline tipo Saneamiento
-                if (!tienePendientes && !tieneCompletos) {
+                if (pendientes.isEmpty && completos.isEmpty) {
                   return _ApoyosHorasInlineForm(
                     reporteId: widget.reporteId,
                     fecha: widget.fecha,
@@ -149,50 +146,110 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                   );
                 }
 
-                return Column(
+                return ListView(
                   children: [
-                    // 🔸 Banner de aviso cuando hay pendientes
-                    if (tienePendientes)
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.warning_amber_rounded, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Tienes ${pendientes.length} apoyo(s) pendiente(s). '
-                                    'Completa la hora fin para cerrar el reporte.',
-                                style: const TextStyle(fontSize: 13),
+                    // Banner general de pendientes
+                    if (pendientes.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.warning_amber_rounded, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Tienes ${pendientes.length} apoyo(s) pendiente(s). '
+                                      'Completa la hora fin para cerrar el reporte.',
+                                  style: const TextStyle(fontSize: 13),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
 
-                    // Lista scrollable principal
-                    Expanded(
-                      child: ListView(
-                        children: [
-                          if (pendientes.isNotEmpty) ...[
-                            _buildSectionTitle('Reportes en espera (24h)'),
-                            const Divider(height: 0),
-                            _PendingApoyosGroupCard(
-                              apoyos: pendientes,
-                              onTapApoyo: (a) async {
+                    if (pendientes.isNotEmpty) ...[
+                      _buildSectionTitle('Reportes en espera (24h)'),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        child: _PendientesResumenCard(
+                          pendientes: pendientes,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ApoyosPendientesFormPage(
+                                  reporteId: widget.reporteId,
+                                  fecha: widget.fecha,
+                                  turno: widget.turno,
+                                  planillero: widget.planillero,
+                                  pendientes: pendientes,
+                                ),
+                              ),
+                            );
+                            _reload();
+                          },
+                          onDelete: (apoyoId) async {
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Eliminar apoyo'),
+                                content: const Text(
+                                  '¿Seguro que deseas eliminar este registro?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('Eliminar'),
+                                  ),
+                                ],
+                              ),
+                            ) ??
+                                false;
+                            if (ok) {
+                              await _borrar(apoyoId);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+
+                    if (completos.isNotEmpty) ...[
+                      _buildSectionTitle('Apoyos registrados'),
+                      const Divider(height: 0),
+                      ...completos.map(
+                            (a) => Column(
+                          children: [
+                            ListTile(
+                              title: Text(
+                                '${a.codigoTrabajador} • ${a.areaApoyo}',
+                              ),
+                              subtitle: Text(
+                                'De ${a.horaInicio} a ${a.horaFin ?? '--:--'}  →  ${a.horas.toStringAsFixed(2)} h',
+                              ),
+                              onTap: () async {
                                 await Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => ApoyoHoraFormPage(
                                       reporteId: widget.reporteId,
                                       apoyo: a,
-                                      soloCapturaHoraFin: true,
                                       fecha: widget.fecha,
                                       turno: widget.turno,
                                       planillero: widget.planillero,
@@ -201,149 +258,44 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                 );
                                 _reload();
                               },
-                              onDeleteApoyo: (a) async {
-                                final ok = await showDialog<bool>(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title:
-                                    const Text('Eliminar apoyo'),
-                                    content: const Text(
-                                      '¿Seguro que deseas eliminar este registro?',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(
-                                                context, false),
-                                        child: const Text('Cancelar'),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete),
+                                onPressed: () async {
+                                  final ok = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Eliminar apoyo'),
+                                      content: const Text(
+                                        '¿Seguro que deseas eliminar este registro?',
                                       ),
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(
-                                                context, true),
-                                        child: const Text('Eliminar'),
-                                      ),
-                                    ],
-                                  ),
-                                ) ??
-                                    false;
-                                if (ok) {
-                                  await _borrar(a.id);
-                                }
-                              },
-                            ),
-                          ],
-                          if (completos.isNotEmpty) ...[
-                            _buildSectionTitle('Apoyos registrados'),
-                            const Divider(height: 0),
-                            ...completos.map(
-                                  (a) => Column(
-                                children: [
-                                  ListTile(
-                                    title: Text(
-                                      a.areaApoyo,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      '${a.codigoTrabajador}\n'
-                                          'De ${a.horaInicio} a ${a.horaFin ?? '--:--'}  →  ${a.horas.toStringAsFixed(2)} h',
-                                    ),
-                                    isThreeLine: true,
-                                    onTap: () async {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => ApoyoHoraFormPage(
-                                            reporteId: widget.reporteId,
-                                            apoyo: a,
-                                            fecha: widget.fecha,
-                                            turno: widget.turno,
-                                            planillero: widget.planillero,
-                                          ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(
+                                                  context, false),
+                                          child: const Text('Cancelar'),
                                         ),
-                                      );
-                                      _reload();
-                                    },
-                                    trailing: IconButton(
-                                      icon: const Icon(Icons.delete),
-                                      onPressed: () async {
-                                        final ok = await showDialog<bool>(
-                                          context: context,
-                                          builder: (context) =>
-                                              AlertDialog(
-                                                title: const Text(
-                                                    'Eliminar apoyo'),
-                                                content: const Text(
-                                                  '¿Seguro que deseas eliminar este registro?',
-                                                ),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, false),
-                                                    child:
-                                                    const Text('Cancelar'),
-                                                  ),
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, true),
-                                                    child:
-                                                    const Text('Eliminar'),
-                                                  ),
-                                                ],
-                                              ),
-                                        ) ??
-                                            false;
-                                        if (ok) {
-                                          await _borrar(a.id);
-                                        }
-                                      },
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(
+                                                  context, true),
+                                          child: const Text('Eliminar'),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  const Divider(height: 0),
-                                ],
+                                  ) ??
+                                      false;
+                                  if (ok) {
+                                    await _borrar(a.id);
+                                  }
+                                },
                               ),
                             ),
+                            const Divider(height: 0),
                           ],
-                        ],
-                      ),
-                    ),
-
-                    // Footer: botón para ver reporte / PDF
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: FilledButton.icon(
-                          onPressed: (!tienePendientes && tieneCompletos)
-                              ? () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ReportDetailPage(
-                                  reporteId: widget.reporteId,
-                                ),
-                              ),
-                            );
-                          }
-                              : null,
-                          icon: Icon(
-                            tienePendientes
-                                ? Icons.info_outline
-                                : Icons.picture_as_pdf_outlined,
-                          ),
-                          label: Text(
-                            tienePendientes
-                                ? 'Completa los apoyos para ver el reporte'
-                                : 'Ver reporte y descargar PDF',
-                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 );
               },
@@ -356,221 +308,119 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
   }
 }
 
-class _ApoyoSection extends StatelessWidget {
-  const _ApoyoSection({
-    required this.titulo,
-    required this.apoyos,
-    required this.onDelete,
-    required this.onEdit,
-    required this.mostrarHoras,
+class _PendientesResumenCard extends StatelessWidget {
+  const _PendientesResumenCard({
+    required this.pendientes,
+    required this.onTap,
+    required this.onDelete, // 👈 lo dejamos aunque aquí no lo usemos
   });
 
-  final String titulo;
-  final List<ApoyoHoraDetalle> apoyos;
+  final List<ApoyoHoraDetalle> pendientes;
+  final VoidCallback onTap;
   final Future<void> Function(int id) onDelete;
-  final Future<void> Function(ApoyoHoraDetalle apoyo) onEdit;
-  final bool mostrarHoras;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-          child: Text(
-            titulo,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        ...List.generate(apoyos.length, (index) {
-          final a = apoyos[index];
-          final detalleHoras = mostrarHoras && a.horaFin != null
-              ? 'De ${a.horaInicio} a ${a.horaFin}  →  ${a.horas.toStringAsFixed(2)} h'
-              : 'Desde ${a.horaInicio} • Pendiente de hora fin';
-
-          return Column(
-            children: [
-              ListTile(
-                title: Text('${a.codigoTrabajador} • ${a.areaApoyo}'),
-                subtitle: Text(detalleHoras),
-                onTap: () async {
-                  await onEdit(a);
-                },
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete),
-                  onPressed: () async {
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Eliminar apoyo'),
-                        content: const Text(
-                          '¿Seguro que deseas eliminar este registro?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () =>
-                                Navigator.pop(context, false),
-                            child: const Text('Cancelar'),
-                          ),
-                          TextButton(
-                            onPressed: () =>
-                                Navigator.pop(context, true),
-                            child: const Text('Eliminar'),
-                          ),
-                        ],
-                      ),
-                    ) ??
-                        false;
-                    if (ok) {
-                      await onDelete(a.id);
-                    }
-                  },
-                ),
-              ),
-              if (index != apoyos.length - 1) const Divider(height: 0),
-            ],
-          );
-        }),
-      ],
-    );
-  }
-}
-
-/// Tarjeta única que agrupa TODOS los apoyos pendientes (24h)
-class _PendingApoyosGroupCard extends StatelessWidget {
-  const _PendingApoyosGroupCard({
-    required this.apoyos,
-    required this.onTapApoyo,
-    required this.onDeleteApoyo,
-  });
-
-  final List<ApoyoHoraDetalle> apoyos;
-  final Future<void> Function(ApoyoHoraDetalle apoyo) onTapApoyo;
-  final Future<void> Function(ApoyoHoraDetalle apoyo) onDeleteApoyo;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    final totalTrabajadores = pendientes.length;
+    final uniqueAreas = pendientes.map((e) => e.areaApoyo).toSet().toList();
+
+    final String resumenAreas = uniqueAreas.isEmpty
+        ? 'Sin áreas registradas'
+        : (uniqueAreas.length == 1
+        ? uniqueAreas.first
+        : '${uniqueAreas.length} áreas de apoyo');
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
       child: Card(
         elevation: 0,
-        color: cs.surfaceVariant.withOpacity(.35),
+        color: cs.surfaceVariant.withOpacity(.4),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: cs.outlineVariant),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Cabecera de la tarjeta
+              // Header de la card
               Row(
                 children: [
                   const Icon(Icons.hourglass_bottom, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
+                  const SizedBox(width: 6),
+                  const Expanded(
                     child: Text(
                       'Apoyos pendientes (24h)',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
                       ),
                     ),
                   ),
+                  Container(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(.15),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.amber),
+                    ),
+                    child: Text(
+                      '$totalTrabajadores apoyo(s)',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              const Divider(height: 0),
 
-              // Lista de filas, una por apoyo
-              ...List.generate(apoyos.length, (index) {
-                final apoyo = apoyos[index];
-                final nombre = apoyo.nombreTrabajador;
-                final titleText = (nombre == null || nombre.trim().isEmpty)
-                    ? apoyo.codigoTrabajador
-                    : '${apoyo.codigoTrabajador} • $nombre';
+              const SizedBox(height: 10),
 
-                return Column(
-                  children: [
-                    InkWell(
-                      onTap: () async => onTapApoyo(apoyo),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 10, horizontal: 4),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Primera línea: código + nombre
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    titleText,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 20,
-                                  ),
-                                  tooltip: 'Eliminar apoyo',
-                                  onPressed: () async =>
-                                      onDeleteApoyo(apoyo),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            // Área
-                            Text(
-                              apoyo.areaApoyo,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            // Horas
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.access_time,
-                                  size: 16,
-                                  color: cs.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Hora inicio: ${apoyo.horaInicio} • Hora fin: --:--',
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Toca para completar la hora fin. '
-                                  'Si no se completa en 24 horas se elimina automáticamente.',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+              // Resumen: número de trabajadores
+              Row(
+                children: [
+                  Icon(Icons.groups_2_outlined,
+                      size: 18, color: cs.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '$totalTrabajadores trabajador(es) con hora fin pendiente',
+                      style: const TextStyle(fontSize: 13),
                     ),
-                    if (index != apoyos.length - 1)
-                      const Divider(height: 0),
-                  ],
-                );
-              }),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 6),
+
+              // Resumen: áreas
+              Row(
+                children: [
+                  Icon(Icons.work_outline, size: 18, color: cs.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      resumenAreas,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              // Texto explicativo
+              Text(
+                'Toca la tarjeta para completar las horas fin de todos los apoyos. '
+                    'Si no se completan en 24 horas se eliminan automáticamente.',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.black54,
+                ),
+              ),
             ],
           ),
         ),
@@ -578,6 +428,7 @@ class _PendingApoyosGroupCard extends StatelessWidget {
     );
   }
 }
+
 
 /// ===============================================================
 ///  FORMULARIO INLINE (cuando NO hay apoyos) – estilo Saneamiento
@@ -835,6 +686,9 @@ class _ApoyoFormModel {
   TimeOfDay? fin;
   double horas = 0.0;
   String? area;
+
+  /// id local en la tabla ApoyosHoras (solo cuando estamos editando pendientes)
+  int? idLocal;
 
   /// true = se escaneó con QR → el código no se puede editar
   bool codigoBloqueadoPorQr = false;
@@ -1459,6 +1313,234 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ===============================================================
+///   NUEVA PANTALLA: completar TODOS los apoyos pendientes a la vez
+///   (muestra el mismo formulario múltiple que al inicio)
+/// ===============================================================
+
+class ApoyosPendientesFormPage extends StatefulWidget {
+  const ApoyosPendientesFormPage({
+    super.key,
+    required this.reporteId,
+    required this.fecha,
+    required this.turno,
+    required this.planillero,
+    required this.pendientes,
+  });
+
+  final int reporteId;
+  final DateTime fecha;
+  final String turno;
+  final String planillero;
+  final List<ApoyoHoraDetalle> pendientes;
+
+  @override
+  State<ApoyosPendientesFormPage> createState() =>
+      _ApoyosPendientesFormPageState();
+}
+
+class _ApoyosPendientesFormPageState extends State<ApoyosPendientesFormPage> {
+  final _formKey = GlobalKey<FormState>();
+  late List<_ApoyoFormModel> _trabajadores;
+
+  @override
+  void initState() {
+    super.initState();
+    _trabajadores = widget.pendientes.map((a) {
+      final m = _ApoyoFormModel();
+      m.idLocal = a.id;
+      m.codigoCtrl.text = a.codigoTrabajador;
+      m.nombreCtrl.text = a.nombreTrabajador ?? '';
+      m.inicio = _parseTime(a.horaInicio);
+      // Sigue pendiente → hora fin null
+      m.area = a.areaApoyo;
+      m.horas = a.horas;
+      return m;
+    }).toList();
+  }
+
+  TimeOfDay? _parseTime(String? hhmm) {
+    if (hhmm == null) return null;
+    final parts = hhmm.split(':');
+    return TimeOfDay(
+      hour: int.parse(parts[0]),
+      minute: int.parse(parts[1]),
+    );
+  }
+
+  String _formatTime(TimeOfDay t) {
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  double _calcHoras(TimeOfDay inicio, TimeOfDay fin) {
+    final start = Duration(hours: inicio.hour, minutes: inicio.minute);
+    final end = Duration(hours: fin.hour, minutes: fin.minute);
+    final diff = end - start;
+    return diff.inMinutes / 60.0;
+  }
+
+  Future<void> _pickHora(
+      _ApoyoFormModel model,
+      bool esInicio,
+      BuildContext context,
+      ) async {
+    final initial = esInicio
+        ? (model.inicio ?? const TimeOfDay(hour: 18, minute: 0))
+        : (model.fin ?? const TimeOfDay(hour: 23, minute: 0));
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+    );
+    if (picked == null) return;
+
+    setState(() {
+      if (esInicio) {
+        model.inicio = picked;
+      } else {
+        model.fin = picked;
+      }
+      if (model.inicio != null && model.fin != null) {
+        model.horas = _calcHoras(model.inicio!, model.fin!);
+      }
+    });
+  }
+
+  Future<void> _guardar() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    // Para esta pantalla pedimos OBLIGATORIO hora fin para todos
+    for (final m in _trabajadores) {
+      if (m.inicio == null || m.area == null || m.fin == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Completa hora inicio, hora fin y área de apoyo para todos.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
+    final client = Supabase.instance.client;
+    final userId = client.auth.currentUser?.id;
+
+    for (final m in _trabajadores) {
+      final horas = _calcHoras(m.inicio!, m.fin!);
+      final horaInicioStr = _formatTime(m.inicio!);
+      final horaFinStr = _formatTime(m.fin!);
+
+      // Actualizar registro local existente
+      if (m.idLocal != null) {
+        await db.reportesDao.actualizarApoyoHora(
+          id: m.idLocal!,
+          codigoTrabajador: m.codigoCtrl.text.trim(),
+          nombreTrabajador: m.nombreCtrl.text.trim().isEmpty
+              ? null
+              : m.nombreCtrl.text.trim(),
+          horaInicio: horaInicioStr,
+          horaFin: horaFinStr,
+          horas: horas,
+          areaApoyo: m.area!,
+        );
+      }
+
+      // Enviar a Supabase (ya tiene hora fin)
+      if (userId != null) {
+        try {
+          await ReportesSupabaseService.instance.insertarApoyoHoraRemoto(
+            reporteIdLocal: widget.reporteId,
+            fecha: widget.fecha,
+            turno: widget.turno,
+            planillero: widget.planillero,
+            userId: userId,
+            codigoTrabajador: m.codigoCtrl.text.trim(),
+            nombreTrabajador: m.nombreCtrl.text.trim().isEmpty
+                ? null
+                : m.nombreCtrl.text.trim(),
+            horaInicio: horaInicioStr,
+            horaFin: horaFinStr,
+            horas: horas,
+            area: m.area!,
+          );
+        } catch (e, st) {
+          debugPrint(
+            '[ApoyosHoras][REMOTE][ERROR] Error al enviar pendientes a Supabase: '
+                '$e\n$st',
+          );
+        }
+      }
+    }
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final m in _trabajadores) {
+      m.codigoCtrl.dispose();
+      m.nombreCtrl.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Completar apoyos pendientes'),
+      ),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              for (int i = 0; i < _trabajadores.length; i++)
+                _TrabajadorCard(
+                  index: i,
+                  model: _trabajadores[i],
+                  colorScheme: cs,
+                  areasApoyo: kAreasApoyo,
+                  onPickHoraInicio: () =>
+                      _pickHora(_trabajadores[i], true, context),
+                  onPickHoraFin: () =>
+                      _pickHora(_trabajadores[i], false, context),
+                  onRemove: _trabajadores.length == 1
+                      ? null
+                      : () {
+                    setState(() {
+                      _trabajadores.removeAt(i);
+                    });
+                  },
+                  codigoBloqueado: false,
+                  onScanQr: () async {},
+                ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 48,
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _guardar,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Guardar cambios'),
+                ),
+              ),
+            ],
           ),
         ),
       ),

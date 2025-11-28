@@ -6,6 +6,7 @@ import 'package:scanner_trabunda/data/drift/db.dart';
 // 🔹 Supabase y servicio remoto
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:scanner_trabunda/features/reports/data/datasources/reportes_supabase_service.dart';
+import 'package:scanner_trabunda/features/reports/presentation/pages/report_detail_page.dart';
 
 /// Lista única de áreas de apoyo (la de tu Excel)
 const List<String> kAreasApoyo = [
@@ -119,9 +120,11 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                 final data = snapshot.data ?? const ApoyosHorasListado();
                 final pendientes = data.pendientes;
                 final completos = data.completos;
+                final tienePendientes = pendientes.isNotEmpty;
+                final tieneCompletos = completos.isNotEmpty;
 
                 // 🔹 Si NO hay apoyos → mostramos formulario inline tipo Saneamiento
-                if (pendientes.isEmpty && completos.isEmpty) {
+                if (!tienePendientes && !tieneCompletos) {
                   return _ApoyosHorasInlineForm(
                     reporteId: widget.reporteId,
                     fecha: widget.fecha,
@@ -146,22 +149,43 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                   );
                 }
 
-                return ListView(
+                return Column(
                   children: [
-                    if (pendientes.isNotEmpty) ...[
-                      _buildSectionTitle('Reportes en espera (24h)'),
-                      const Divider(height: 0),
-                      ...pendientes.map(
-                            (a) => Column(
+                    // 🔸 Banner de aviso cuando hay pendientes
+                    if (tienePendientes)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
                           children: [
-                            ListTile(
-                              title: Text(
-                                '${a.codigoTrabajador} • ${a.areaApoyo}',
+                            const Icon(Icons.warning_amber_rounded, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Tienes ${pendientes.length} apoyo(s) pendiente(s). '
+                                    'Completa la hora fin para cerrar el reporte.',
+                                style: const TextStyle(fontSize: 13),
                               ),
-                              subtitle: const Text(
-                                'De 06:00 a --:--  →  Pendiente',
-                              ),
-                              onTap: () async {
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // Lista scrollable principal
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          if (pendientes.isNotEmpty) ...[
+                            _buildSectionTitle('Reportes en espera (24h)'),
+                            const Divider(height: 0),
+                            _PendingApoyosGroupCard(
+                              apoyos: pendientes,
+                              onTapApoyo: (a) async {
                                 await Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -177,110 +201,149 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                 );
                                 _reload();
                               },
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () async {
-                                  final ok = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Eliminar apoyo'),
-                                      content: const Text(
-                                        '¿Seguro que deseas eliminar este registro?',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(
-                                                  context, false),
-                                          child: const Text('Cancelar'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(
-                                                  context, true),
-                                          child: const Text('Eliminar'),
-                                        ),
-                                      ],
+                              onDeleteApoyo: (a) async {
+                                final ok = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title:
+                                    const Text('Eliminar apoyo'),
+                                    content: const Text(
+                                      '¿Seguro que deseas eliminar este registro?',
                                     ),
-                                  ) ??
-                                      false;
-                                  if (ok) {
-                                    await _borrar(a.id);
-                                  }
-                                },
-                              ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(
+                                                context, false),
+                                        child: const Text('Cancelar'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(
+                                                context, true),
+                                        child: const Text('Eliminar'),
+                                      ),
+                                    ],
+                                  ),
+                                ) ??
+                                    false;
+                                if (ok) {
+                                  await _borrar(a.id);
+                                }
+                              },
                             ),
-                            const Divider(height: 0),
                           ],
-                        ),
-                      ),
-                    ],
-                    if (completos.isNotEmpty) ...[
-                      _buildSectionTitle('Apoyos registrados'),
-                      const Divider(height: 0),
-                      ...completos.map(
-                            (a) => Column(
-                          children: [
-                            ListTile(
-                              title: Text(
-                                '${a.codigoTrabajador} • ${a.areaApoyo}',
-                              ),
-                              subtitle: Text(
-                                'De ${a.horaInicio} a ${a.horaFin ?? '--:--'}  →  ${a.horas.toStringAsFixed(2)} h',
-                              ),
-                              onTap: () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ApoyoHoraFormPage(
-                                      reporteId: widget.reporteId,
-                                      apoyo: a,
-                                      fecha: widget.fecha,
-                                      turno: widget.turno,
-                                      planillero: widget.planillero,
+                          if (completos.isNotEmpty) ...[
+                            _buildSectionTitle('Apoyos registrados'),
+                            const Divider(height: 0),
+                            ...completos.map(
+                                  (a) => Column(
+                                children: [
+                                  ListTile(
+                                    title: Text(
+                                      a.areaApoyo,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      '${a.codigoTrabajador}\n'
+                                          'De ${a.horaInicio} a ${a.horaFin ?? '--:--'}  →  ${a.horas.toStringAsFixed(2)} h',
+                                    ),
+                                    isThreeLine: true,
+                                    onTap: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ApoyoHoraFormPage(
+                                            reporteId: widget.reporteId,
+                                            apoyo: a,
+                                            fecha: widget.fecha,
+                                            turno: widget.turno,
+                                            planillero: widget.planillero,
+                                          ),
+                                        ),
+                                      );
+                                      _reload();
+                                    },
+                                    trailing: IconButton(
+                                      icon: const Icon(Icons.delete),
+                                      onPressed: () async {
+                                        final ok = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) =>
+                                              AlertDialog(
+                                                title: const Text(
+                                                    'Eliminar apoyo'),
+                                                content: const Text(
+                                                  '¿Seguro que deseas eliminar este registro?',
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                            context, false),
+                                                    child:
+                                                    const Text('Cancelar'),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                            context, true),
+                                                    child:
+                                                    const Text('Eliminar'),
+                                                  ),
+                                                ],
+                                              ),
+                                        ) ??
+                                            false;
+                                        if (ok) {
+                                          await _borrar(a.id);
+                                        }
+                                      },
                                     ),
                                   ),
-                                );
-                                _reload();
-                              },
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () async {
-                                  final ok = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Eliminar apoyo'),
-                                      content: const Text(
-                                        '¿Seguro que deseas eliminar este registro?',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(
-                                                  context, false),
-                                          child: const Text('Cancelar'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(
-                                                  context, true),
-                                          child: const Text('Eliminar'),
-                                        ),
-                                      ],
-                                    ),
-                                  ) ??
-                                      false;
-                                  if (ok) {
-                                    await _borrar(a.id);
-                                  }
-                                },
+                                  const Divider(height: 0),
+                                ],
                               ),
                             ),
-                            const Divider(height: 0),
                           ],
+                        ],
+                      ),
+                    ),
+
+                    // Footer: botón para ver reporte / PDF
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: FilledButton.icon(
+                          onPressed: (!tienePendientes && tieneCompletos)
+                              ? () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ReportDetailPage(
+                                  reporteId: widget.reporteId,
+                                ),
+                              ),
+                            );
+                          }
+                              : null,
+                          icon: Icon(
+                            tienePendientes
+                                ? Icons.info_outline
+                                : Icons.picture_as_pdf_outlined,
+                          ),
+                          label: Text(
+                            tienePendientes
+                                ? 'Completa los apoyos para ver el reporte'
+                                : 'Ver reporte y descargar PDF',
+                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 );
               },
@@ -370,6 +433,148 @@ class _ApoyoSection extends StatelessWidget {
           );
         }),
       ],
+    );
+  }
+}
+
+/// Tarjeta única que agrupa TODOS los apoyos pendientes (24h)
+class _PendingApoyosGroupCard extends StatelessWidget {
+  const _PendingApoyosGroupCard({
+    required this.apoyos,
+    required this.onTapApoyo,
+    required this.onDeleteApoyo,
+  });
+
+  final List<ApoyoHoraDetalle> apoyos;
+  final Future<void> Function(ApoyoHoraDetalle apoyo) onTapApoyo;
+  final Future<void> Function(ApoyoHoraDetalle apoyo) onDeleteApoyo;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Card(
+        elevation: 0,
+        color: cs.surfaceVariant.withOpacity(.35),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: cs.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Cabecera de la tarjeta
+              Row(
+                children: [
+                  const Icon(Icons.hourglass_bottom, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Apoyos pendientes (24h)',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Divider(height: 0),
+
+              // Lista de filas, una por apoyo
+              ...List.generate(apoyos.length, (index) {
+                final apoyo = apoyos[index];
+                final nombre = apoyo.nombreTrabajador;
+                final titleText = (nombre == null || nombre.trim().isEmpty)
+                    ? apoyo.codigoTrabajador
+                    : '${apoyo.codigoTrabajador} • $nombre';
+
+                return Column(
+                  children: [
+                    InkWell(
+                      onTap: () async => onTapApoyo(apoyo),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 10, horizontal: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Primera línea: código + nombre
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    titleText,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
+                                  ),
+                                  tooltip: 'Eliminar apoyo',
+                                  onPressed: () async =>
+                                      onDeleteApoyo(apoyo),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            // Área
+                            Text(
+                              apoyo.areaApoyo,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // Horas
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.access_time,
+                                  size: 16,
+                                  color: cs.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Hora inicio: ${apoyo.horaInicio} • Hora fin: --:--',
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Toca para completar la hora fin. '
+                                  'Si no se completa en 24 horas se elimina automáticamente.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (index != apoyos.length - 1)
+                      const Divider(height: 0),
+                  ],
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1038,7 +1243,6 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
     // Solo enviamos a Supabase cuando YA tiene hora fin
     if (userId != null && _fin != null) {
       try {
-        final nombreTrim = _nombreCtrl.text.trim();
         await ReportesSupabaseService.instance.insertarApoyoHoraRemoto(
           reporteIdLocal: widget.reporteId,
           fecha: widget.fecha,
@@ -1049,7 +1253,6 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
           nombreTrabajador: _nombreCtrl.text.trim().isEmpty
               ? null
               : _nombreCtrl.text.trim(),
-
           horaInicio: horaInicioStr,
           horaFin: horaFinStr,
           horas: horas,

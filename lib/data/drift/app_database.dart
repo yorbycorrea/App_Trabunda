@@ -103,7 +103,6 @@ class ApoyosHoras extends Table {
   TextColumn get areaApoyo => text()();
 
   /// Fecha de creación para controlar la vigencia de 24h cuando está pendiente
-  /// Fecha de creación para controlar la vigencia de 24h cuando está pendiente
   DateTimeColumn get createdAt =>
       dateTime().withDefault(currentDateAndTime)();
 }
@@ -350,10 +349,8 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
           '[INSERT LOCAL] Apoyo guardado en Drift (ID $id): '
               'reporteId=$reporteId, codigo=$codigoTrabajadorTrim, '
               'horaInicio=$horaInicioTrim, horaFin=$horaFinTrim, '
-              'horas=$horasCalculadas, area=$areaApoyoTrim'
-      );
+              'horas=$horasCalculadas, area=$areaApoyoTrim');
     });
-
   }
 
   /// Lista y separa apoyos pendientes (24h sin horaFin) y completos.
@@ -458,7 +455,7 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
         nombreTrabajador: Value(nombreTrabajador),
         horaInicio: Value(horaInicioResult),
         horaFin:
-            horaFinResult != null ? Value(horaFinResult) : const Value.absent(),
+        horaFinResult != null ? Value(horaFinResult) : const Value.absent(),
         horas: horasCalculadas != null
             ? Value(horasCalculadas)
             : const Value.absent(),
@@ -468,9 +465,59 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
   }
 
   /// =====================================================
-  /// REPORTES (lo que ya tenías)
+  /// REPORTES
   /// =====================================================
 
+  /// 👉 NUEVO: obtener o crear reporte para planillero
+  /// Normaliza la fecha a solo día (año/mes/día) para que
+  /// siempre reutilice el mismo reporte cuando sea el mismo
+  /// día, turno y planillero.
+  Future<int> getOrCreateReportePlanillero({
+    required DateTime fecha,
+    required String turno,
+    required String planillero,
+  }) async {
+    final fechaSoloDia = DateTime(fecha.year, fecha.month, fecha.day);
+
+    final row = await (select(reportes)
+      ..where(
+            (t) =>
+        t.fecha.equals(fechaSoloDia) &
+        t.turno.equals(turno) &
+        t.planillero.equals(planillero),
+      ))
+        .getSingleOrNull();
+
+    if (row != null) {
+      return row.id;
+    }
+
+    return into(reportes).insert(
+      ReportesCompanion.insert(
+        fecha: fechaSoloDia,
+        turno: turno,
+        planillero: planillero,
+      ),
+    );
+  }
+
+  /// Alias en español para mantener compatibilidad con pantallas
+  /// que llamen a `obtenerOCrearReportePlanillero`.
+  Future<int> obtenerOCrearReportePlanillero({
+    required DateTime fecha,
+    required String turno,
+    required String planillero,
+  }) {
+    return getOrCreateReportePlanillero(
+      fecha: fecha,
+      turno: turno,
+      planillero: planillero,
+    );
+  }
+
+
+  /// Versión genérica que ya tenías (la dejo igual para no romper
+  /// nada que ya la use).
   Future<int> getOrCreateReporte({
     required DateTime fecha,
     required String turno,
@@ -1187,7 +1234,7 @@ LEFT JOIN (
             );
           }
 
-          // Si la cantidad del área es 0 o null, la reemplazamos por el número de integrantes
+          // Si la cantidad del área es 0 or null, la reemplazamos por el número de integrantes
           if ((area.cantidad ?? 0) == 0) {
             await (update(reporteAreas)
               ..where((t) => t.id.equals(resolvedAreaId)))

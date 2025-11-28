@@ -43,7 +43,7 @@ const List<String> kAreasApoyo = [
 class ApoyosHorasPage extends StatefulWidget {
   const ApoyosHorasPage({
     super.key,
-    required this.reporteId,
+    required this.reporteId, // 👈 ya no se usa directamente, pero lo dejamos para no tocar otras pantallas
     required this.fecha,
     required this.turno,
     required this.planillero,
@@ -59,17 +59,32 @@ class ApoyosHorasPage extends StatefulWidget {
 }
 
 class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
+  /// id REAL del reporte en Drift, garantizado por `obtenerOCrearReportePlanillero`
+  late int _reporteIdReal;
+
   late Future<ApoyosHorasListado> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = db.reportesDao.listarApoyosPorReporte(widget.reporteId);
+    _future = _loadApoyos();
+  }
+
+  /// Obtiene o crea el reporte por (fecha, turno, planillero) y luego lista apoyos.
+  Future<ApoyosHorasListado> _loadApoyos() async {
+    // normaliza la fecha a solo día y garantiza un SOLO reporte por día/turno/planillero
+    _reporteIdReal = await db.reportesDao.obtenerOCrearReportePlanillero(
+      fecha: widget.fecha,
+      turno: widget.turno,
+      planillero: widget.planillero,
+    );
+
+    return db.reportesDao.listarApoyosPorReporte(_reporteIdReal);
   }
 
   Future<void> _reload() async {
     setState(() {
-      _future = db.reportesDao.listarApoyosPorReporte(widget.reporteId);
+      _future = _loadApoyos();
     });
   }
 
@@ -123,7 +138,7 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                 // 🔹 Si NO hay apoyos → mostramos formulario inline tipo Saneamiento
                 if (pendientes.isEmpty && completos.isEmpty) {
                   return _ApoyosHorasInlineForm(
-                    reporteId: widget.reporteId,
+                    reporteId: _reporteIdReal, // 👈 usamos el id real
                     fecha: widget.fecha,
                     turno: widget.turno,
                     planillero: widget.planillero,
@@ -189,7 +204,7 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                               context,
                               MaterialPageRoute(
                                 builder: (_) => ApoyosPendientesFormPage(
-                                  reporteId: widget.reporteId,
+                                  reporteId: _reporteIdReal,
                                   fecha: widget.fecha,
                                   turno: widget.turno,
                                   planillero: widget.planillero,
@@ -248,7 +263,7 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => ApoyoHoraFormPage(
-                                      reporteId: widget.reporteId,
+                                      reporteId: _reporteIdReal,
                                       apoyo: a,
                                       fecha: widget.fecha,
                                       turno: widget.turno,

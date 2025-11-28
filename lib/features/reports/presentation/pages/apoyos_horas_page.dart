@@ -270,15 +270,13 @@ class _ApoyosHorasPageState extends State<ApoyosHorasPage> {
                                       ),
                                       actions: [
                                         TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(
-                                                  context, false),
+                                          onPressed: () => Navigator.pop(
+                                              context, false),
                                           child: const Text('Cancelar'),
                                         ),
                                         TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(
-                                                  context, true),
+                                          onPressed: () => Navigator.pop(
+                                              context, true),
                                           child: const Text('Eliminar'),
                                         ),
                                       ],
@@ -312,7 +310,7 @@ class _PendientesResumenCard extends StatelessWidget {
   const _PendientesResumenCard({
     required this.pendientes,
     required this.onTap,
-    required this.onDelete, // 👈 lo dejamos aunque aquí no lo usemos
+    required this.onDelete, // lo dejamos aunque aquí no lo usemos
   });
 
   final List<ApoyoHoraDetalle> pendientes;
@@ -362,8 +360,8 @@ class _PendientesResumenCard extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.amber.withOpacity(.15),
                       borderRadius: BorderRadius.circular(999),
@@ -382,8 +380,7 @@ class _PendientesResumenCard extends StatelessWidget {
               // Resumen: número de trabajadores
               Row(
                 children: [
-                  Icon(Icons.groups_2_outlined,
-                      size: 18, color: cs.primary),
+                  Icon(Icons.groups_2_outlined, size: 18, color: cs.primary),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -428,7 +425,6 @@ class _PendientesResumenCard extends StatelessWidget {
     );
   }
 }
-
 
 /// ===============================================================
 ///  FORMULARIO INLINE (cuando NO hay apoyos) – estilo Saneamiento
@@ -536,8 +532,7 @@ class _ApoyosHorasInlineFormState extends State<_ApoyosHorasInlineForm> {
       if (m.inicio == null || m.area == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content:
-            Text('Completa hora de inicio y área de apoyo para todos.'),
+            content: Text('Completa hora de inicio y área de apoyo para todos.'),
           ),
         );
         return;
@@ -1248,7 +1243,7 @@ class _ApoyoHoraFormPageState extends State<ApoyoHoraFormPage> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        // 👇 Nombre del trabajador (opcional, se manda a Supabase si lo llenan)
+                        // Nombre del trabajador (solo lectura aquí)
                         TextFormField(
                           controller: _nombreCtrl,
                           readOnly: true,
@@ -1418,45 +1413,48 @@ class _ApoyosPendientesFormPageState extends State<ApoyosPendientesFormPage> {
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Para esta pantalla pedimos OBLIGATORIO hora fin para todos
-    for (final m in _trabajadores) {
-      if (m.inicio == null || m.area == null || m.fin == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Completa hora inicio, hora fin y área de apoyo para todos.',
-            ),
-          ),
-        );
-        return;
-      }
-    }
-
     final client = Supabase.instance.client;
     final userId = client.auth.currentUser?.id;
 
-    for (final m in _trabajadores) {
-      final horas = _calcHoras(m.inicio!, m.fin!);
-      final horaInicioStr = _formatTime(m.inicio!);
-      final horaFinStr = _formatTime(m.fin!);
+    // ✅ Permitimos guardar aunque solo algunos tengan hora fin.
+    for (int i = 0; i < _trabajadores.length; i++) {
+      final m = _trabajadores[i];
+      final original = widget.pendientes[i];
 
-      // Actualizar registro local existente
-      if (m.idLocal != null) {
-        await db.reportesDao.actualizarApoyoHora(
-          id: m.idLocal!,
-          codigoTrabajador: m.codigoCtrl.text.trim(),
-          nombreTrabajador: m.nombreCtrl.text.trim().isEmpty
-              ? null
-              : m.nombreCtrl.text.trim(),
-          horaInicio: horaInicioStr,
-          horaFin: horaFinStr,
-          horas: horas,
-          areaApoyo: m.area!,
+      // Si faltan datos mínimos, no tocamos ese registro
+      if (m.inicio == null || m.area == null) {
+        debugPrint(
+          '[ApoyosHoras][LOCAL] Pendiente sin datos mínimos (index=$i) → no se toca.',
         );
+        continue;
       }
 
-      // Enviar a Supabase (ya tiene hora fin)
-      if (userId != null) {
+      final bool tieneFin = m.fin != null;
+
+      final String horaInicioStr = _formatTime(m.inicio!);
+      final String? horaFinStr =
+      tieneFin ? _formatTime(m.fin!) : null;
+      final double horas =
+      tieneFin ? _calcHoras(m.inicio!, m.fin!) : 0.0;
+
+      // Tomamos el id de donde esté disponible
+      final int idLocal = m.idLocal ?? original.id;
+
+      // 🔹 Siempre actualizamos Drift (aunque siga pendiente)
+      await db.reportesDao.actualizarApoyoHora(
+        id: idLocal,
+        codigoTrabajador: m.codigoCtrl.text.trim(),
+        nombreTrabajador: m.nombreCtrl.text.trim().isEmpty
+            ? null
+            : m.nombreCtrl.text.trim(),
+        horaInicio: horaInicioStr,
+        horaFin: horaFinStr,
+        horas: horas,
+        areaApoyo: m.area!,
+      );
+
+      // 🔹 Solo mandamos a Supabase si YA tiene hora fin
+      if (userId != null && tieneFin) {
         try {
           await ReportesSupabaseService.instance.insertarApoyoHoraRemoto(
             reporteIdLocal: widget.reporteId,
@@ -1475,10 +1473,13 @@ class _ApoyosPendientesFormPageState extends State<ApoyosPendientesFormPage> {
           );
         } catch (e, st) {
           debugPrint(
-            '[ApoyosHoras][REMOTE][ERROR] Error al enviar pendientes a Supabase: '
-                '$e\n$st',
+            '[ApoyosHoras][REMOTE][ERROR] Error al enviar pendientes a Supabase: $e\n$st',
           );
         }
+      } else {
+        debugPrint(
+          '[ApoyosHoras][REMOTE] Pendiente actualizado solo local (idLocal=$idLocal, fin=$tieneFin)',
+        );
       }
     }
 

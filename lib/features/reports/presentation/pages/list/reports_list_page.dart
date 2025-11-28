@@ -64,6 +64,14 @@ const Color _kPrimaryColor = Color(0xFF0E4B3B);
 const Color _kBackgroundColor = Color(0xFFF4F6F5);
 const Color _kSurfaceColor = Colors.white;
 
+/// 🔹 Nuevo: tipos de filtro por “área” (en realidad tipo de reporte)
+enum ReportAreaFilter {
+  todas,
+  apoyosHoras,
+  recepcionFileteros,
+  conteoRapidoPersonas,
+}
+
 class ReportsListPage extends StatefulWidget {
   const ReportsListPage({super.key});
 
@@ -74,7 +82,7 @@ class ReportsListPage extends StatefulWidget {
 class _ReportsListPageState extends State<ReportsListPage> {
   // Filtros
   DateTime? _fecha;
-  final Set<String> _areas = {};
+  ReportAreaFilter _areaFilter = ReportAreaFilter.todas;
   String _turno = 'Todos'; // Todos | Día | Noche
   final _planilleroCtrl = TextEditingController();
 
@@ -161,31 +169,65 @@ class _ReportsListPageState extends State<ReportsListPage> {
     }
   }
 
-  void _openAreasSheet() {
-    showModalBottomSheet(
+  /// Label legible para el filtro de áreas
+  String _areaFilterLabel(ReportAreaFilter f) {
+    switch (f) {
+      case ReportAreaFilter.todas:
+        return 'Todas las áreas';
+      case ReportAreaFilter.apoyosHoras:
+        return 'Apoyos por horas';
+      case ReportAreaFilter.recepcionFileteros:
+        return 'Recepción y Fileteros';
+      case ReportAreaFilter.conteoRapidoPersonas:
+        return 'Conteo rápido de personas';
+    }
+  }
+
+  Future<void> _pickAreaFilter() async {
+    final selected = await showDialog<ReportAreaFilter>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => _AreasPickerSheet(
-        seleccionadas: _areas,
-        onConfirm: (set) {
-          setState(() {
-            _areas
-              ..clear()
-              ..addAll(set);
-          });
-          Navigator.pop(ctx);
-        },
-      ),
+      builder: (ctx) {
+        return SimpleDialog(
+          title: const Text('Filtrar por área'),
+          children: [
+            RadioListTile<ReportAreaFilter>(
+              title: const Text('Todas las áreas'),
+              value: ReportAreaFilter.todas,
+              groupValue: _areaFilter,
+              onChanged: (v) => Navigator.pop(ctx, v),
+            ),
+            RadioListTile<ReportAreaFilter>(
+              title: const Text('Apoyos por horas'),
+              value: ReportAreaFilter.apoyosHoras,
+              groupValue: _areaFilter,
+              onChanged: (v) => Navigator.pop(ctx, v),
+            ),
+            RadioListTile<ReportAreaFilter>(
+              title: const Text('Recepción y Fileteros'),
+              value: ReportAreaFilter.recepcionFileteros,
+              groupValue: _areaFilter,
+              onChanged: (v) => Navigator.pop(ctx, v),
+            ),
+            RadioListTile<ReportAreaFilter>(
+              title: const Text('Conteo rápido de personas'),
+              value: ReportAreaFilter.conteoRapidoPersonas,
+              groupValue: _areaFilter,
+              onChanged: (v) => Navigator.pop(ctx, v),
+            ),
+          ],
+        );
+      },
     );
+
+    if (selected != null && mounted) {
+      setState(() => _areaFilter = selected);
+    }
   }
 
   void _limpiar() {
     setState(() {
       _fecha = null;
-      _areas.clear();
+      _areaFilter = ReportAreaFilter.todas;
       _turno = 'Todos';
 
       final auth = AuthScope.read(context);
@@ -251,12 +293,41 @@ class _ReportsListPageState extends State<ReportsListPage> {
         );
       }
 
-      final resultados = await db.reportesDao.fetchReportesFiltrados(
+      // Decidir qué áreas filtrar según el tipo seleccionado
+      List<String>? areasFilter;
+      switch (_areaFilter) {
+        case ReportAreaFilter.todas:
+          areasFilter = null;
+          break;
+        case ReportAreaFilter.recepcionFileteros:
+          areasFilter = const ['Recepción', 'Fileteros', 'Apoyo Fileteros'];
+          break;
+        case ReportAreaFilter.conteoRapidoPersonas:
+        // Usa aquí el nombre EXACTO que tengas guardado en la BD
+          areasFilter = const ['Conteo rápido de personas'];
+          break;
+        case ReportAreaFilter.apoyosHoras:
+        // Se maneja aparte con la tabla ApoyosHoras
+          break;
+      }
+
+      final resultados =
+      _areaFilter == ReportAreaFilter.apoyosHoras
+      // 👉 Solo apoyos por horas (usa tabla ApoyosHoras)
+          ? await db.reportesDao.fetchApoyosHorasResumen(
+        fecha: _fecha,
+        turno: _turno == 'Todos' ? null : _turno,
+        planilleroQuery:
+        sendPlanilleroToQuery ? planilleroFilter : null,
+      )
+      // 👉 Reportes normales por áreas
+          : await db.reportesDao.fetchReportesFiltrados(
         fechaInicio: inicio,
         fechaFin: fin,
-        areas: _areas.isEmpty ? null : _areas.toList(),
+        areas: areasFilter,
         turno: _turno == 'Todos' ? null : _turno,
-        planilleroQuery: sendPlanilleroToQuery ? planilleroFilter : null,
+        planilleroQuery:
+        sendPlanilleroToQuery ? planilleroFilter : null,
       );
 
       if (!mounted) return;
@@ -264,7 +335,8 @@ class _ReportsListPageState extends State<ReportsListPage> {
       final filtered = isPlanillero
           ? resultados
           .where(
-            (r) => r.planillero.toLowerCase() ==
+            (r) =>
+        r.planillero.toLowerCase() ==
             planilleroFilter.toLowerCase(),
       )
           .toList()
@@ -520,38 +592,22 @@ class _ReportsListPageState extends State<ReportsListPage> {
                     ),
                   const SizedBox(height: 12),
 
-                  // El supervisor de saneamiento NO debe cambiar áreas manualmente
+                  // 🔹 Nuevo filtro simple por tipo de reporte / área
                   if (!(user?.isSupervisorSaneamiento ?? false)) ...[
                     _FilterTile(
                       label: 'Áreas',
-                      value: _areas.isEmpty
-                          ? 'Todas las áreas'
-                          : _areas.length == 1
-                          ? _areas.first
-                          : '${_areas.length} seleccionadas',
+                      value: _areaFilterLabel(_areaFilter),
                       icon: Icons.segment_rounded,
-                      background: _areas.isEmpty ? null : primaryColor,
-                      foreground: _areas.isEmpty ? null : Colors.white,
-                      onTap: _openAreasSheet,
+                      background: _areaFilter == ReportAreaFilter.todas
+                          ? null
+                          : primaryColor,
+                      foreground: _areaFilter == ReportAreaFilter.todas
+                          ? null
+                          : Colors.white,
+                      onTap: _pickAreaFilter,
                     ),
                   ],
-                  if (_areas.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _areas
-                          .map(
-                            (a) => Chip(
-                          label: Text(a),
-                          deleteIconColor: primaryColor,
-                          onDeleted: () =>
-                              setState(() => _areas.remove(a)),
-                        ),
-                      )
-                          .toList(),
-                    ),
-                  ],
+
                   const SizedBox(height: 20),
                   Row(
                     children: [
@@ -1135,145 +1191,6 @@ class _PlanilleroDialogState extends State<_PlanilleroDialog> {
           child: const Text('Aceptar'),
         ),
       ],
-    );
-  }
-}
-
-/// BottomSheet para multi-selección de áreas con búsqueda rápida
-class _AreasPickerSheet extends StatefulWidget {
-  final Set<String> seleccionadas;
-  final ValueChanged<Set<String>> onConfirm;
-
-  const _AreasPickerSheet({
-    required this.seleccionadas,
-    required this.onConfirm,
-  });
-
-  @override
-  State<_AreasPickerSheet> createState() => _AreasPickerSheetState();
-}
-
-class _AreasPickerSheetState extends State<_AreasPickerSheet> {
-  late Set<String> _tmp;
-  final _qCtrl = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _tmp = {...widget.seleccionadas};
-  }
-
-  @override
-  void dispose() {
-    _qCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = kAreasOrdenadas
-        .where(
-          (a) => a.toLowerCase().contains(
-        _qCtrl.text.trim().toLowerCase(),
-      ),
-    )
-        .toList();
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-          left: 16,
-          right: 16,
-          top: 12,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Selecciona áreas',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _qCtrl,
-              decoration: const InputDecoration(
-                hintText: 'Buscar área…',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.5,
-              child: ListView.separated(
-                itemCount: filtered.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  final a = filtered[i];
-                  final checked = _tmp.contains(a);
-                  return ListTile(
-                    title: Text(a),
-                    trailing: Checkbox(
-                      value: checked,
-                      onChanged: (v) {
-                        setState(() {
-                          if (v == true) {
-                            _tmp.add(a);
-                          } else {
-                            _tmp.remove(a);
-                          }
-                        });
-                      },
-                    ),
-                    onTap: () {
-                      setState(() {
-                        if (checked) {
-                          _tmp.remove(a);
-                        } else {
-                          _tmp.add(a);
-                        }
-                      });
-                    },
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancelar'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => widget.onConfirm(_tmp),
-                    icon: const Icon(Icons.check),
-                    label: const Text('Aplicar'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

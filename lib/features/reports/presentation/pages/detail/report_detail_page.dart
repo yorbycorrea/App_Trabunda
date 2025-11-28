@@ -140,6 +140,42 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   horasSaneamiento: horasSaneamiento,
                 ),
                 const SizedBox(height: 16),
+
+                // 🔹 Resumen de APOYOS POR HORAS (si existen)
+                FutureBuilder<ApoyosHorasListado>(
+                  future: db.reportesDao.listarApoyosPorReporte(widget.reporteId),
+                  builder: (context, apoyosSnap) {
+                    if (apoyosSnap.connectionState == ConnectionState.waiting) {
+                      return const SizedBox.shrink(); // no mostramos loader aquí
+                    }
+                    if (!apoyosSnap.hasData) return const SizedBox.shrink();
+
+                    final apoyos = apoyosSnap.data!;
+                    final completos = apoyos.completos;
+
+                    // Solo mostramos la tarjeta si HAY apoyos completados
+                    if (completos.isEmpty) return const SizedBox.shrink();
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: _ApoyosHorasResumenCard(
+                        completos: completos,
+                        onDescargarReporte: () {
+                          // ⚠️ Aquí luego llamas a tu servicio de PDF para Apoyos por horas.
+                          // De momento solo mostramos un mensaje para no romper nada.
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Descarga de reporte de apoyos por horas aún no está implementada.',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+
                 if (detalle.areas.isEmpty)
                   const _NoAreasCard()
                 else
@@ -147,11 +183,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         (area) => _AreaSection(
                       area: area,
                       reporte: detalle,
-                      // id del reporte en Supabase (puede ser null si aún no está sincronizado)
                       supabaseReporteId: detalle.supabaseId,
                     ),
                   ),
               ],
+
             ),
           );
         },
@@ -721,6 +757,127 @@ class _NoAreasCard extends StatelessWidget {
     );
   }
 }
+
+class _ApoyosHorasResumenCard extends StatelessWidget {
+  const _ApoyosHorasResumenCard({
+    required this.completos,
+    required this.onDescargarReporte,
+  });
+
+  final List<ApoyoHoraDetalle> completos;
+  final VoidCallback onDescargarReporte;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalTrabajadores = completos.length;
+    final uniqueAreas = completos.map((e) => e.areaApoyo).toSet().toList();
+
+    final String resumenAreas = uniqueAreas.isEmpty
+        ? 'Sin áreas registradas'
+        : (uniqueAreas.length == 1
+        ? uniqueAreas.first
+        : '${uniqueAreas.length} áreas de apoyo');
+
+    return Card(
+      elevation: 0,
+      color: Colors.green.shade50,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.green.shade700),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(
+                  Icons.check_circle,
+                  size: 18,
+                  color: Colors.green.shade700,
+                ),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'Apoyos completados',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.green),
+                  ),
+                  child: Text(
+                    '$totalTrabajadores apoyo(s)',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            Row(
+              children: [
+                const Icon(Icons.groups_2_outlined, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '$totalTrabajadores trabajador(es) registrados',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            Row(
+              children: [
+                const Icon(Icons.work_outline, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    resumenAreas,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+            const Text(
+              'Todos los apoyos de este turno ya tienen hora fin.',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onDescargarReporte,
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Descargar reporte'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.onRetry});

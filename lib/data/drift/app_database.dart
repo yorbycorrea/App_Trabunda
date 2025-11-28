@@ -828,6 +828,79 @@ class ReportesDao extends DatabaseAccessor<AppDatabase>
     return res.length;
   }
 
+  /// =====================================================
+  /// RESUMEN DE APOYOS POR HORAS PARA "VER REPORTES"
+  /// =====================================================
+  Future<List<ReporteAreaResumen>> fetchApoyosHorasResumen({
+    DateTime? fecha,
+    String? turno,
+    String? planilleroQuery,
+  }) async {
+    final sql = StringBuffer('''
+SELECT
+  r.id AS reporte_id,
+  r.id AS reporte_area_id,
+  r.fecha AS fecha,
+  r.turno AS turno,
+  r.planillero AS planillero,
+  'Apoyos por horas' AS area_nombre,
+  COUNT(a.id) AS cantidad,
+  0.0 AS kilos,
+  IFNULL(SUM(a.horas), 0) AS total_horas
+FROM apoyos_horas a
+INNER JOIN reportes r ON r.id = a.reporte_id
+''');
+
+    final where = <String>[];
+    final vars = <Variable>[];
+
+    if (fecha != null) {
+      // Solo día (ignoramos hora)
+      final soloDia = DateTime(fecha.year, fecha.month, fecha.day);
+      where.add('DATE(r.fecha) = DATE(?)');
+      vars.add(Variable.withDateTime(soloDia));
+    }
+    if (turno != null && turno.isNotEmpty) {
+      where.add('r.turno = ?');
+      vars.add(Variable.withString(turno));
+    }
+    if (planilleroQuery != null && planilleroQuery.isNotEmpty) {
+      where.add('LOWER(r.planillero) LIKE ?');
+      vars.add(Variable.withString('%${planilleroQuery.toLowerCase()}%'));
+    }
+
+    if (where.isNotEmpty) {
+      sql.write('WHERE ${where.join(' AND ')}\n');
+    }
+
+    sql.write('GROUP BY r.id ORDER BY r.fecha DESC, r.id DESC;');
+
+    final rows = await customSelect(
+      sql.toString(),
+      variables: vars,
+      readsFrom: {reportes, apoyosHoras},
+    ).get();
+
+    return rows
+        .map(
+          (row) => ReporteAreaResumen(
+        reporteId: row.read<int>('reporte_id'),
+        reporteAreaId: row.read<int>('reporte_area_id'),
+        fecha: row.read<DateTime>('fecha'),
+        turno: row.read<String>('turno'),
+        planillero: row.read<String>('planillero'),
+        areaNombre: row.read<String>('area_nombre'),
+        cantidad: row.read<int>('cantidad'),
+        kilos: row.read<double>('kilos'),
+        totalHoras: row.read<double>('total_horas'),
+      ),
+    )
+        .toList();
+  }
+
+
+
+
   Future<List<ReporteAreaResumen>> fetchReportesFiltrados({
     DateTime? fechaInicio,
     DateTime? fechaFin,
